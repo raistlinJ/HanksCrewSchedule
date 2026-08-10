@@ -1,0 +1,235 @@
+# Rallly Self-Hosted
+
+Everything you need to self-host [Rallly](https://rallly.co) — the open-source scheduling and collaboration tool.
+
+This repository provides a batteries-included Docker Compose stack with automatic HTTPS, database, file storage, and a management CLI.
+
+## Requirements
+
+- A server with at least **2 GB RAM**
+- **Docker 19.03 or newer** with **Compose v2**
+- Ports **80** and **443** available
+- A domain name pointed at the server's IP
+- An **SMTP server** for sending emails (e.g. Resend, Mailgun, Amazon SES)
+- **openssl** (for generating secrets)
+
+## Quick Start
+
+Run the installer on your server:
+
+```bash
+curl -fsSL https://get.rallly.co | bash
+```
+
+The installer will:
+- Check prerequisites (Docker, ports, etc.)
+- Download the stack to `/opt/rallly`
+- Walk you through configuration (domain, email, SMTP)
+- Generate secure secrets automatically
+- Start everything up
+
+## Manual Setup
+
+```bash
+git clone https://github.com/lukevella/rallly-selfhosted.git
+cd rallly-selfhosted
+./rallly.sh setup
+./rallly.sh start
+```
+
+The `setup` command walks you through configuration and generates secure secrets automatically. You can also copy `.env.example` to `.env` and edit it manually if you prefer.
+
+## Configuration
+
+All configuration lives in the `.env` file. See [`.env.example`](.env.example) for a fully documented template.
+
+> **Note:** Only modify `.env` for configuration. Editing other files (e.g. `docker-compose.yml`, `rallly.sh`) may cause conflicts when updating with `./rallly.sh update`.
+
+### Reverse proxy modes
+
+Rallly ships with Traefik and Let's Encrypt enabled by default. If you're running Rallly alongside other apps behind an existing reverse proxy (Caddy, Nginx, Cloudflare Tunnel, ...), set `PROXY_MODE=external` in `.env`.
+
+In external mode:
+- Traefik is not started.
+- The `web` container is published on `127.0.0.1:3000` by default — point your reverse proxy at it and handle HTTPS there.
+- Use `WEB_PORT` to change the bind (e.g. `WEB_PORT=0.0.0.0:3000` to expose on all interfaces, or `WEB_PORT=127.0.0.1:8080` to move the port).
+- `NEXT_PUBLIC_BASE_URL` is still derived from `DOMAIN`, so set `DOMAIN` to the public hostname your proxy terminates TLS for.
+
+### Running locally
+
+To try Rallly out on your own machine without a domain or TLS, choose **local** at the reverse proxy prompt during `./rallly.sh setup`. This is external mode with no proxy in front, served over plain http:
+
+```dotenv
+PROXY_MODE=external
+WEB_PORT=127.0.0.1:3000
+DOMAIN=localhost:3000
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+```
+
+`NEXT_PUBLIC_BASE_URL` is set explicitly here because it otherwise defaults to `https://$DOMAIN`, and nothing is terminating TLS on localhost. The bundled Postgres and Garage containers still start as usual.
+
+Email is the one thing that won't work out of the box — magic links are how you sign in, so either point `SMTP_*` at a real server (or a local catcher like Mailpit) or read the link out of `./rallly.sh logs web`.
+
+### Required
+
+| Variable | Description |
+|---|---|
+| `DOMAIN` | Domain where Rallly will be accessible (e.g. `rallly.example.com`) |
+| `ACME_EMAIL` | Email for Let's Encrypt SSL certificate notifications. Only required when `PROXY_MODE=bundled` — external and local modes don't start Traefik |
+| `SECRET_PASSWORD` | Random secret key for encrypting sessions (min 32 chars) |
+| `SUPPORT_EMAIL` | Email shown to users for support |
+| `SMTP_HOST` | SMTP server host |
+| `SMTP_PORT` | SMTP server port (default: `587`) |
+| `SMTP_USER` | SMTP username |
+| `SMTP_PWD` | SMTP password |
+
+### Optional
+
+| Variable | Description |
+|---|---|
+| `NOREPLY_EMAIL` | Sender address for system emails (defaults to `SUPPORT_EMAIL`) |
+| `SMTP_SECURE` | `true` for implicit TLS (port 465), `false` for STARTTLS (587, default) or plain (25, 2525) |
+| `ALLOWED_EMAILS` | Comma-separated allow list, supports wildcards (e.g. `*@example.com`) |
+| `INITIAL_ADMIN_EMAIL` | Email for the initial admin account |
+| `OIDC_NAME` | Display name for OIDC provider |
+| `OIDC_DISCOVERY_URL` | OIDC discovery endpoint URL |
+| `OIDC_CLIENT_ID` | OIDC client ID |
+| `OIDC_CLIENT_SECRET` | OIDC client secret |
+| `RALLLY_IMAGE` | Override the Docker image (default: `lukevella/rallly:4`) |
+| `PROXY_MODE` | `bundled` (default) to run Traefik, or `external` to bring your own reverse proxy |
+| `WEB_PORT` | When `PROXY_MODE=external`, host binding for the web container (default: `127.0.0.1:3000`) |
+| `NEXT_PUBLIC_BASE_URL` | Public URL Rallly builds links against (default: `https://$DOMAIN`). Set explicitly only to change the scheme — e.g. `http://localhost:3000` when running locally |
+| `CA_CERT_FILE` | Path on the host to a custom root CA certificate (PEM). Only needed if your network intercepts TLS with a corporate root CA. Mounted into the web container and trusted in addition to Node's built-in roots |
+
+### Auto-configured
+
+These are generated by the installer and don't normally need changes:
+
+| Variable | Description |
+|---|---|
+| `POSTGRES_PASSWORD` | Database password |
+| `POSTGRES_VERSION` | Bundled Postgres major version — pinned automatically on first start (18 for fresh installs, the existing volume's version otherwise). Must match the version your data volume was initialized with. Upgrade with `./rallly.sh upgrade-db` |
+| `POSTGRES_VOLUME` | Which data volume the bundled Postgres mounts (default: `db-data`). Set by `./rallly.sh upgrade-db` when it switches to a freshly restored volume |
+| `S3_ACCESS_KEY_ID` | Object storage access key |
+| `S3_SECRET_ACCESS_KEY` | Object storage secret key |
+
+## Management
+
+Use `rallly.sh` to manage your instance:
+
+```bash
+./rallly.sh start          # Start all services
+./rallly.sh stop           # Stop all services
+./rallly.sh restart        # Restart all services
+./rallly.sh update         # Pull latest images and restart
+./rallly.sh logs           # Stream all logs
+./rallly.sh logs web       # Stream logs for a specific service
+./rallly.sh status         # Show service status
+./rallly.sh backup         # Back up the database to ./backups/
+./rallly.sh upgrade-db     # Upgrade the bundled PostgreSQL to a new major
+```
+
+## Updating
+
+```bash
+./rallly.sh update
+```
+
+This pulls the latest Docker images and recreates containers. Your data and configuration are preserved.
+
+### Upgrading PostgreSQL
+
+Existing installs stay pinned to the PostgreSQL major version their data volume was created with — updates never change it. When your pinned version approaches end of life, `start` and `update` print a warning. To move to the current version (18):
+
+```bash
+./rallly.sh upgrade-db
+```
+
+This stops Rallly, dumps the database into `./backups/`, restores it into a fresh PostgreSQL 18 volume, verifies the restore, and switches over. Expect downtime for the duration (a few minutes for typical databases).
+
+The old data volume and the dump are kept, so you can roll back by restoring the previous values of `POSTGRES_VERSION`, `POSTGRES_DATA_MOUNT`, and `POSTGRES_VOLUME` in `.env` (the command prints them when it finishes) and running `./rallly.sh stop && ./rallly.sh start`. Note that rolling back restores the database as it was at the moment of the upgrade — anything created afterward only exists in the new volume, so take a fresh `./rallly.sh backup` first. Once you're confident everything works, reclaim disk space by removing the old volume — the exact `docker volume rm` command is printed at the end of the upgrade.
+
+If you use an external database (`DATABASE_URL` set in `.env`), `upgrade-db` does not apply — upgrade with your database provider's tools.
+
+## Backup & Restore
+
+### Backup
+
+```bash
+./rallly.sh backup
+```
+
+Database backups are saved to the `./backups/` directory as timestamped `.sql.gz` files.
+
+### Restore
+
+```bash
+gunzip < backups/rallly_20240101_120000.sql.gz | docker compose exec -T db psql -U postgres rallly
+```
+
+## Architecture
+
+```
+                  ┌──────────────┐
+HTTP/HTTPS ──────►│   Traefik    │ (ports 80/443, auto HTTPS)
+                  └──────┬───────┘
+                         │
+                         ▼
+                   ┌──────────┐
+                   │  Rallly  │
+                   │  (app)   │
+                   └────┬─────┘
+                        │
+                  ┌─────┴─────┐
+                  │           │
+                  ▼           ▼
+               ┌──────┐   ┌──────┐
+               │  DB  │   │Garage│
+               │ (PG) │   │ (S3) │
+               └──────┘   └──────┘
+```
+
+- **Traefik** — Reverse proxy with automatic HTTPS via Let's Encrypt
+- **Rallly** — The web application (sessions are stored in Postgres; rate limiting is in-memory)
+- **PostgreSQL** — Database (18 on fresh installs; existing installs stay pinned to their current major via `POSTGRES_VERSION`)
+- **Garage** — S3-compatible object storage for file uploads (internal only, proxied through the app)
+
+Only Traefik binds to host ports. All other services are isolated on the Docker network.
+
+## Troubleshooting
+
+### SSL certificate not working
+
+Let's Encrypt needs a few moments to provision certificates on first start. Make sure:
+- Your domain's DNS A record points to the server's IP
+- Ports 80 and 443 are open in your firewall
+- Check Traefik logs: `./rallly.sh logs traefik`
+
+### Port conflict on 80 or 443
+
+Another service (nginx, apache, etc.) is using those ports. Stop the conflicting service or update its configuration.
+
+### Containers keep restarting
+
+Check the logs for the failing service:
+```bash
+./rallly.sh logs web
+./rallly.sh logs db
+```
+
+Common causes:
+- Missing or invalid `.env` configuration
+- Database not ready yet (usually resolves after a few restarts)
+
+### Database connection errors
+
+The database takes a few seconds to initialize. Rallly will retry automatically. If it persists:
+```bash
+./rallly.sh logs db
+```
+
+## Links
+
+- [Rallly Website](https://rallly.co)
+- [Source Code](https://github.com/lukevella/rallly)
+- [Documentation](https://support.rallly.co/self-hosting)

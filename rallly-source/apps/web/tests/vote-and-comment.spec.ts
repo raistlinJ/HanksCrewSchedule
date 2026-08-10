@@ -1,0 +1,77 @@
+import type { Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { captureOne } from "@rallly/test-helpers";
+import { load } from "cheerio";
+import { NewPollPage } from "./new-poll-page";
+import type { PollPage } from "./poll-page";
+
+test.describe(() => {
+  let page: Page;
+  let pollPage: PollPage;
+  let editSubmissionUrl: string;
+  let pollId: string;
+
+  test.beforeAll(async ({ browser }) => {
+    page = await browser.newPage();
+
+    const newPollPage = new NewPollPage(page);
+    await newPollPage.goto();
+    const dialog = await newPollPage.create({
+      name: "Monthly Meetup",
+      enableComments: true,
+    });
+    pollPage = await dialog.goToPollPage();
+
+    // Extract the poll ID from the URL
+    const url = page.url();
+    const match = url.match(/\/poll\/([a-zA-Z0-9]+)/);
+    pollId = match ? match[1] : "";
+    expect(pollId).not.toBe("");
+  });
+
+  test("should be able to comment", async () => {
+    await pollPage.addComment();
+    const comment = page.locator("data-testid=comment");
+    await expect(comment.locator("text='This is a comment!'")).toBeVisible();
+    await expect(comment.locator("text=You")).toBeVisible();
+
+    // The comments sheet is modal; close it so later tests can reach the page.
+    const sheet = page.getByRole("dialog", { name: "Comments" });
+    await sheet.getByRole("button", { name: "Close" }).click();
+    await expect(sheet).toBeHidden();
+  });
+
+  test("copy participant link", async () => {
+    const inviteLink = await pollPage.copyInviteLink();
+    await pollPage.closeDialog();
+    expect(inviteLink).toMatch(/\/invite\/[a-zA-Z0-9]+/);
+  });
+
+  test("should be able to vote with an email", async () => {
+    const invitePage = await pollPage.gotoInvitePage();
+
+    await invitePage.addParticipant("Anne", "test@example.com");
+
+    const { email } = await captureOne("test@example.com");
+
+    await expect(page.locator("text='Anne'")).toBeVisible();
+
+    expect(email.Subject).toBe("Thanks for responding to Monthly Meetup");
+
+    const $ = load(email.HTML);
+    const href = $("#editSubmissionUrl").attr("href");
+
+    if (!href) {
+      throw new Error("Could not get edit submission link from email");
+    }
+
+    editSubmissionUrl = href;
+  });
+
+  test("should be able to edit submission", async ({ page: newPage }) => {
+    await newPage.goto(editSubmissionUrl);
+    await expect(newPage.getByTestId("participant-menu")).toBeVisible({
+      timeout: 10000,
+    });
+  });
+});

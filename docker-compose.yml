@@ -1,0 +1,142 @@
+services:
+  # ── Reverse Proxy (bundled) ───────────────────────────────────
+  # Only started when the `bundled-proxy` profile is active.
+  # rallly.sh enables this profile automatically unless PROXY_MODE=external
+  # is set in .env, in which case Traefik is skipped and `web` is published
+  # on a host port so an external reverse proxy can route to it.
+  traefik:
+    image: traefik:v3
+    restart: always
+    profiles: ["bundled-proxy"]
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
+    environment:
+      - DOCKER_API_VERSION=1.40
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - acme-data:/acme
+
+  # ── Application ───────────────────────────────────────────────
+  web:
+    image: ${RALLLY_IMAGE:-lukevella/rallly:4}
+    restart: always
+    env_file:
+      - .env
+    environment:
+      # Defaults to https on the configured domain. Override in .env for a
+      # local instance served over plain http (e.g. http://localhost:3000).
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-https://${DOMAIN}}
+      # Database — defaults to the bundled Postgres service.
+      # Override DATABASE_URL in .env to point at an external provider
+      # (RDS, Supabase, Neon, ...). Setting it disables the bundled db.
+      - DATABASE_URL=${DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@db:5432/rallly}
+      # Object storage — defaults to the bundled Garage service.
+      # Override S3_ENDPOINT / S3_BUCKET_NAME / S3_REGION in .env to point
+      # at an external provider (AWS S3, Cloudflare R2, MinIO, ...).
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://garage:3900}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-rallly}
+      - S3_REGION=${S3_REGION:-garage}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
+    volumes:
+      # Custom root CA for networks that intercept TLS (corporate proxies).
+      # CA_CERT_FILE in .env points at a PEM file on the host and is mounted
+      # here; rallly.sh sets NODE_EXTRA_CA_CERTS to this path so Node trusts
+      # it in addition to its built-in roots. Unset by default, where the
+      # source resolves to /dev/null — a mount that always succeeds and reads
+      # as an empty file, so Node keeps using its built-in roots and nothing
+      # changes. NODE_EXTRA_CA_CERTS is deliberately not set here: it arrives
+      # via env_file, so a value the user set themselves is left alone.
+      # create_host_path is off so a mistyped path fails the start with a
+      # clear error. The default (long or short syntax) is to create the
+      # missing path as a directory, which mounts fine and starts fine —
+      # leaving Node with no certificate and the original TLS errors intact.
+      - type: bind
+        source: ${CA_CERT_FILE:-/dev/null}
+        target: /etc/ssl/certs/rallly-custom-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
+
+  # ── Database (bundled) ────────────────────────────────────────
+  # Only started when the `bundled-db` profile is active.
+  # rallly.sh enables this profile automatically unless DATABASE_URL
+  # is set in .env to an external Postgres endpoint.
+  # POSTGRES_VERSION and POSTGRES_DATA_MOUNT are managed by rallly.sh:
+  # pinned in .env on first start (existing volumes keep their current
+  # major, fresh installs get 18). The defaults below match the original
+  # postgres 14 deployment so that older versions of rallly.sh — which
+  # don't set these variables — keep working during an update. They are
+  # a compatibility fallback, not a version choice; do not bump them.
+  db:
+    image: postgres:${POSTGRES_VERSION:-14}-alpine
+    restart: always
+    profiles: ["bundled-db"]
+    volumes:
+      # postgres images ≥18 moved PGDATA and expect the volume mounted at
+      # /var/lib/postgresql instead of /var/lib/postgresql/data.
+      # POSTGRES_VOLUME selects which data volume is mounted — `rallly.sh
+      # upgrade-db` restores into a fresh volume and switches this over,
+      # leaving the previous volume in place for rollback.
+      - ${POSTGRES_VOLUME:-db-data}:${POSTGRES_DATA_MOUNT:-/var/lib/postgresql/data}
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=rallly
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Object Storage (bundled) ─────────────────────────────────
+  # Only started when the `bundled-storage` profile is active.
+  # rallly.sh enables this profile automatically unless S3_ENDPOINT
+  # is set in .env to a non-Garage endpoint.
+  garage:
+    image: dxflrs/garage:v2.3.0
+    restart: always
+    profiles: ["bundled-storage"]
+    volumes:
+      - ./config/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    environment:
+      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
+      - GARAGE_DEFAULT_ACCESS_KEY=${S3_ACCESS_KEY_ID}
+      - GARAGE_DEFAULT_SECRET_KEY=${S3_SECRET_ACCESS_KEY}
+      - GARAGE_DEFAULT_BUCKET=rallly
+    command: /garage server --single-node --default-bucket
+    healthcheck:
+      test: ["CMD", "/garage", "stats", "-a"]
+      interval: 1h
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 5s
+
+volumes:
+  db-data:
+  # Holds the PostgreSQL 18 cluster after `rallly.sh upgrade-db` migrates an
+  # install from an older major. Unused (and never created) otherwise.
+  db-data-pg18:
+  garage-meta:
+  garage-data:
+  acme-data:

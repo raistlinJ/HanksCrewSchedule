@@ -1,0 +1,416 @@
+import "server-only";
+
+import type { PollStatus, Prisma } from "@rallly/database";
+import { prisma } from "@rallly/database";
+import { effectiveSpaceMemberWhere } from "@/features/space/member/utils";
+import type { AuthorizedSpaceId } from "@/features/space/types";
+
+export async function getPollResults({
+  pollId,
+  spaceId,
+}: {
+  pollId: string;
+  spaceId: AuthorizedSpaceId;
+}) {
+  // Run poll query and vote aggregation in parallel
+  const [poll, voteCounts] = await Promise.all([
+    prisma.poll.findFirst({
+      where: {
+        id: pollId,
+        spaceId,
+        deleted: false,
+      },
+      select: {
+        id: true,
+        status: true,
+        options: {
+          select: {
+            id: true,
+            startTime: true,
+            duration: true,
+          },
+          orderBy: {
+            startTime: "asc",
+          },
+        },
+        _count: {
+          select: {
+            participants: {
+              where: { deleted: false },
+            },
+          },
+        },
+      },
+    }),
+    prisma.vote.groupBy({
+      by: ["optionId", "type"],
+      where: {
+        pollId,
+        participant: { deleted: false },
+      },
+      _count: true,
+    }),
+  ]);
+
+  if (!poll) {
+    return null;
+  }
+
+  // Build vote counts map from groupBy results
+  const votesByOption = new Map<
+    string,
+    Array<{ type: string; count: number }>
+  >();
+
+  for (const row of voteCounts) {
+    let votes = votesByOption.get(row.optionId);
+    if (!votes) {
+      votes = [];
+      votesByOption.set(row.optionId, votes);
+    }
+    votes.push({ type: row.type, count: row._count });
+  }
+
+  // Helper to get count for a specific vote type
+  const getCount = (
+    votes: Array<{ type: string; count: number }>,
+    type: string,
+  ) => votes.find((v) => v.type === type)?.count ?? 0;
+
+  // Calculate scores for each option
+  // Ranking: total availability (yes + ifNeedBe) is primary, yes votes as tiebreaker
+  // Score formula: (yes + ifNeedBe) * 1000 + yes
+  const optionResults = poll.options.map((option) => {
+    const votes = votesByOption.get(option.id) ?? [];
+    const yesCount = getCount(votes, "yes");
+    const ifNeedBeCount = getCount(votes, "ifNeedBe");
+    const score = (yesCount + ifNeedBeCount) * 1000 + yesCount;
+
+    return {
+      id: option.id,
+      startTime: option.startTime,
+      duration: option.duration,
+      votes,
+      score,
+    };
+  });
+
+  // Find the high score
+  const highScore = Math.max(...optionResults.map((o) => o.score), 0);
+
+  // Add isTopChoice flag
+  const options = optionResults.map((option) => ({
+    ...option,
+    isTopChoice: option.score === highScore && option.score > 0,
+  }));
+
+  return {
+    pollId: poll.id,
+    status: poll.status,
+    participantCount: poll._count.participants,
+    options,
+    highScore,
+  };
+}
+
+export async function getPollParticipants({
+  pollId,
+  spaceId,
+}: {
+  pollId: string;
+  spaceId: AuthorizedSpaceId;
+}) {
+  const poll = await prisma.poll.findFirst({
+    where: {
+      id: pollId,
+      spaceId,
+      deleted: false,
+    },
+    select: {
+      id: true,
+      participants: {
+        where: { deleted: false },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+    },
+  });
+
+  if (!poll) {
+    return null;
+  }
+
+  return {
+    pollId: poll.id,
+    participants: poll.participants,
+  };
+}
+
+export async function listPolls({
+  spaceId,
+  status,
+  cursor,
+  limit,
+}: {
+  spaceId: AuthorizedSpaceId;
+  status?: PollStatus;
+  cursor?: string;
+  limit: number;
+}) {
+  // Fetch one extra row to determine whether there is a next page
+  const polls = await prisma.poll.findMany({
+    where: {
+      spaceId,
+      deleted: false,
+      ...(status && { status }),
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      location: true,
+      timeZone: true,
+      status: true,
+      createdAt: true,
+      user: {
+        select: {
+          name: true,
+          image: true,
+        },
+      },
+      options: {
+        select: {
+          id: true,
+          startTime: true,
+          duration: true,
+        },
+        orderBy: {
+          startTime: "asc",
+        },
+      },
+      _count: {
+        select: {
+          participants: {
+            where: { deleted: false },
+          },
+        },
+      },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
+    ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+  });
+
+  const hasMore = polls.length > limit;
+  const page = hasMore ? polls.slice(0, limit) : polls;
+
+  return {
+    polls: page.map(({ _count, ...poll }) => ({
+      ...poll,
+      participantCount: _count.participants,
+    })),
+    nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+  };
+}
+
+type PollFilters = {
+  status?: PollStatus;
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  member?: string;
+  spaceId: string;
+};
+
+export const getPolls = async ({
+  status,
+  q,
+  member,
+  page = 1,
+  pageSize = 20,
+  spaceId,
+}: PollFilters) => {
+  // Build the where clause based on filters
+  const where: Prisma.PollWhereInput = {
+    spaceId,
+    deletedAt: null,
+    ...(status && { status }),
+    ...(q && { title: { contains: q, mode: "insensitive" } }),
+    ...(member && { userId: member }),
+  };
+
+  // Get total count and paginated polls in a transaction
+  const [totalCount, polls] = await prisma.$transaction([
+    prisma.poll.count({ where }),
+    prisma.poll.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        closedReason: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
+        participants: {
+          where: {
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            name: true,
+            user: {
+              select: {
+                image: true,
+              },
+            },
+          },
+        },
+        votes: {
+          select: {
+            type: true,
+          },
+        },
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+  ]);
+
+  const transformedPolls = polls.map((poll) => ({
+    id: poll.id,
+    title: poll.title,
+    status: poll.status,
+    closedReason: poll.closedReason,
+    createdAt: poll.createdAt,
+    updatedAt: poll.updatedAt,
+    user: poll.user
+      ? {
+          id: poll.user.id,
+          name: poll.user.name,
+          image: poll.user.image,
+        }
+      : null,
+    participants: poll.participants.map((participant) => ({
+      id: participant.id,
+      name: participant.name,
+      image: participant.user?.image ?? undefined,
+    })),
+    voteCounts: {
+      yes: poll.votes.filter((v) => v.type === "yes").length,
+      no: poll.votes.filter((v) => v.type === "no").length,
+      ifNeedBe: poll.votes.filter((v) => v.type === "ifNeedBe").length,
+    },
+  }));
+
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const hasNextPage = page < totalPages;
+
+  return {
+    polls: transformedPolls,
+    total: totalCount,
+    totalPages,
+    hasNextPage,
+    currentPage: page,
+  };
+};
+
+export const getPollStatusCounts = async ({
+  spaceId,
+}: {
+  spaceId: AuthorizedSpaceId;
+}) => {
+  const res = await prisma.poll.groupBy({
+    by: ["status"],
+    where: {
+      spaceId,
+      deletedAt: null,
+    },
+    _count: {
+      status: true,
+    },
+  });
+
+  const counts: Record<PollStatus, number> = {
+    open: 0,
+    closed: 0,
+    scheduled: 0,
+    canceled: 0,
+  };
+
+  for (const { status, _count } of res) {
+    counts[status] = _count.status;
+  }
+
+  return counts;
+};
+
+export async function canUserManagePoll(
+  user: {
+    id: string;
+    isGuest: boolean;
+  },
+  poll: {
+    userId?: string | null;
+    spaceId?: string | null;
+    deleted?: boolean;
+  },
+) {
+  if (poll.deleted) {
+    // A deleted poll cannot be managed by anyone
+    return false;
+  }
+
+  if (poll.userId && poll.userId === user.id) {
+    // user is owner
+    return true;
+  }
+
+  if (poll.spaceId) {
+    const space = await prisma.spaceMember.findFirst({
+      where: {
+        spaceId: poll.spaceId,
+        ...effectiveSpaceMemberWhere({ userId: user.id }),
+      },
+    });
+
+    if (space) {
+      // user a member of this space
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export const hasPollAdminAccess = async (pollId: string, userId: string) => {
+  const poll = await prisma.poll.findFirst({
+    where: {
+      id: pollId,
+      deleted: false,
+      OR: [
+        { userId: userId },
+        { space: { members: { some: effectiveSpaceMemberWhere({ userId }) } } },
+      ],
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return poll !== null;
+};

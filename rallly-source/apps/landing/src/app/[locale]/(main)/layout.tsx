@@ -1,0 +1,143 @@
+import languages from "@rallly/languages";
+import { buttonVariants } from "@rallly/ui";
+import { Button } from "@rallly/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@rallly/ui/dropdown-menu";
+import { Icon } from "@rallly/ui/icon";
+import { MenuIcon } from "lucide-react";
+import type { Viewport } from "next";
+import { cacheLife } from "next/cache";
+import Image from "next/image";
+
+import { Trans } from "react-i18next/TransWithoutContext";
+
+import { LoginButton } from "@/components/login-button";
+import { SignUpButton } from "@/components/sign-up-button";
+import { LinkBase } from "@/i18n/client/link";
+import { getTranslation } from "@/i18n/server";
+import { linkToApp } from "@/lib/linkToApp";
+import { Footer } from "./footer";
+import { NavLink } from "./nav-link";
+
+export async function generateStaticParams() {
+  return Object.keys(languages).map((locale) => ({ locale }));
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default async function Root(props: {
+  children: React.ReactNode;
+  params: Promise<{ locale: string }>;
+}) {
+  "use cache";
+  cacheLife("max");
+  const { children, params } = props;
+  const { locale } = await params;
+
+  const { t } = await getTranslation(locale);
+  return (
+    <div className="relative z-10 mx-auto flex min-h-full w-full max-w-7xl flex-col space-y-8 p-4 sm:p-8">
+      <header className="flex w-full items-center">
+        <div className="flex grow items-center gap-x-12">
+          <LinkBase
+            className="relative inline-block h-[30px] w-[130px] rounded-sm"
+            href="/"
+          >
+            <Image
+              src="/logo.svg"
+              fill
+              alt="rallly.co"
+              className="object-contain"
+            />
+          </LinkBase>
+          <nav className="hidden items-center gap-2 lg:flex">
+            <NavLink href="https://support.rallly.co/workflow/create">
+              <Trans t={t} i18nKey="howItWorks" defaults="How it Works" />
+            </NavLink>
+            <NavLink href="/pricing">
+              <Trans t={t} i18nKey="pricing" />
+            </NavLink>
+            <NavLink href="/blog">
+              <Trans t={t} i18nKey="blog" />
+            </NavLink>
+            <NavLink href="https://support.rallly.co">
+              <Trans t={t} i18nKey="support" />
+            </NavLink>
+          </nav>
+        </div>
+        <div className="flex items-center gap-4 sm:gap-8">
+          <div className="hidden items-center gap-2 sm:flex">
+            <LoginButton />
+            <SignUpButton />
+          </div>
+          <div className="flex items-center justify-center lg:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button size="sm" variant="ghost" />}
+              >
+                <Icon>
+                  <MenuIcon />
+                </Icon>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-48" align="end" sideOffset={16}>
+                <DropdownMenuItem
+                  render={
+                    <LinkBase href="https://support.rallly.co/workflow/create" />
+                  }
+                >
+                  <Trans t={t} i18nKey="howItWorks" defaults="How it Works" />
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<LinkBase href="/pricing" />}>
+                  <Trans t={t} i18nKey="pricing" defaults="Pricing" />
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<LinkBase href="/blog" />}>
+                  <Trans t={t} i18nKey="blog" />
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  render={<LinkBase href="https://support.rallly.co" />}
+                >
+                  <Trans t={t} i18nKey="support" />
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="space-y-2">
+                  <LinkBase
+                    href={linkToApp("/login")}
+                    className={buttonVariants({
+                      variant: "default",
+                      className: "w-full",
+                    })}
+                  >
+                    <Trans t={t} i18nKey="login" defaults="Login" />
+                  </LinkBase>
+                  <LinkBase
+                    href={linkToApp("/login")}
+                    className={buttonVariants({
+                      variant: "primary",
+                      className: "w-full",
+                    })}
+                  >
+                    <Trans t={t} i18nKey="signUp" defaults="Sign up" />
+                  </LinkBase>
+                </DropdownMenuLabel>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </header>
+      <section className="relative grow">{children}</section>
+      <hr className="border-transparent" />
+      <footer>
+        <Footer />
+      </footer>
+    </div>
+  );
+}

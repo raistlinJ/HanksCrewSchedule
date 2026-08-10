@@ -1,0 +1,112 @@
+import { cn } from "@rallly/ui";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  useComboboxAnchor,
+} from "@rallly/ui/combobox";
+import { InputGroupAddon } from "@rallly/ui/input-group";
+import { GlobeIcon } from "lucide-react";
+import React from "react";
+import {
+  curatedTimezoneIds,
+  getAllTimezoneIds,
+  getCityFromTimezoneId,
+} from "@/components/time-zone-picker/timezone-data";
+import { useTranslation } from "@/i18n/client";
+import { Time } from "@/lib/datetime/time";
+
+const allIds = getAllTimezoneIds().sort((a, b) =>
+  getCityFromTimezoneId(a).localeCompare(getCityFromTimezoneId(b)),
+);
+
+const curatedIds = allIds.filter((id) => curatedTimezoneIds.has(id));
+
+function filterTimezone(id: string, query: string): boolean {
+  if (!query) return true;
+  return getCityFromTimezoneId(id).toLowerCase().includes(query.toLowerCase());
+}
+
+export function TimeZoneSelect({
+  id,
+  value,
+  onValueChange,
+  className,
+  disabled,
+  ...ariaProps
+}: {
+  id?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  className?: string;
+  disabled?: boolean;
+  "aria-labelledby"?: string;
+  "aria-describedby"?: string;
+}) {
+  const { t } = useTranslation();
+
+  const anchorRef = useComboboxAnchor();
+
+  const [isSearching, setIsSearching] = React.useState(false);
+
+  const now = new Date();
+
+  return (
+    <Combobox
+      items={isSearching ? allIds : curatedIds}
+      value={value ?? null}
+      onValueChange={(id) => {
+        if (id) {
+          onValueChange?.(id);
+        }
+      }}
+      onInputValueChange={(inputValue, { reason }) => {
+        if (reason === "input-change") {
+          setIsSearching(inputValue.trim().length > 0);
+        } else {
+          setIsSearching(false);
+        }
+      }}
+      itemToStringLabel={getCityFromTimezoneId}
+      filter={filterTimezone}
+      autoHighlight={true}
+    >
+      <div ref={anchorRef} className={cn("min-w-64", className)}>
+        <ComboboxInput
+          id={id}
+          disabled={disabled}
+          placeholder={t("timezoneInputPlaceholder", {
+            defaultValue: "Search time zone…",
+          })}
+          {...ariaProps}
+        >
+          <InputGroupAddon>
+            <GlobeIcon />
+          </InputGroupAddon>
+        </ComboboxInput>
+      </div>
+      <ComboboxContent align="end" anchor={anchorRef.current}>
+        <ComboboxEmpty>
+          {t("timeZoneSelect__noOption", {
+            defaultValue: "No option found",
+          })}
+        </ComboboxEmpty>
+        <ComboboxList>
+          {(entry, index) => (
+            <ComboboxItem key={entry} value={entry} index={index}>
+              <span className="min-w-0 flex-1 truncate">
+                {getCityFromTimezoneId(entry)}
+              </span>
+              <span className="rounded-full px-1 py-0.5 text-center text-muted-foreground text-xs tabular-nums">
+                <Time value={now} preset="time" timeZone={entry} />
+              </span>
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
