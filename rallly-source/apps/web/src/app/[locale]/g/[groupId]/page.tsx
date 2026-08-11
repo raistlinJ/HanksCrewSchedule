@@ -43,6 +43,18 @@ export default async function PublicPollGroupPage({
     return notFound();
   }
 
+  // Sort polls according to the pollOrder array from the database
+  if (group.pollOrder && group.pollOrder.length > 0) {
+    group.polls.sort((a, b) => {
+      const indexA = group.pollOrder.indexOf(a.id);
+      const indexB = group.pollOrder.indexOf(b.id);
+      if (indexA === -1 && indexB === -1) return 0;
+      if (indexA === -1) return 1; // Unordered items go to the end
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
+  }
+
   const { t } = await getTranslation(locale);
 
   return (
