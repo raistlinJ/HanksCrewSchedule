@@ -8,6 +8,7 @@ if [ "$MAINTENANCE_MODE" = "true" ]; then
   # The database may be unreachable during maintenance
   echo "MAINTENANCE_MODE is enabled - skipping database migration"
 else
+  npx prisma migrate resolve --rolled-back 20260811115500_add_poll_order --config=./prisma.config.ts || true
   npx prisma migrate deploy --config=./prisma.config.ts
 fi
 node apps/web/server.js
