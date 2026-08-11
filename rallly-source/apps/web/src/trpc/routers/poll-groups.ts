@@ -181,6 +181,23 @@ export const pollGroups = router({
       return { success: true };
     }),
 
+  reopen: spaceProcedure
+    .input(z.object({ groupId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.poll.updateMany({
+        where: {
+          pollGroupId: input.groupId,
+          spaceId: ctx.space.id,
+          status: "closed",
+        },
+        data: {
+          status: "open",
+          closedReason: null,
+        },
+      });
+      return { success: true };
+    }),
+
   getPublicGroup: publicProcedure
     .input(
       z.object({

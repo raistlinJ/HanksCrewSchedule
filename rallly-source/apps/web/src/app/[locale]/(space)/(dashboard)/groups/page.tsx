@@ -128,6 +128,7 @@ export default function PollGroupsDashboardPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
   
   const utils = trpc.useUtils();
 
@@ -188,6 +189,17 @@ export default function PollGroupsDashboardPage() {
     },
     onError: () => {
       setClosingId(null);
+    }
+  });
+
+  const reopenGroupMutation = trpc.pollGroups.reopen.useMutation({
+    onSuccess: () => {
+      groupsQuery.refetch();
+      utils.polls.invalidate();
+      setReopeningId(null);
+    },
+    onError: () => {
+      setReopeningId(null);
     }
   });
 
@@ -348,7 +360,9 @@ export default function PollGroupsDashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {groupsQuery.data?.map((group) => (
+          {groupsQuery.data?.map((group) => {
+            const isGroupClosed = group.polls.length > 0 && group.polls.every((p) => p.status === "closed");
+            return (
             <div key={group.id} className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex items-start justify-between">
@@ -382,20 +396,37 @@ export default function PollGroupsDashboardPage() {
                     >
                       {duplicatingId === group.id ? "⏳..." : "📄 Duplicate"}
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={closingId === group.id}
-                      onClick={() => {
-                        if (confirm("Are you sure you want to close all open polls in this group?")) {
-                          setClosingId(group.id);
-                          closeGroupMutation.mutate({ groupId: group.id });
-                        }
-                      }}
-                      className="h-8 px-2.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      {closingId === group.id ? "⏳..." : "🛑 Close"}
-                    </Button>
+                    {isGroupClosed ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={reopeningId === group.id}
+                        onClick={() => {
+                          if (confirm("Are you sure you want to reopen all polls in this group?")) {
+                            setReopeningId(group.id);
+                            reopenGroupMutation.mutate({ groupId: group.id });
+                          }
+                        }}
+                        className="h-8 px-2.5 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
+                      >
+                        {reopeningId === group.id ? "⏳..." : "🟢 Re-open"}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={closingId === group.id}
+                        onClick={() => {
+                          if (confirm("Are you sure you want to close all open polls in this group?")) {
+                            setClosingId(group.id);
+                            closeGroupMutation.mutate({ groupId: group.id });
+                          }
+                        }}
+                        className="h-8 px-2.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        {closingId === group.id ? "⏳..." : "🛑 Close"}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -434,7 +465,8 @@ export default function PollGroupsDashboardPage() {
                 </a>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
