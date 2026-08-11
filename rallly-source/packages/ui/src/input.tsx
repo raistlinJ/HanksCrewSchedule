@@ -17,7 +17,7 @@ function Input({
         "aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
         large
           ? "h-12 rounded-lg px-3 text-base"
-          : "h-9 rounded-lg px-2.5 py-1 text-sm",
+          : "h-11 md:h-9 rounded-lg px-2.5 py-1 text-base md:text-sm",
         className,
       )}
       {...props}
