@@ -327,7 +327,7 @@ export default function PollGroupsDashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold">Poll Groups</h1>
           <p className="text-muted-foreground mt-1">
@@ -335,7 +335,7 @@ export default function PollGroupsDashboardPage() {
           </p>
         </div>
 
-        <div className="flex-1 max-w-sm mx-4">
+        <div className="w-full md:flex-1 md:max-w-sm md:mx-4">
           <input
             type="text"
             placeholder="Filter groups and polls..."
@@ -454,14 +454,14 @@ export default function PollGroupsDashboardPage() {
                           </div>
                         )}
                         <div>
-                          <div className="flex items-start justify-between">
+                          <div className="flex flex-col 2xl:flex-row 2xl:items-start justify-between gap-4">
                             <div>
                               <h2 className="text-xl font-bold">{group.title}</h2>
                               {group.description && (
                                 <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
                               )}
                             </div>
-                            <div className="flex items-center space-x-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                                 {group.polls.length} Polls
                               </span>
