@@ -1,6 +1,6 @@
-# Rallly Kubernetes Manifests
+# HanksCrewSchedule Kubernetes Manifests
 
-This directory contains base Kubernetes manifests to self-host Rallly. It separates configuration (ConfigMaps) from sensitive data (Secrets) and uses a StatefulSet for the PostgreSQL database.
+This directory contains base Kubernetes manifests to self-host HanksCrewSchedule. It separates configuration (ConfigMaps) from sensitive data (Secrets) and uses a StatefulSet for the PostgreSQL database.
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ This directory contains base Kubernetes manifests to self-host Rallly. It separa
    - **Critical:** Ensure the password in `DATABASE_URL` matches `POSTGRES_PASSWORD`. Both must use the same value.
    - **Format:** The `DATABASE_URL` format should look like this: `postgres://<user>:<password>@<postgres-service-name>:5432/<db-name>`.
 
-2. **Config (`rallly-config.yaml`):**
+2. **Config (`hcs-config.yaml`):**
    - Update `NEXT_PUBLIC_BASE_URL` to match your domain.
    - Configure your SMTP settings for emails.
 
@@ -34,7 +34,7 @@ Apply the manifests in the following order to ensure dependencies are met:
 ```bash
 # 1. Apply Secrets and Config first
 kubectl apply -f secrets.yaml
-kubectl apply -f rallly-config.yaml
+kubectl apply -f hcs-config.yaml
 
 # 2. Apply Database (StatefulSet)
 kubectl apply -f postgres.yaml
@@ -43,13 +43,13 @@ kubectl apply -f postgres.yaml
 kubectl wait --for=condition=ready pod -l app=postgres --timeout=300s
 
 # 3. Apply Application (Deployment)
-kubectl apply -f rallly.yaml
+kubectl apply -f hcs.yaml
 
 # 4. Apply Ingress
 kubectl apply -f ingress.yaml
 ```
 
-**Note:** If you update `secrets.yaml` or `rallly-config.yaml` _after_ deployment, you must restart the Rallly pods for changes to take effect:
+**Note:** If you update `secrets.yaml` or `hcs-config.yaml` _after_ deployment, you must restart the HanksCrewSchedule pods for changes to take effect:
 
 ```bash
 kubectl rollout restart deployment rallly
@@ -57,7 +57,7 @@ kubectl rollout restart deployment rallly
 
 This performs a **rolling restart**, so there will be no downtime. However, ensure the new configuration is valid; if pods fail to start, check the logs with `kubectl logs -f deployment/rallly`.
 
-**Note:** This assumes your Deployment has multiple replicas. If running a single Rallly instance (1 replica), there will be brief downtime during the restart.
+**Note:** This assumes your Deployment has multiple replicas. If running a single HanksCrewSchedule instance (1 replica), there will be brief downtime during the restart.
 
 ## Verification
 
@@ -67,7 +67,7 @@ Check that the pods are running:
 kubectl get pods
 ```
 
-The Postgres pod should show `1/1 Running` and the Rallly pod should eventually show `1/1 Running` once the liveness probe passes.
+The Postgres pod should show `1/1 Running` and the HanksCrewSchedule pod should eventually show `1/1 Running` once the liveness probe passes.
 
 ## Notes on Storage
 
