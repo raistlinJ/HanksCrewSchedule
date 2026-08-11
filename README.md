@@ -1,4 +1,4 @@
-# HanksCrewSchedule Self-Hosted
+# HanksCrewSchedule
 
 Everything you need to self-host [HanksCrewSchedule](https://rallly.co) — the open-source scheduling and collaboration tool.
 
@@ -13,22 +13,7 @@ This repository provides a batteries-included Docker Compose stack with automati
 - An **SMTP server** for sending emails (e.g. Resend, Mailgun, Amazon SES)
 - **openssl** (for generating secrets)
 
-## Quick Start
-
-Run the installer on your server:
-
-```bash
-curl -fsSL https://get.rallly.co | bash
-```
-
-The installer will:
-- Check prerequisites (Docker, ports, etc.)
-- Download the stack to `/opt/rallly`
-- Walk you through configuration (domain, email, SMTP)
-- Generate secure secrets automatically
-- Start everything up
-
-## Manual Setup
+## Setup
 
 ```bash
 git clone https://github.com/lukevella/rallly-selfhosted.git
@@ -227,9 +212,3 @@ The database takes a few seconds to initialize. HanksCrewSchedule will retry aut
 ```bash
 ./hcs.sh logs db
 ```
-
-## Links
-
-- [HanksCrewSchedule Website](https://rallly.co)
-- [Source Code](https://github.com/lukevella/rallly)
-- [Documentation](https://support.rallly.co/self-hosting)
