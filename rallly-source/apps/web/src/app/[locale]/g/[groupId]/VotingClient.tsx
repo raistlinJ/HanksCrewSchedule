@@ -69,10 +69,11 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
 
   if (isSubmitted) {
     return (
-      <div className="text-center py-12 rounded-xl border bg-green-50/50">
-        <h2 className="text-2xl font-bold text-green-700">Thank You!</h2>
-        <p className="mt-2 text-green-600">Your responses have been recorded.</p>
-        <Button onClick={() => setIsSubmitted(false)} variant="outline" className="mt-6">
+      <div className="text-center py-16 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-background shadow-lg relative overflow-hidden animate-in fade-in zoom-in duration-500">
+        <div className="absolute inset-0 bg-primary/10 blur-3xl -z-10 rounded-full scale-150 animate-pulse"></div>
+        <h2 className="text-4xl font-black tracking-tight text-foreground">Thank You!</h2>
+        <p className="mt-3 text-lg font-medium text-muted-foreground">Your responses have been recorded.</p>
+        <Button onClick={() => setIsSubmitted(false)} size="lg" className="mt-8 rounded-full px-8 font-semibold shadow-md hover:scale-105 transition-transform">
           Edit Responses
         </Button>
       </div>
