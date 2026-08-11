@@ -25,6 +25,7 @@ export default function PollGroupsDashboardPage() {
   const [selectedPollIds, setSelectedPollIds] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [closingId, setClosingId] = useState<string | null>(null);
   
   const utils = trpc.useUtils();
 
@@ -74,6 +75,17 @@ export default function PollGroupsDashboardPage() {
     },
     onError: () => {
       setDuplicatingId(null);
+    }
+  });
+
+  const closeGroupMutation = trpc.pollGroups.close.useMutation({
+    onSuccess: () => {
+      groupsQuery.refetch();
+      utils.polls.invalidate();
+      setClosingId(null);
+    },
+    onError: () => {
+      setClosingId(null);
     }
   });
 
@@ -261,6 +273,20 @@ export default function PollGroupsDashboardPage() {
                       className="h-8 px-2.5 text-xs"
                     >
                       {duplicatingId === group.id ? "⏳..." : "📄 Duplicate"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={closingId === group.id}
+                      onClick={() => {
+                        if (confirm("Are you sure you want to close all open polls in this group?")) {
+                          setClosingId(group.id);
+                          closeGroupMutation.mutate({ groupId: group.id });
+                        }
+                      }}
+                      className="h-8 px-2.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      {closingId === group.id ? "⏳..." : "🛑 Close"}
                     </Button>
                   </div>
                 </div>
