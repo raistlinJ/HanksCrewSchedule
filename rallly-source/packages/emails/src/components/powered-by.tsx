@@ -19,22 +19,7 @@ export async function PoweredBy({
 
   return (
     <Text small light={true}>
-      <Trans
-        t={t}
-        i18n={i18n}
-        ns="emails"
-        i18nKey="common_poweredBy"
-        defaults="Powered by <a>{domain}</a>"
-        values={{ domain: "Rallly" }}
-        components={{
-          a: (
-            <Link
-              color={chrome.primaryColor}
-              href="https://rallly.co?utm_source=rallly&utm_medium=email&utm_campaign=powered_by"
-            />
-          ),
-        }}
-      />
+      An app by Acosta3d based on Rallly
     </Text>
   );
 }
