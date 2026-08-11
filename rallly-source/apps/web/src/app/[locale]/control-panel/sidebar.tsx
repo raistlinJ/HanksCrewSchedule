@@ -49,10 +49,7 @@ export async function ControlPanelSidebar(
               <UsersIcon className="size-4" />
               <Trans i18nKey="users" defaults="Users" />
             </NavItem>
-            <NavItem href="/control-panel/license">
-              <KeySquareIcon className="size-4" />
-              <Trans i18nKey="license" defaults="License" />
-            </NavItem>
+
             <NavItem href="/control-panel/branding">
               <PaletteIcon className="size-4" />
               <Trans i18nKey="branding" defaults="Branding" />

@@ -215,12 +215,7 @@ export const updateSpaceShowBrandingAction = authActionClient
   .action(async ({ ctx, parsedInput }) => {
     const { space } = ctx;
 
-    if (parsedInput.showBranding && space.tier !== "pro") {
-      throw new AppError({
-        code: "PAYMENT_REQUIRED",
-        message: "You need a Pro subscription to enable custom branding",
-      });
-    }
+    // Branding checks removed
 
     await updateSpaceShowBranding({
       spaceId: space.id,
@@ -253,22 +248,7 @@ export const updateSpaceHideAttributionAction = authActionClient
   .action(async ({ ctx, parsedInput }) => {
     const { space } = ctx;
 
-    // Space-level attribution removal is a cloud feature. On self-hosted
-    // instances attribution is licensed at instance level (white label
-    // addon + HIDE_ATTRIBUTION), where every space reports as "pro".
-    if (isSelfHosted) {
-      throw new AppError({
-        code: "FORBIDDEN",
-        message: "Attribution removal is not available on this instance",
-      });
-    }
-
-    if (parsedInput.hideAttribution && space.tier !== "pro") {
-      throw new AppError({
-        code: "PAYMENT_REQUIRED",
-        message: "You need a Pro subscription to remove attribution",
-      });
-    }
+    // Checks for branding and attribution removal disabled for HanksCrewSchedule
 
     await updateSpaceHideAttribution({
       spaceId: space.id,

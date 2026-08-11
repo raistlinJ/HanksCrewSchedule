@@ -57,8 +57,8 @@ export async function getSpaceSeatCount(spaceId: string) {
 /**
  * Default seat limit for spaces without active subscriptions
  */
-const DEFAULT_SEAT_LIMIT = 1;
-const MAX_SEAT_LIMIT = 100;
+const DEFAULT_SEAT_LIMIT = 999999;
+const MAX_SEAT_LIMIT = 999999;
 
 /**
  * Returns the seat limit for self-hosted instances based on license type

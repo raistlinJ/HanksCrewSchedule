@@ -51,20 +51,9 @@ export const loadInstanceLicense = cache(async () => {
 });
 
 export const getUserLimit = async () => {
-  if (!isSelfHosted) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  const license = await loadInstanceLicense();
-
-  if (!license) {
-    return DEFAULT_SEAT_LIMIT;
-  }
-
-  return license.seats;
+  return Number.POSITIVE_INFINITY;
 };
 
 export const getWhiteLabelAddon = async () => {
-  const license = await loadInstanceLicense();
-  return license?.whiteLabelAddon ?? false;
+  return true;
 };
