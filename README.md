@@ -2,7 +2,7 @@
 
 Everything you need to self-host HanksCrewSchedule — an open-source scheduling and collaboration tool. 
 
-*Derived from [Rallly](https://rallly.co) by Jaime C. Acosta.*
+*Based on the open-source project [Rallly](https://rallly.co), modified by Jaime C. Acosta for Hanks Crew.*
 
 This repository provides a batteries-included Docker Compose stack with automatic HTTPS, database, file storage, and a management CLI.
 

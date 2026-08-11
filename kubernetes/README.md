@@ -2,7 +2,7 @@
 
 This directory contains base Kubernetes manifests to self-host HanksCrewSchedule.
 
-*Derived from [Rallly](https://rallly.co) by Jaime C. Acosta.*
+*Based on the open-source project [Rallly](https://rallly.co), modified by Jaime C. Acosta for Hanks Crew.*
 
 It separates configuration (ConfigMaps) from sensitive data (Secrets) and uses a StatefulSet for the PostgreSQL database.
 
