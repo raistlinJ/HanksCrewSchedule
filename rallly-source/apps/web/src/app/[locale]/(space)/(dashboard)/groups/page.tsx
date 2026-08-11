@@ -47,12 +47,14 @@ function SortablePollItem({ poll }: { poll: { id: string; title: string } }) {
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center space-x-2 text-sm bg-muted/10 hover:bg-muted/20 p-1.5 rounded border border-transparent hover:border-border mb-1 group transition-colors"
+      {...attributes}
+      {...listeners}
+      className="flex items-center space-x-2 text-sm bg-muted/10 hover:bg-muted/20 p-1.5 rounded border border-transparent hover:border-border mb-1 group transition-colors cursor-grab touch-none"
     >
-      <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100">
-        <GripVertical size={14} />
+      <div className="text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100">
+        <GripVertical size={14} className="pointer-events-none" />
       </div>
-      <span className="font-medium truncate">{poll.title}</span>
+      <span className="font-medium truncate pointer-events-none">{poll.title}</span>
     </li>
   );
 }
@@ -89,6 +91,21 @@ function SortableGroupPolls({
       });
     }
   };
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
+  if (!isMounted) {
+    return (
+      <ul className="text-sm">
+        {polls.map((poll) => (
+          <li key={poll.id} className="flex items-center space-x-2 text-sm bg-muted/10 p-1.5 rounded border border-transparent mb-1">
+            <span className="font-medium truncate pl-6">{poll.title}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
