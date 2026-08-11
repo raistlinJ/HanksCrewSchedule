@@ -23,6 +23,7 @@ export const pollGroups = router({
       },
       include: {
         polls: {
+          where: { deleted: false },
           select: {
             id: true,
             title: true,
@@ -171,7 +172,7 @@ export const pollGroups = router({
         where: {
           pollGroupId: input.groupId,
           spaceId: ctx.space.id,
-          status: "open",
+          status: { not: "closed" },
         },
         data: {
           status: "closed",

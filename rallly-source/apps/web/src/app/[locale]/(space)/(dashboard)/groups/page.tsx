@@ -160,19 +160,19 @@ export default function PollGroupsDashboardPage() {
   const updateGroupMutation = trpc.pollGroups.update.useMutation({
     onSuccess: () => {
       setEditingGroup(null);
-      groupsQuery.refetch();
+      utils.pollGroups.invalidate();
     },
   });
 
   const deleteGroupMutation = trpc.pollGroups.delete.useMutation({
     onSuccess: () => {
-      groupsQuery.refetch();
+      utils.pollGroups.invalidate();
     },
   });
 
   const duplicateGroupMutation = trpc.pollGroups.duplicate.useMutation({
     onSuccess: () => {
-      groupsQuery.refetch();
+      utils.pollGroups.invalidate();
       utils.polls.invalidate();
       setDuplicatingId(null);
     },
@@ -183,7 +183,7 @@ export default function PollGroupsDashboardPage() {
 
   const closeGroupMutation = trpc.pollGroups.close.useMutation({
     onSuccess: () => {
-      groupsQuery.refetch();
+      utils.pollGroups.invalidate();
       utils.polls.invalidate();
       setClosingId(null);
     },
@@ -194,7 +194,7 @@ export default function PollGroupsDashboardPage() {
 
   const reopenGroupMutation = trpc.pollGroups.reopen.useMutation({
     onSuccess: () => {
-      groupsQuery.refetch();
+      utils.pollGroups.invalidate();
       utils.polls.invalidate();
       setReopeningId(null);
     },
@@ -205,7 +205,7 @@ export default function PollGroupsDashboardPage() {
 
   const reorderGroupMutation = trpc.pollGroups.reorder.useMutation({
     onSuccess: () => {
-      groupsQuery.refetch();
+      utils.pollGroups.invalidate();
     },
   });
 
