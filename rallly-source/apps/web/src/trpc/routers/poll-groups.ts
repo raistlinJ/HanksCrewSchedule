@@ -17,30 +17,46 @@ const sortByOrder = <T extends { id: string }>(items: T[], order: string[]) => {
 
 export const pollGroups = router({
   list: spaceProcedure.query(async ({ ctx }) => {
-    const groups = await prisma.pollGroup.findMany({
-      where: {
-        spaceId: ctx.space.id,
-      },
-      include: {
-        polls: {
-          where: { deleted: false },
-          select: {
-            id: true,
-            title: true,
-            status: true,
+    const [groups, space] = await Promise.all([
+      prisma.pollGroup.findMany({
+        where: { spaceId: ctx.space.id },
+        include: {
+          polls: {
+            where: { deleted: false },
+            select: { id: true, title: true, status: true },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.space.findUnique({
+        where: { id: ctx.space.id },
+        select: { pollGroupOrder: true },
+      }),
+    ]);
 
-    return groups.map((group) => ({
+    const mappedGroups = groups.map((group) => ({
       ...group,
       polls: sortByOrder(group.polls, group.pollOrder),
     }));
+
+    return sortByOrder(mappedGroups, space?.pollGroupOrder || []);
   }),
+
+  reorderGroups: spaceProcedure
+    .input(
+      z.object({
+        groupIds: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await prisma.space.update({
+        where: { id: ctx.space.id },
+        data: {
+          pollGroupOrder: input.groupIds,
+        },
+      });
+      return { success: true };
+    }),
 
   create: spaceProcedure
     .input(

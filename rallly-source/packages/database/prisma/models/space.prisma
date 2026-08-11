@@ -13,6 +13,7 @@ model Space {
   owner           User             @relation("UserSpaces", fields: [ownerId], references: [id], onDelete: Cascade)
   polls           Poll[]
   pollGroups      PollGroup[]
+  pollGroupOrder  String[]         @default([]) @map("poll_group_order")
   scheduledEvents ScheduledEvent[]
   eventTypes      EventType[]
   sheets          Sheet[]

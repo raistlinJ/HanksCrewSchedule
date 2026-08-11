@@ -16,6 +16,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -120,8 +121,32 @@ function SortableGroupPolls({
   );
 }
 
+function SortableGroupWrapper({ id, children }: { id: string; children: (listeners: any, attributes: any) => React.ReactNode }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-50" : ""}>
+      {children(listeners, attributes)}
+    </div>
+  );
+}
+
 export default function PollGroupsDashboardPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [searchFilter, setSearchFilter] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedPollIds, setSelectedPollIds] = useState<string[]>([]);
@@ -209,6 +234,45 @@ export default function PollGroupsDashboardPage() {
     },
   });
 
+  const reorderGroupsMutation = trpc.pollGroups.reorderGroups.useMutation({
+    onSuccess: () => {
+      utils.pollGroups.invalidate();
+    },
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const filteredGroups = groupsQuery.data?.filter((group) => {
+    if (!searchFilter.trim()) return true;
+    const term = searchFilter.toLowerCase();
+    return (
+      group.title.toLowerCase().includes(term) ||
+      group.polls.some((poll) => poll.title.toLowerCase().includes(term))
+    );
+  });
+
+  const handleGroupsDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id && groupsQuery.data) {
+      const oldIndex = groupsQuery.data.findIndex((g) => g.id === active.id);
+      const newIndex = groupsQuery.data.findIndex((g) => g.id === over.id);
+      const newOrder = arrayMove(groupsQuery.data.map((g) => g.id), oldIndex, newIndex);
+      
+      utils.pollGroups.list.setData(undefined, (old) => {
+        if (!old) return old;
+        const sorted = [...old].sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+        return sorted;
+      });
+
+      reorderGroupsMutation.mutate({ groupIds: newOrder });
+    }
+  };
+
   const availablePolls =
     pollsQuery.data?.pages.flatMap((page) => page.polls) || [];
 
@@ -269,6 +333,16 @@ export default function PollGroupsDashboardPage() {
           <p className="text-muted-foreground mt-1">
             Group multiple polls under a single link for non-member voters.
           </p>
+        </div>
+
+        <div className="flex-1 max-w-sm mx-4">
+          <input
+            type="text"
+            placeholder="Filter groups and polls..."
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
         </div>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -359,115 +433,134 @@ export default function PollGroupsDashboardPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {groupsQuery.data?.map((group) => {
-            const isGroupClosed = group.polls.length > 0 && group.polls.every((p) => p.status === "closed");
-            return (
-            <div key={group.id} className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold">{group.title}</h2>
-                    {group.description && (
-                      <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupsDragEnd}>
+          <SortableContext items={(filteredGroups || []).map((g) => g.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {filteredGroups?.map((group) => {
+                const isGroupClosed = group.polls.length > 0 && group.polls.every((p) => p.status === "closed");
+                const isDragDisabled = !!searchFilter.trim();
+                return (
+                  <SortableGroupWrapper key={group.id} id={group.id}>
+                    {(listeners, attributes) => (
+                      <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between h-full group/card relative">
+                        {!isDragDisabled && (
+                          <div
+                            {...listeners}
+                            {...attributes}
+                            className="absolute -top-3 -left-3 bg-card border rounded-full p-1.5 shadow-sm opacity-0 group-hover/card:opacity-100 transition-opacity cursor-grab hover:bg-muted text-muted-foreground hover:text-foreground touch-none"
+                            title="Drag to reorder group"
+                          >
+                            <GripVertical size={16} />
+                          </div>
+                        )}
+                        <div>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h2 className="text-xl font-bold">{group.title}</h2>
+                              {group.description && (
+                                <p className="text-sm text-muted-foreground mt-1">{group.description}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                                {group.polls.length} Polls
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenEdit(group)}
+                                className="h-8 px-2.5 text-xs"
+                              >
+                                ✏️ Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={duplicatingId === group.id}
+                                onClick={() => {
+                                  setDuplicatingId(group.id);
+                                  duplicateGroupMutation.mutate({ groupId: group.id });
+                                }}
+                                className="h-8 px-2.5 text-xs"
+                              >
+                                {duplicatingId === group.id ? "⏳..." : "📄 Duplicate"}
+                              </Button>
+                              {isGroupClosed ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={reopeningId === group.id}
+                                  onClick={() => {
+                                    if (confirm("Are you sure you want to reopen all polls in this group?")) {
+                                      setReopeningId(group.id);
+                                      reopenGroupMutation.mutate({ groupId: group.id });
+                                    }
+                                  }}
+                                  className="h-8 px-2.5 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
+                                >
+                                  {reopeningId === group.id ? "⏳..." : "🟢 Re-open"}
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={closingId === group.id}
+                                  onClick={() => {
+                                    if (confirm("Are you sure you want to close all open polls in this group?")) {
+                                      setClosingId(group.id);
+                                      closeGroupMutation.mutate({ groupId: group.id });
+                                    }
+                                  }}
+                                  className="h-8 px-2.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  {closingId === group.id ? "⏳..." : "🛑 Close"}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 border-t pt-3 space-y-1">
+                            <span className="text-xs font-medium text-muted-foreground">Included Polls:</span>
+                            {group.polls.length === 0 ? (
+                              <p className="text-xs text-muted-foreground italic">No polls assigned yet. Click Edit to add polls.</p>
+                            ) : (
+                              <SortableGroupPolls
+                                groupId={group.id}
+                                initialPolls={group.polls}
+                                onReorder={(groupId, pollIds) => {
+                                  reorderGroupMutation.mutate({ groupId, pollIds });
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-6 flex items-center justify-between border-t pt-4">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleCopyLink(group.id)}
+                          >
+                            {copiedId === group.id ? "✓ Copied!" : "Copy Group Link"}
+                          </Button>
+
+                          <a
+                            href={`/g/${group.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-semibold text-primary hover:underline"
+                          >
+                            View Public Page ↗
+                          </a>
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                      {group.polls.length} Polls
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenEdit(group)}
-                      className="h-8 px-2.5 text-xs"
-                    >
-                      ✏️ Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={duplicatingId === group.id}
-                      onClick={() => {
-                        setDuplicatingId(group.id);
-                        duplicateGroupMutation.mutate({ groupId: group.id });
-                      }}
-                      className="h-8 px-2.5 text-xs"
-                    >
-                      {duplicatingId === group.id ? "⏳..." : "📄 Duplicate"}
-                    </Button>
-                    {isGroupClosed ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={reopeningId === group.id}
-                        onClick={() => {
-                          if (confirm("Are you sure you want to reopen all polls in this group?")) {
-                            setReopeningId(group.id);
-                            reopenGroupMutation.mutate({ groupId: group.id });
-                          }
-                        }}
-                        className="h-8 px-2.5 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
-                      >
-                        {reopeningId === group.id ? "⏳..." : "🟢 Re-open"}
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={closingId === group.id}
-                        onClick={() => {
-                          if (confirm("Are you sure you want to close all open polls in this group?")) {
-                            setClosingId(group.id);
-                            closeGroupMutation.mutate({ groupId: group.id });
-                          }
-                        }}
-                        className="h-8 px-2.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        {closingId === group.id ? "⏳..." : "🛑 Close"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-4 border-t pt-3 space-y-1">
-                  <span className="text-xs font-medium text-muted-foreground">Included Polls:</span>
-                  {group.polls.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">No polls assigned yet. Click Edit to add polls.</p>
-                  ) : (
-                    <SortableGroupPolls
-                      groupId={group.id}
-                      initialPolls={group.polls}
-                      onReorder={(groupId, pollIds) => {
-                        reorderGroupMutation.mutate({ groupId, pollIds });
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-between border-t pt-4">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleCopyLink(group.id)}
-                >
-                  {copiedId === group.id ? "✓ Copied!" : "Copy Group Link"}
-                </Button>
-
-                <a
-                  href={`/g/${group.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs font-semibold text-primary hover:underline"
-                >
-                  View Public Page ↗
-                </a>
-              </div>
+                  </SortableGroupWrapper>
+                );
+              })}
             </div>
-            );
-          })}
-        </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Edit Poll Group Modal */}
