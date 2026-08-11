@@ -7,7 +7,7 @@ ENV_FILE="$SCRIPT_DIR/.env"
 echo "Building custom Rallly Docker image (this may take a few minutes)..."
 echo "------------------------------------------------------------------"
 
-docker build -t custom-rallly:latest -f "$SCRIPT_DIR/rallly-source/apps/web/Dockerfile" "$SCRIPT_DIR/rallly-source/"
+DOCKER_BUILDKIT=1 docker build -t custom-rallly:latest -f "$SCRIPT_DIR/rallly-source/apps/web/Dockerfile" "$SCRIPT_DIR/rallly-source/"
 
 echo "------------------------------------------------------------------"
 echo "Build complete! Image tagged as custom-rallly:latest"
