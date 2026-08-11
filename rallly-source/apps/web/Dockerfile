@@ -35,7 +35,7 @@ ARG SELF_HOSTED
 ENV NEXT_PUBLIC_SELF_HOSTED=$SELF_HOSTED
 
 ENV NODE_OPTIONS="--max_old_space_size=1536"
-RUN SKIP_ENV_VALIDATION=1 pnpm build
+RUN SKIP_ENV_VALIDATION=1 BETTER_AUTH_SECRET=dummy pnpm build
 
 # --- Runner Stage ---
 FROM base-slim AS runner
