@@ -1,6 +1,10 @@
 # HanksCrewSchedule Kubernetes Manifests
 
-This directory contains base Kubernetes manifests to self-host HanksCrewSchedule. It separates configuration (ConfigMaps) from sensitive data (Secrets) and uses a StatefulSet for the PostgreSQL database.
+This directory contains base Kubernetes manifests to self-host HanksCrewSchedule.
+
+*Derived from [Rallly](https://rallly.co) by Jaime C. Acosta.*
+
+It separates configuration (ConfigMaps) from sensitive data (Secrets) and uses a StatefulSet for the PostgreSQL database.
 
 ## Prerequisites
 
