@@ -1,7 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/trpc/client";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 import { Button } from "@rallly/ui/button";
 import {
   Dialog,
@@ -16,6 +34,73 @@ interface PollGroupDTO {
   title: string;
   description: string | null;
   polls: { id: string; title: string; status: string }[];
+}
+
+function SortablePollItem({ poll }: { poll: { id: string; title: string } }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: poll.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center space-x-2 text-sm bg-muted/10 hover:bg-muted/20 p-1.5 rounded border border-transparent hover:border-border mb-1 group transition-colors"
+    >
+      <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100">
+        <GripVertical size={14} />
+      </div>
+      <span className="font-medium truncate">{poll.title}</span>
+    </li>
+  );
+}
+
+function SortableGroupPolls({
+  groupId,
+  initialPolls,
+  onReorder,
+}: {
+  groupId: string;
+  initialPolls: { id: string; title: string }[];
+  onReorder: (groupId: string, pollIds: string[]) => void;
+}) {
+  const [polls, setPolls] = useState(initialPolls);
+
+  useEffect(() => {
+    setPolls(initialPolls);
+  }, [initialPolls]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setPolls((items) => {
+        const oldIndex = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        onReorder(groupId, newItems.map((i) => i.id));
+        return newItems;
+      });
+    }
+  };
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={polls.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+        <ul className="text-sm">
+          {polls.map((poll) => (
+            <SortablePollItem key={poll.id} poll={poll} />
+          ))}
+        </ul>
+      </SortableContext>
+    </DndContext>
+  );
 }
 
 export default function PollGroupsDashboardPage() {
@@ -87,6 +172,12 @@ export default function PollGroupsDashboardPage() {
     onError: () => {
       setClosingId(null);
     }
+  });
+
+  const reorderGroupMutation = trpc.pollGroups.reorder.useMutation({
+    onSuccess: () => {
+      groupsQuery.refetch();
+    },
   });
 
   const availablePolls =
@@ -296,14 +387,13 @@ export default function PollGroupsDashboardPage() {
                   {group.polls.length === 0 ? (
                     <p className="text-xs text-muted-foreground italic">No polls assigned yet. Click Edit to add polls.</p>
                   ) : (
-                    <ul className="text-sm space-y-1">
-                      {group.polls.map((poll) => (
-                        <li key={poll.id} className="flex items-center space-x-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                          <span>{poll.title}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <SortableGroupPolls
+                      groupId={group.id}
+                      initialPolls={group.polls}
+                      onReorder={(groupId, pollIds) => {
+                        reorderGroupMutation.mutate({ groupId, pollIds });
+                      }}
+                    />
                   )}
                 </div>
               </div>

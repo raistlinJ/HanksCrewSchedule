@@ -4,9 +4,20 @@ import * as z from "zod";
 import { publicProcedure, router, spaceProcedure } from "../trpc";
 import { nanoid } from "@rallly/utils/nanoid";
 
+const sortByOrder = <T extends { id: string }>(items: T[], order: string[]) => {
+  return [...items].sort((a, b) => {
+    const indexA = order.indexOf(a.id);
+    const indexB = order.indexOf(b.id);
+    if (indexA === -1 && indexB === -1) return 0;
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
+};
+
 export const pollGroups = router({
   list: spaceProcedure.query(async ({ ctx }) => {
-    return prisma.pollGroup.findMany({
+    const groups = await prisma.pollGroup.findMany({
       where: {
         spaceId: ctx.space.id,
       },
@@ -23,6 +34,11 @@ export const pollGroups = router({
         createdAt: "desc",
       },
     });
+
+    return groups.map((group) => ({
+      ...group,
+      polls: sortByOrder(group.polls, group.pollOrder),
+    }));
   }),
 
   create: spaceProcedure
@@ -40,6 +56,7 @@ export const pollGroups = router({
           description: input.description,
           spaceId: ctx.space.id,
           userId: ctx.user.id,
+          pollOrder: input.pollIds || [],
         },
       });
 
@@ -70,11 +87,27 @@ export const pollGroups = router({
     .mutation(async ({ ctx, input }) => {
       const { groupId, title, description, pollIds = [] } = input;
 
+      const existingGroup = await prisma.pollGroup.findUnique({
+        where: { id: groupId },
+        select: { pollOrder: true },
+      });
+
+      if (!existingGroup) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      const existingOrder = existingGroup.pollOrder;
+      const newPollOrder = [
+        ...existingOrder.filter((id) => pollIds.includes(id)),
+        ...pollIds.filter((id) => !existingOrder.includes(id)),
+      ];
+
       const group = await prisma.pollGroup.update({
         where: { id: groupId },
         data: {
           title,
           description,
+          pollOrder: newPollOrder,
         },
       });
 
@@ -110,6 +143,23 @@ export const pollGroups = router({
     .mutation(async ({ input }) => {
       await prisma.pollGroup.delete({
         where: { id: input.groupId },
+      });
+      return { success: true };
+    }),
+
+  reorder: spaceProcedure
+    .input(
+      z.object({
+        groupId: z.string(),
+        pollIds: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await prisma.pollGroup.update({
+        where: { id: input.groupId },
+        data: {
+          pollOrder: input.pollIds,
+        },
       });
       return { success: true };
     }),
@@ -163,7 +213,10 @@ export const pollGroups = router({
         });
       }
 
-      return group;
+      return {
+        ...group,
+        polls: sortByOrder(group.polls, group.pollOrder),
+      };
     }),
 
   submitGroupVotes: publicProcedure
@@ -300,6 +353,7 @@ export const pollGroups = router({
             title: incrementTitle(group.title),
             description: group.description,
             spaceId: ctx.space.id,
+            pollOrder: group.pollOrder,
           },
         });
 
