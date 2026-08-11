@@ -30,6 +30,16 @@ _compose_files=("$SCRIPT_DIR/docker-compose.yml")
 if [ "${PROXY_MODE:-bundled}" = "external" ]; then
   _compose_files+=("$SCRIPT_DIR/docker-compose.external-proxy.yml")
 fi
+if [ "${PROXY_MODE:-bundled}" != "external" ] && [ -f "$SCRIPT_DIR/certs/cert.pem" ] && [ -f "$SCRIPT_DIR/certs/key.pem" ]; then
+  mkdir -p "$SCRIPT_DIR/config"
+  cat <<EOF > "$SCRIPT_DIR/config/tls.yml"
+tls:
+  certificates:
+    - certFile: /certs/cert.pem
+      keyFile: /certs/key.pem
+EOF
+  _compose_files+=("$SCRIPT_DIR/docker-compose.manual-certs.yml")
+fi
 COMPOSE_FILE="$(IFS=:; echo "${_compose_files[*]}")"
 export COMPOSE_FILE
 unset _compose_files
