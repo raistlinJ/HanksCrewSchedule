@@ -24,20 +24,9 @@ export function ErrorPage({
         tabIndex={-1}
         className="mx-auto w-full max-w-7xl px-6 pt-10 pb-16 sm:pb-24 lg:px-8"
       >
-        <Image
-          src="/static/logo.svg"
-          alt="HanksCrewSchedule"
-          width={130}
-          height={30}
-          className="mx-auto dark:hidden"
-        />
-        <Image
-          src="/static/logo-dark.svg"
-          alt="HanksCrewSchedule"
-          width={130}
-          height={30}
-          className="mx-auto hidden dark:block"
-        />
+        <div className="mx-auto text-center font-extrabold text-2xl tracking-tighter text-primary">
+          Hanks Crew Schedule
+        </div>
         <div className="mx-auto mt-16 max-w-2xl text-center">
           <p className="font-semibold text-base/8 text-primary">{label}</p>
           <h1 className="mt-4 text-balance font-semibold text-3xl text-foreground tracking-tight sm:text-5xl">

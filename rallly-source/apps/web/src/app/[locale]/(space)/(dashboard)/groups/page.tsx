@@ -9,7 +9,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
+  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -20,8 +20,9 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, CheckIcon, XIcon, ClockIcon, DownloadIcon } from "lucide-react";
 import { Button } from "@rallly/ui/button";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -37,11 +38,15 @@ interface PollGroupDTO {
   polls: { id: string; title: string; status: string }[];
 }
 
-function SortablePollItem({ poll }: { poll: { id: string; title: string } }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: poll.id });
+function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCounts?: { yes: number; no: number; ifNeedBe: number } } }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: poll.id,
+  });
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    zIndex: isDragging ? 10 : 1,
   };
 
   return (
@@ -50,12 +55,31 @@ function SortablePollItem({ poll }: { poll: { id: string; title: string } }) {
       style={style}
       {...attributes}
       {...listeners}
-      className="flex items-center space-x-2 text-sm bg-muted/10 hover:bg-muted/20 p-1.5 rounded border border-transparent hover:border-border mb-1 group transition-colors cursor-grab touch-none"
+      className="flex items-center justify-between text-sm bg-muted/10 hover:bg-muted/20 p-1.5 rounded border border-transparent hover:border-border mb-1 group transition-colors cursor-grab touch-none"
     >
-      <div className="text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100">
-        <GripVertical size={14} className="pointer-events-none" />
+      <div className="flex items-center space-x-2 overflow-hidden flex-1">
+        <div className="text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100 flex-shrink-0">
+          <GripVertical size={14} className="pointer-events-none" />
+        </div>
+        <span className="font-medium truncate pointer-events-none">{poll.title}</span>
       </div>
-      <span className="font-medium truncate pointer-events-none">{poll.title}</span>
+      
+      {poll.voteCounts && (
+        <div className="flex items-center gap-3 text-xs font-medium px-2 flex-shrink-0">
+          <span className="flex items-center gap-1 text-green-600">
+            <CheckIcon className="h-3.5 w-3.5" />
+            {poll.voteCounts.yes}
+          </span>
+          <span className="flex items-center gap-1 text-red-500">
+            <XIcon className="h-3.5 w-3.5" />
+            {poll.voteCounts.no}
+          </span>
+          <span className="flex items-center gap-1 text-yellow-500">
+            <ClockIcon className="h-3.5 w-3.5" />
+            {poll.voteCounts.ifNeedBe}
+          </span>
+        </div>
+      )}
     </li>
   );
 }
@@ -66,7 +90,7 @@ function SortableGroupPolls({
   onReorder,
 }: {
   groupId: string;
-  initialPolls: { id: string; title: string }[];
+  initialPolls: { id: string; title: string; voteCounts?: { yes: number; no: number; ifNeedBe: number } }[];
   onReorder: (groupId: string, pollIds: string[]) => void;
 }) {
   const [polls, setPolls] = useState(initialPolls);
@@ -100,8 +124,24 @@ function SortableGroupPolls({
     return (
       <ul className="text-sm">
         {polls.map((poll) => (
-          <li key={poll.id} className="flex items-center space-x-2 text-sm bg-muted/10 p-1.5 rounded border border-transparent mb-1">
+          <li key={poll.id} className="flex items-center justify-between text-sm bg-muted/10 p-1.5 rounded border border-transparent mb-1">
             <span className="font-medium truncate pl-6">{poll.title}</span>
+            {poll.voteCounts && (
+              <div className="flex items-center gap-3 text-xs font-medium px-2 flex-shrink-0">
+                <span className="flex items-center gap-1 text-green-600">
+                  <CheckIcon className="h-3.5 w-3.5" />
+                  {poll.voteCounts.yes}
+                </span>
+                <span className="flex items-center gap-1 text-red-500">
+                  <XIcon className="h-3.5 w-3.5" />
+                  {poll.voteCounts.no}
+                </span>
+                <span className="flex items-center gap-1 text-yellow-500">
+                  <ClockIcon className="h-3.5 w-3.5" />
+                  {poll.voteCounts.ifNeedBe}
+                </span>
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -168,7 +208,6 @@ export default function PollGroupsDashboardPage() {
     {},
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      initialPageParam: 1,
     }
   );
 
@@ -346,7 +385,7 @@ export default function PollGroupsDashboardPage() {
         </div>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
+          <DialogTrigger>
             <Button>+ Create Poll Group</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
@@ -403,7 +442,7 @@ export default function PollGroupsDashboardPage() {
               </div>
 
               <div className="flex justify-end space-x-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                <Button type="button" variant="default" onClick={() => setCreateOpen(false)}>
                   Cancel
                 </Button>
                 <Button
@@ -466,7 +505,7 @@ export default function PollGroupsDashboardPage() {
                                 {group.polls.length} Polls
                               </span>
                               <Button
-                                variant="outline"
+                                variant="default"
                                 size="sm"
                                 onClick={() => handleOpenEdit(group)}
                                 className="h-8 px-2.5 text-xs"
@@ -474,7 +513,7 @@ export default function PollGroupsDashboardPage() {
                                 ✏️ Edit
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="default"
                                 size="sm"
                                 disabled={duplicatingId === group.id}
                                 onClick={() => {
@@ -487,7 +526,7 @@ export default function PollGroupsDashboardPage() {
                               </Button>
                               {isGroupClosed ? (
                                 <Button
-                                  variant="outline"
+                                  variant="default"
                                   size="sm"
                                   disabled={reopeningId === group.id}
                                   onClick={() => {
@@ -502,7 +541,7 @@ export default function PollGroupsDashboardPage() {
                                 </Button>
                               ) : (
                                 <Button
-                                  variant="outline"
+                                  variant="default"
                                   size="sm"
                                   disabled={closingId === group.id}
                                   onClick={() => {
@@ -537,21 +576,37 @@ export default function PollGroupsDashboardPage() {
 
                         <div className="mt-6 flex items-center justify-between border-t pt-4">
                           <Button
-                            variant="secondary"
+                            variant="default"
                             size="sm"
                             onClick={() => handleCopyLink(group.id)}
                           >
                             {copiedId === group.id ? "✓ Copied!" : "Copy Group Link"}
                           </Button>
 
-                          <a
-                            href={`/g/${group.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs font-semibold text-primary hover:underline"
-                          >
-                            View Public Page ↗
-                          </a>
+                          <div className="flex items-center gap-4">
+                            <a
+                              href={`/groups/${group.id}/export/csv`}
+                              download
+                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                            >
+                              <DownloadIcon className="w-3 h-3" />
+                              Export CSV
+                            </a>
+                            <Link
+                              href={`/groups/${group.id}/responses`}
+                              className="text-xs font-semibold text-primary hover:underline"
+                            >
+                              View Responses
+                            </Link>
+                            <a
+                              href={`/g/${group.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-semibold text-primary hover:underline"
+                            >
+                              View Public Page ↗
+                            </a>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -597,7 +652,7 @@ export default function PollGroupsDashboardPage() {
                   const displayPolls = [...availablePolls];
                   editingGroup.polls.forEach(p => {
                     if (!displayPolls.some(dp => dp.id === p.id)) {
-                      displayPolls.push(p);
+                      displayPolls.push(p as any);
                     }
                   });
                   return displayPolls.length === 0 ? (
@@ -639,7 +694,7 @@ export default function PollGroupsDashboardPage() {
                 </Button>
 
                 <div className="flex space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setEditingGroup(null)}>
+                  <Button type="button" variant="default" onClick={() => setEditingGroup(null)}>
                     Cancel
                   </Button>
                   <Button

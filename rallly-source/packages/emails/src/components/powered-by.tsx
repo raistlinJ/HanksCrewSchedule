@@ -19,7 +19,7 @@ export async function PoweredBy({
 
   return (
     <Text small light={true}>
-      An app by Acosta3d based on Rallly
+      An app by Acosta3d for Hanks Crew Schedule
     </Text>
   );
 }

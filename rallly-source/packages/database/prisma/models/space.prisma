@@ -14,6 +14,7 @@ model Space {
   polls           Poll[]
   pollGroups      PollGroup[]
   pollGroupOrder  String[]         @default([]) @map("poll_group_order")
+  pollOrder       String[]         @default([]) @map("poll_order")
   scheduledEvents ScheduledEvent[]
   eventTypes      EventType[]
   sheets          Sheet[]

@@ -39,12 +39,28 @@ import {
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import React from "react";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { Spinner } from "@/components/spinner";
 import { StackedList, StackedListItem } from "@/components/stacked-list";
-import { PollStatusIcon } from "@/features/poll/components/poll-status-icon";
 import type { PollClosedReason, PollStatus } from "@/features/poll/schema";
 import { Trans, useTranslation } from "@/i18n/client";
 import { trpc } from "@/trpc/client";
@@ -64,6 +80,7 @@ function PollListItem({
   participants,
   user,
   voteCounts,
+  disableDrag,
 }: {
   id: string;
   title: string;
@@ -72,7 +89,22 @@ function PollListItem({
   participants: { id: string; name: string }[];
   user: { name: string; image: string | null } | null;
   voteCounts?: { yes: number; no: number; ifNeedBe: number };
+  disableDrag?: boolean;
 }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { zIndex: 50, position: "relative" as const } : {}),
+  };
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
@@ -84,10 +116,16 @@ function PollListItem({
   const closePoll = trpc.polls.close.useMutation(refresh);
   const reopenPoll = trpc.polls.reopen.useMutation(refresh);
   return (
-    <>
-      <div className="grid w-full grid-cols-[1fr_auto] gap-2">
+    <div ref={setNodeRef} style={style} className="w-full">
+      <div className="grid w-full grid-cols-[1fr_auto] gap-2 bg-background">
         <div className="relative -m-4 flex min-w-0 flex-1 items-center gap-2 p-4">
-          <PollStatusIcon status={status} showTooltip={false} />
+          <div
+            className="flex cursor-grab items-center justify-center p-1 text-muted-foreground touch-none"
+            {...(disableDrag ? {} : attributes)}
+            {...(disableDrag ? {} : listeners)}
+          >
+            <GripVertical className="h-5 w-5" />
+          </div>
           <HoverPrefetchLink
             className="min-w-0 text-sm hover:underline focus:ring-ring focus-visible:ring-2"
             href={absoluteUrl(`/poll/${id}`)}
@@ -325,7 +363,7 @@ function PollListItem({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 
@@ -347,7 +385,39 @@ export function PollsInfiniteList({
       },
     );
 
-  const polls = data.pages.flatMap((page) => page.polls);
+  // Optimistic state for dragging
+  const [items, setItems] = React.useState<{ id: string; [key: string]: any }[]>([]);
+  const utils = trpc.useUtils();
+  const reorderMutation = trpc.polls.reorder.useMutation({
+    onSuccess: () => {
+      utils.polls.infiniteChronological.invalidate();
+    },
+  });
+
+  const polls = React.useMemo(() => data.pages.flatMap((page) => page.polls), [data.pages]);
+  const isFiltered = Boolean(status || search || member);
+
+  React.useEffect(() => {
+    setItems(polls);
+  }, [polls]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setItems((items) => {
+        const oldIndex = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        reorderMutation.mutate({ pollIds: newItems.map((i) => i.id) });
+        return newItems;
+      });
+    }
+  };
 
   const loadMoreRef = React.useRef<HTMLDivElement>(null);
 
@@ -385,45 +455,57 @@ export function PollsInfiniteList({
   }
 
   return (
-    <StackedList>
-      {polls.map(({ id, title, status, closedReason, participants, user, voteCounts }) => (
-        <StackedListItem key={id}>
-          <PollListItem
-            id={id}
-            title={title}
-            status={status}
-            closedReason={closedReason}
-            participants={participants}
-            user={user}
-            voteCounts={voteCounts}
-          />
-        </StackedListItem>
-      ))}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={items.map((i) => i.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <StackedList>
+          {items.map(({ id, title, status, closedReason, participants, user, voteCounts }) => (
+            <StackedListItem key={id} className="bg-background">
+              <PollListItem
+                id={id}
+                title={title}
+                status={status}
+                closedReason={closedReason}
+                participants={participants}
+                user={user}
+                voteCounts={voteCounts}
+                disableDrag={isFiltered}
+              />
+            </StackedListItem>
+          ))}
 
-      {hasNextPage && (
-        <div ref={loadMoreRef} className="flex justify-center py-4">
-          {isFetchingNextPage && (
-            <div className="flex items-center gap-2">
-              <Spinner />
-              <span className="text-muted-foreground text-sm">
-                <Trans i18nKey="loading" defaults="Loading..." />
-              </span>
+          {hasNextPage && (
+            <div ref={loadMoreRef} className="flex justify-center py-4">
+              {isFetchingNextPage && (
+                <div className="flex items-center gap-2">
+                  <Spinner />
+                  <span className="text-muted-foreground text-sm">
+                    <Trans i18nKey="loading" defaults="Loading..." />
+                  </span>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {!hasNextPage && data.pages.length > 1 && (
-        <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
-          <Icon>
-            <StickerIcon />
-          </Icon>
-          <Trans
-            i18nKey="endOfList"
-            defaults="You've reached the end of the list"
-          />
-        </div>
-      )}
-    </StackedList>
+          {!hasNextPage && data.pages.length > 1 && (
+            <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
+              <Icon>
+                <StickerIcon />
+              </Icon>
+              <Trans
+                i18nKey="endOfList"
+                defaults="You've reached the end of the list"
+              />
+            </div>
+          )}
+        </StackedList>
+      </SortableContext>
+    </DndContext>
   );
 }

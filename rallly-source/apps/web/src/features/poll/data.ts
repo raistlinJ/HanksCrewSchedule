@@ -246,8 +246,15 @@ export const getPolls = async ({
     ...(member && { userId: member }),
   };
 
-  // Get total count and paginated polls in a transaction
-  const [totalCount, polls] = await prisma.$transaction([
+  // Fetch the space to get the pollOrder
+  const space = await prisma.space.findUnique({
+    where: { id: spaceId },
+    select: { pollOrder: true },
+  });
+  const pollOrder = space?.pollOrder || [];
+
+  // Get total count and all polls in a transaction
+  const [totalCount, allPolls] = await prisma.$transaction([
     prisma.poll.count({ where }),
     prisma.poll.findMany({
       where,
@@ -286,10 +293,23 @@ export const getPolls = async ({
         },
       },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
     }),
   ]);
+
+  // Sort polls based on pollOrder
+  const sortedPolls = [...allPolls].sort((a, b) => {
+    const indexA = pollOrder.indexOf(a.id);
+    const indexB = pollOrder.indexOf(b.id);
+    if (indexA !== -1 && indexB !== -1) {
+      return indexA - indexB;
+    }
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+    return 0; // Maintain original fallback sorting (updatedAt desc) for polls not in pollOrder
+  });
+
+  // Apply pagination
+  const polls = sortedPolls.slice((page - 1) * pageSize, page * pageSize);
 
   const transformedPolls = polls.map((poll) => ({
     id: poll.id,

@@ -23,7 +23,14 @@ export const pollGroups = router({
         include: {
           polls: {
             where: { deleted: false },
-            select: { id: true, title: true, status: true },
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              votes: {
+                select: { type: true }
+              }
+            },
           },
         },
         orderBy: { createdAt: "desc" },
@@ -34,10 +41,23 @@ export const pollGroups = router({
       }),
     ]);
 
-    const mappedGroups = groups.map((group) => ({
-      ...group,
-      polls: sortByOrder(group.polls, group.pollOrder),
-    }));
+    const mappedGroups = groups.map((group) => {
+      const pollsWithCounts = group.polls.map(poll => ({
+        id: poll.id,
+        title: poll.title,
+        status: poll.status,
+        voteCounts: {
+          yes: poll.votes.filter(v => v.type === "yes").length,
+          no: poll.votes.filter(v => v.type === "no").length,
+          ifNeedBe: poll.votes.filter(v => v.type === "ifNeedBe").length,
+        }
+      }));
+
+      return {
+        ...group,
+        polls: sortByOrder(pollsWithCounts, group.pollOrder),
+      };
+    });
 
     return sortByOrder(mappedGroups, space?.pollGroupOrder || []);
   }),

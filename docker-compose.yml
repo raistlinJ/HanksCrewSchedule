@@ -97,6 +97,8 @@ services:
       # upgrade-db` restores into a fresh volume and switches this over,
       # leaving the previous volume in place for rollback.
       - ${POSTGRES_VOLUME:-db-data}:${POSTGRES_DATA_MOUNT:-/var/lib/postgresql/data}
+    ports:
+      - "5432:5432"
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=rallly
@@ -114,6 +116,8 @@ services:
     image: dxflrs/garage:v2.3.0
     restart: always
     profiles: ["bundled-storage"]
+    ports:
+      - "3900:3900"
     volumes:
       - ./config/garage.toml:/etc/garage.toml:ro
       - garage-meta:/var/lib/garage/meta

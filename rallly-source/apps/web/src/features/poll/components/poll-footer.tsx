@@ -15,7 +15,7 @@ export function PollFooter() {
 
   return (
     <div className="py-6 text-center text-muted-foreground text-sm">
-      <span>An app by Acosta3d based on Rallly</span>
+      <span>An app by Acosta3d for Hanks Crew Schedule</span>
     </div>
   );
 }

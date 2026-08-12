@@ -48,6 +48,17 @@ const optionEndsInFuture = (option: { startTime: Date; duration: number }) =>
 export const polls = router({
   participants,
   comments,
+  reorder: spaceProcedure
+    .input(z.object({ pollIds: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.space.update({
+        where: { id: ctx.space.id },
+        data: {
+          pollOrder: input.pollIds,
+        },
+      });
+      return { success: true };
+    }),
   infiniteChronological: spaceProcedure
     .input(
       z.object({
