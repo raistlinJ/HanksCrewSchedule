@@ -82,8 +82,9 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
 
   return (
     <form onSubmit={handleSubmit} className="space-y-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {group.polls.map((poll: any) => (
-        <div key={poll.id} className="rounded-xl border bg-card p-6 shadow-sm">
+        <div key={poll.id} className="rounded-xl border bg-card p-6 shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold">{poll.title}</h2>
           </div>
@@ -92,7 +93,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
           {poll.options.length === 0 ? (
             <p className="text-muted-foreground italic text-sm">No options available for this poll.</p>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1">
               {poll.options.map((option: any) => {
                 const pollVotes = selectedOptions[poll.id] || {};
                 const voteState = pollVotes[option.id] || "no";
@@ -161,6 +162,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
           )}
         </div>
       ))}
+      </div>
 
       <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
         <h3 className="text-xl font-bold mb-4">Your Details</h3>
