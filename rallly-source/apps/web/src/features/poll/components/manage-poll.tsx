@@ -18,6 +18,7 @@ import {
   Settings2Icon,
   TableIcon,
   TrashIcon,
+  UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
@@ -132,22 +133,16 @@ const ManagePoll: React.FunctionComponent<{
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
-            render={<Link href={`/poll/${poll.id}/edit-details`} />}
+            render={<Link href={`/poll/${poll.id}/edit`} />}
           >
             <PencilIcon />
-            <Trans i18nKey="editDetails" />
+            <Trans i18nKey="edit" defaults="Edit" />
           </DropdownMenuItem>
           <DropdownMenuItem
-            render={<Link href={`/poll/${poll.id}/edit-options`} />}
+            render={<Link href={`/poll/${poll.id}/results`} />}
           >
-            <TableIcon />
-            <Trans i18nKey="editOptions" />
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            render={<Link href={`/poll/${poll.id}/edit-settings`} />}
-          >
-            <Settings2Icon />
-            <Trans i18nKey="editSettings" defaults="Edit settings" />
+            <UsersIcon />
+            <Trans i18nKey="results" defaults="Results" />
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {poll.status === "scheduled" || poll.status === "canceled" ? null : (

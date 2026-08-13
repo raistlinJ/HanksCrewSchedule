@@ -20,7 +20,8 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, CheckIcon, XIcon, ClockIcon, DownloadIcon } from "lucide-react";
+import { GripVertical, CheckIcon, XIcon, ClockIcon, DownloadIcon, MoreHorizontal, ExternalLink, MailIcon } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@rallly/ui/dropdown-menu";
 import { Button } from "@rallly/ui/button";
 import Link from "next/link";
 import {
@@ -32,6 +33,7 @@ import {
 } from "@rallly/ui/dialog";
 
 interface PollGroupDTO {
+  requireEmailVerification: boolean;
   id: string;
   title: string;
   description: string | null;
@@ -80,6 +82,16 @@ function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCou
           </span>
         </div>
       )}
+      <a 
+        href={`/poll/${poll.id}`} 
+        target="_blank" 
+        rel="noreferrer"
+        className="ml-2 mr-1 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        title="View Poll"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <ExternalLink size={14} />
+      </a>
     </li>
   );
 }
@@ -180,6 +192,7 @@ function SortableGroupWrapper({ id, children }: { id: string; children: (listene
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-50" : ""}>
       {children(listeners, attributes)}
+
     </div>
   );
 }
@@ -190,6 +203,7 @@ export default function PollGroupsDashboardPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedPollIds, setSelectedPollIds] = useState<string[]>([]);
+  const [newRequireEmailVerification, setNewRequireEmailVerification] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
@@ -201,9 +215,16 @@ export default function PollGroupsDashboardPage() {
   const [editingGroup, setEditingGroup] = useState<PollGroupDTO | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editRequireEmailVerification, setEditRequireEmailVerification] = useState(true);
   const [editSelectedPollIds, setEditSelectedPollIds] = useState<string[]>([]);
 
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [reminderGroup, setReminderGroup] = useState<PollGroupDTO | null>(null);
+  const [remindableParticipants, setRemindableParticipants] = useState<{name: string, email: string}[]>([]);
+  const [isLoadingReminder, setIsLoadingReminder] = useState(false);
+
   const groupsQuery = trpc.pollGroups.list.useQuery();
+  const allPollsQuery = trpc.polls.listAll.useQuery();
   const pollsQuery = trpc.polls.infiniteChronological.useInfiniteQuery(
     {},
     {
@@ -228,6 +249,7 @@ export default function PollGroupsDashboardPage() {
     },
   });
 
+  const sendReminderEmailsMutation = trpc.pollGroups.sendReminderEmails.useMutation();
   const deleteGroupMutation = trpc.pollGroups.delete.useMutation({
     onSuccess: () => {
       utils.pollGroups.invalidate();
@@ -312,7 +334,8 @@ export default function PollGroupsDashboardPage() {
     }
   };
 
-  const availablePolls =
+  const availablePolls = allPollsQuery.data || [];
+  //const oldAvailablePolls =
     pollsQuery.data?.pages.flatMap((page) => page.polls) || [];
 
   const handleTogglePoll = (id: string, isEdit: boolean) => {
@@ -327,6 +350,44 @@ export default function PollGroupsDashboardPage() {
     }
   };
 
+  const handleEmailReminder = async (group: PollGroupDTO) => {
+    try {
+      setIsLoadingReminder(true);
+      setRemindableParticipants([]);
+      setReminderGroup(group);
+      setReminderSubject(`Reminder: ${group.title}`);
+      setReminderBody(`Hi everyone,\n\nPlease remember to fill out your availability for the polls in the ${group.title} group:\n\n${window.location.origin}/g/${group.id}\n\nThanks!`);
+      setReminderModalOpen(true);
+      
+      const participants = await utils.client.pollGroups.getRemindableParticipants.query({ groupId: group.id });
+      setRemindableParticipants(participants);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to retrieve emails.");
+      setReminderModalOpen(false);
+    } finally {
+      setIsLoadingReminder(false);
+    }
+  };
+
+  const executeEmailReminder = () => {
+    if (!reminderGroup || remindableParticipants.length === 0) return;
+    
+    sendReminderEmailsMutation.mutate(
+      { groupId: reminderGroup.id, subject: reminderSubject, body: reminderBody },
+      {
+        onSuccess: (data) => {
+          alert(`Successfully sent ${data.count} reminder email(s)!`);
+          setReminderModalOpen(false);
+        },
+        onError: (err) => {
+          console.error(err);
+          alert("Failed to send reminder emails.");
+        }
+      }
+    );
+  };
+
   const handleCreateGroup = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -334,6 +395,7 @@ export default function PollGroupsDashboardPage() {
     createGroupMutation.mutate({
       title,
       description,
+      requireEmailVerification: newRequireEmailVerification,
       pollIds: selectedPollIds,
     });
   };
@@ -342,6 +404,7 @@ export default function PollGroupsDashboardPage() {
     setEditingGroup(group);
     setEditTitle(group.title);
     setEditDescription(group.description || "");
+    setEditRequireEmailVerification(group.requireEmailVerification ?? true);
     setEditSelectedPollIds(group.polls.map((p) => p.id));
   };
 
@@ -384,10 +447,19 @@ export default function PollGroupsDashboardPage() {
           />
         </div>
 
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger>
-            <Button>+ Create Poll Group</Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <a
+            href="/groups/export/all"
+            download
+            className="inline-flex h-9 items-center justify-center rounded-md bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground shadow-sm hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border"
+          >
+            <DownloadIcon className="mr-2 h-4 w-4" />
+            Export All
+          </a>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>+ Create Poll Group</Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Create Poll Group</DialogTitle>
@@ -416,7 +488,21 @@ export default function PollGroupsDashboardPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Select Polls to Include</label>
+                
+              <div>
+                <label className="flex items-center space-x-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={newRequireEmailVerification}
+                    onChange={(e) => setNewRequireEmailVerification(e.target.checked)}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span>Require Email Verification</span>
+                </label>
+                <p className="text-xs text-muted-foreground mt-1">If unchecked, anyone can edit votes by typing the email address.</p>
+              </div>
+
+              <label className="block text-sm font-medium mb-2">Select Polls to Include</label>
                 {pollsQuery.isLoading ? (
                   <p className="text-xs text-muted-foreground">Loading polls...</p>
                 ) : availablePolls.length === 0 ? (
@@ -455,6 +541,7 @@ export default function PollGroupsDashboardPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {groupsQuery.isLoading ? (
@@ -504,57 +591,84 @@ export default function PollGroupsDashboardPage() {
                               <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                                 {group.polls.length} Polls
                               </span>
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleOpenEdit(group)}
-                                className="h-8 px-2.5 text-xs"
-                              >
-                                ✏️ Edit
-                              </Button>
-                              <Button
-                                variant="default"
-                                size="sm"
-                                disabled={duplicatingId === group.id}
-                                onClick={() => {
-                                  setDuplicatingId(group.id);
-                                  duplicateGroupMutation.mutate({ groupId: group.id });
-                                }}
-                                className="h-8 px-2.5 text-xs"
-                              >
-                                {duplicatingId === group.id ? "⏳..." : "📄 Duplicate"}
-                              </Button>
-                              {isGroupClosed ? (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  disabled={reopeningId === group.id}
-                                  onClick={() => {
-                                    if (confirm("Are you sure you want to reopen all polls in this group?")) {
-                                      setReopeningId(group.id);
-                                      reopenGroupMutation.mutate({ groupId: group.id });
-                                    }
-                                  }}
-                                  className="h-8 px-2.5 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
-                                >
-                                  {reopeningId === group.id ? "⏳..." : "🟢 Re-open"}
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  disabled={closingId === group.id}
-                                  onClick={() => {
-                                    if (confirm("Are you sure you want to close all open polls in this group?")) {
-                                      setClosingId(group.id);
-                                      closeGroupMutation.mutate({ groupId: group.id });
-                                    }
-                                  }}
-                                  className="h-8 px-2.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  {closingId === group.id ? "⏳..." : "🛑 Close"}
-                                </Button>
-                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleOpenEdit(group)} className="cursor-pointer flex items-center gap-2">
+                                    ✏️ Edit
+                                  </DropdownMenuItem>
+                                  
+                                  <DropdownMenuSeparator />
+
+                                  <DropdownMenuItem asChild className="cursor-pointer">
+                                    <a href={`/g/${group.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 w-full">
+                                      <ExternalLink className="w-4 h-4" />
+                                      View public page
+                                    </a>
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuItem onClick={() => handleEmailReminder(group)} className="cursor-pointer flex items-center gap-2">
+                                    <MailIcon className="w-4 h-4" />
+                                    Email reminder
+                                  </DropdownMenuItem>
+
+                                  {isGroupClosed ? (
+                                    <DropdownMenuItem 
+                                      className="text-green-600 focus:text-green-600 focus:bg-green-50 cursor-pointer"
+                                      disabled={reopeningId === group.id}
+                                      onClick={() => {
+                                        if (confirm("Are you sure you want to reopen all polls in this group?")) {
+                                          setReopeningId(group.id);
+                                          reopenGroupMutation.mutate({ groupId: group.id });
+                                        }
+                                      }}
+                                    >
+                                      🟢 {reopeningId === group.id ? "Re-opening..." : "Re-open"}
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem 
+                                      className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
+                                      disabled={closingId === group.id}
+                                      onClick={() => {
+                                        if (confirm("Are you sure you want to close all open polls in this group?")) {
+                                          setClosingId(group.id);
+                                          closeGroupMutation.mutate({ groupId: group.id });
+                                        }
+                                      }}
+                                    >
+                                      🛑 {closingId === group.id ? "Closing..." : "Close"}
+                                    </DropdownMenuItem>
+                                  )}
+
+                                  <DropdownMenuSeparator />
+
+                                  <DropdownMenuItem 
+                                    className="cursor-pointer"
+                                    disabled={duplicatingId === group.id}
+                                    onClick={() => {
+                                      setDuplicatingId(group.id);
+                                      duplicateGroupMutation.mutate({ groupId: group.id });
+                                    }}
+                                  >
+                                    📄 {duplicatingId === group.id ? "Duplicating..." : "Duplicate"}
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuItem asChild>
+                                    <a
+                                      href={`/groups/${group.id}/export/csv`}
+                                      download
+                                      className="cursor-pointer flex items-center gap-2"
+                                    >
+                                      <DownloadIcon className="w-4 h-4" />
+                                      Export CSV
+                                    </a>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
 
@@ -576,36 +690,19 @@ export default function PollGroupsDashboardPage() {
 
                         <div className="mt-6 flex items-center justify-between border-t pt-4">
                           <Button
-                            variant="default"
+                            variant="outline"
                             size="sm"
                             onClick={() => handleCopyLink(group.id)}
                           >
-                            {copiedId === group.id ? "✓ Copied!" : "Copy Group Link"}
+                            {copiedId === group.id ? "✓ Copied!" : "Get Share Link"}
                           </Button>
 
                           <div className="flex items-center gap-4">
-                            <a
-                              href={`/groups/${group.id}/export/csv`}
-                              download
-                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
-                            >
-                              <DownloadIcon className="w-3 h-3" />
-                              Export CSV
-                            </a>
-                            <Link
-                              href={`/groups/${group.id}/responses`}
-                              className="text-xs font-semibold text-primary hover:underline"
-                            >
-                              View Responses
+                            <Link href={`/groups/${group.id}/responses`}>
+                              <Button variant="default" size="sm">
+                                View Responses
+                              </Button>
                             </Link>
-                            <a
-                              href={`/g/${group.id}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs font-semibold text-primary hover:underline"
-                            >
-                              View Public Page ↗
-                            </a>
                           </div>
                         </div>
                       </div>
@@ -644,6 +741,19 @@ export default function PollGroupsDashboardPage() {
                   onChange={(e) => setEditDescription(e.target.value)}
                   className="mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+              </div>
+
+              <div>
+                <label className="flex items-center space-x-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={editRequireEmailVerification}
+                    onChange={(e) => setEditRequireEmailVerification(e.target.checked)}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span>Require Email Verification</span>
+                </label>
+                <p className="text-xs text-muted-foreground mt-1">If unchecked, anyone can edit votes by typing the email address.</p>
               </div>
 
               <div>
@@ -709,6 +819,75 @@ export default function PollGroupsDashboardPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Email Reminder Modal */}
+      <Dialog open={reminderModalOpen} onOpenChange={setReminderModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send Email Reminder</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {isLoadingReminder ? (
+              <p className="text-sm text-muted-foreground">Loading participants...</p>
+            ) : remindableParticipants.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No participants found who voted 'Yes'.</p>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm">
+                  You are about to email <strong>{remindableParticipants.length}</strong> participants who voted "Yes".
+                </p>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Subject</label>
+                  <input
+                    type="text"
+                    value={reminderSubject}
+                    onChange={(e) => setReminderSubject(e.target.value)}
+                    className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Message Body</label>
+                  <textarea
+                    value={reminderBody}
+                    onChange={(e) => setReminderBody(e.target.value)}
+                    rows={6}
+                    className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                  />
+                </div>
+
+                <details className="text-sm border rounded-md p-3 group">
+                  <summary className="font-medium cursor-pointer flex items-center justify-between">
+                    Show Participants
+                    <span className="text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <ul className="mt-3 space-y-2 max-h-40 overflow-y-auto">
+                    {remindableParticipants.map((p, i) => (
+                      <li key={i} className="flex justify-between items-center text-xs">
+                        <span>{p.name}</span>
+                        <span className="text-muted-foreground">{p.email}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setReminderModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={executeEmailReminder} 
+              disabled={isLoadingReminder || remindableParticipants.length === 0 || sendReminderEmailsMutation.isPending}
+            >
+              {sendReminderEmailsMutation.isPending ? "Sending..." : "Send Emails"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

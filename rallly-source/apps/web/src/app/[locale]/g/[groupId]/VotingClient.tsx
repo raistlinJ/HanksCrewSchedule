@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/trpc/client";
 import { Button } from "@rallly/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@rallly/ui/dialog";
 
 export default function VotingClient({ group, userEmail }: { group: any; userEmail: string | null }) {
   type VoteState = "no" | "ifNeedBe" | "yes";
@@ -13,6 +14,12 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   const [selectedOptions, setSelectedOptions] = useState<Record<string, Record<string, VoteState>>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [viewingParticipants, setViewingParticipants] = useState<{ optionId: string, type: string, names: string[] } | null>(null);
+  
+  const [showLookupModal, setShowLookupModal] = useState(false);
+  const [lookupEmail, setLookupEmail] = useState("");
+  const [lookupError, setLookupError] = useState("");
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const utils = trpc.useUtils();
 
   // Initialize selectedOptions if empty and user has past votes (via email match or participant)
   // This is a simple implementation; ideally we'd look up past votes from group.polls
@@ -22,6 +29,38 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
       setIsSubmitted(true);
     },
   });
+
+  
+  const handleLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLookupError("");
+    setIsLookingUp(true);
+    try {
+      const participants = await utils.pollGroups.getParticipantByEmail.fetch({ groupId: group.id, email: lookupEmail });
+      if (participants && participants.length > 0) {
+        setName(participants[0].name || "");
+        setEmail(participants[0].email || "");
+        setNote(participants[0].note || "");
+        
+        const newSelectedOptions: Record<string, Record<string, VoteState>> = {};
+        for (const p of participants) {
+          newSelectedOptions[p.pollId] = {};
+          for (const v of p.votes) {
+            newSelectedOptions[p.pollId][v.optionId] = v.type as VoteState;
+          }
+        }
+        setSelectedOptions(newSelectedOptions);
+        setShowLookupModal(false);
+      } else {
+        setLookupError("No previous submission found for that email.");
+      }
+    } catch (err: any) {
+      setLookupError(err.message || "An error occurred");
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+
 
   const cycleOption = (pollId: string, optionId: string) => {
     setSelectedOptions((prev) => {
@@ -81,7 +120,42 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-12">
+    <>
+      {group.requireEmailVerification === false && (
+        <div className="mb-4 text-center">
+          <Button variant="outline" size="sm" onClick={() => setShowLookupModal(true)}>
+            Already voted? Pull up your submission
+          </Button>
+        </div>
+      )}
+
+      {showLookupModal && (
+        <Dialog open={showLookupModal} onOpenChange={setShowLookupModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Find your previous votes</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleLookup} className="space-y-4 pt-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={lookupEmail}
+                  onChange={(e) => setLookupEmail(e.target.value)}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              {lookupError && <p className="text-red-500 text-sm">{lookupError}</p>}
+              <Button type="submit" disabled={isLookingUp}>
+                {isLookingUp ? "Looking up..." : "Pull up submission"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-12">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {group.polls.map((poll: any) => (
         <div key={poll.id} className="rounded-xl border bg-card p-6 shadow-sm flex flex-col">
@@ -238,5 +312,6 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
         </div>
       )}
     </form>
+    </>
   );
 }

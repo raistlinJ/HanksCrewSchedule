@@ -82,6 +82,36 @@ export const PollSettingsForm = ({ children }: React.PropsWithChildren) => {
           />
           <FormField
             control={form.control}
+            name="requireEmailVerification"
+            render={({ field }) => (
+              <Field orientation="horizontal">
+                <SettingIcon>
+                  <MailIcon />
+                </SettingIcon>
+                <FieldContent>
+                  <FieldLabel htmlFor="require-email-verification">
+                    <Trans
+                      i18nKey="requireEmailVerificationTitle"
+                      defaults="Require email verification"
+                    />
+                  </FieldLabel>
+                  <FieldDescription>
+                    <Trans
+                      i18nKey="requireEmailVerificationDescription"
+                      defaults="Participants must verify their email with a link to edit their vote. If disabled, anyone can type an email address to edit that user's vote."
+                    />
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="require-email-verification"
+                  checked={!!field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </Field>
+            )}
+          />
+          <FormField
+            control={form.control}
             name="hideParticipants"
             render={({ field }) => (
               <Field orientation="horizontal">

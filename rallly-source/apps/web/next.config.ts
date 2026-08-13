@@ -15,6 +15,8 @@ const withBundleAnalyzer = createBundleAnalyzer({
 const nextConfig: NextConfig = {
   allowedDevOrigins: [process.env.DEV_DOMAIN ?? "web.rallly.test"],
   experimental: {
+    workerThreads: false,
+    cpus: 1,
     staleTimes: {
       dynamic: 60,
     },
@@ -49,6 +51,9 @@ const nextConfig: NextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
   },
   async rewrites() {
     if (!process.env.API_BASE_URL) return [];

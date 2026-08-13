@@ -26,6 +26,7 @@ import { TRPCClientError } from "@trpc/client";
 import { CircleCheckIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { IfCloudHosted } from "@/components/environment";
@@ -36,6 +37,8 @@ import { MAX_RESPONSE_NOTE_LENGTH } from "@/features/poll/schema";
 import { useUser } from "@/features/user/client";
 import { Trans, useTranslation } from "@/i18n/client";
 import { useDateTimeConfig } from "@/lib/datetime/client";
+import { trpc } from "@/trpc/client";
+import { useVotingForm } from "@/features/poll/components/voting-form";
 
 const requiredEmailSchema = z.object({
   requireEmail: z.literal(true),
@@ -145,6 +148,31 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
   });
 
   const { setError, formState, handleSubmit, watch } = form;
+  const [showLookup, setShowLookup] = useState(false);
+  const [lookupEmail, setLookupEmail] = useState("");
+  const [lookupError, setLookupError] = useState("");
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const utils = trpc.useUtils();
+  const votingForm = useVotingForm();
+
+  const handleLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLookupError("");
+    setIsLookingUp(true);
+    try {
+      const participant = await utils.polls.getParticipantByEmail.fetch({ pollId: poll.id, email: lookupEmail });
+      if (participant) {
+        votingForm.editParticipantByEmailData(participant);
+      } else {
+        setLookupError("No previous submission found for that email.");
+      }
+    } catch (err: any) {
+      setLookupError(err.message || "An error occurred");
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+
 
   const getSubmitErrorMessage = (error: unknown) => {
     if (error instanceof TRPCClientError && error.data) {

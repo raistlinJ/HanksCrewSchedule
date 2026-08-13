@@ -30,27 +30,28 @@ enum PollClosedReason {
 }
 
 model Poll {
-  id                      String            @id @unique @map("id")
-  createdAt               DateTime          @default(now()) @map("created_at")
-  updatedAt               DateTime          @updatedAt @map("updated_at")
-  deadline                DateTime?
-  title                   String
-  description             String?
-  location                String?
-  userId                  String?           @map("user_id")
-  timeZone                String?           @map("time_zone")
-  status                  PollStatus        @default(open)
-  closedReason            PollClosedReason? @map("closed_reason")
-  kind                    PollKind          @default(date)
-  deleted                 Boolean           @default(false)
-  deletedAt               DateTime?         @map("deleted_at")
-  eventId                 String?           @unique @map("event_id")
-  scheduledEventId        String?           @map("scheduled_event_id")
-  hideParticipants        Boolean           @default(false) @map("hide_participants")
-  hideScores              Boolean           @default(false) @map("hide_scores")
-  disableComments         Boolean           @default(true) @map("disable_comments")
-  requireParticipantEmail Boolean           @default(false) @map("require_participant_email")
-  muted                   Boolean           @default(false)
+  id                       String            @id @unique @map("id")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
+  deadline                 DateTime?
+  title                    String
+  description              String?
+  location                 String?
+  userId                   String?           @map("user_id")
+  timeZone                 String?           @map("time_zone")
+  status                   PollStatus        @default(open)
+  closedReason             PollClosedReason? @map("closed_reason")
+  kind                     PollKind          @default(date)
+  deleted                  Boolean           @default(false)
+  deletedAt                DateTime?         @map("deleted_at")
+  eventId                  String?           @unique @map("event_id")
+  scheduledEventId         String?           @map("scheduled_event_id")
+  hideParticipants         Boolean           @default(false) @map("hide_participants")
+  hideScores               Boolean           @default(false) @map("hide_scores")
+  disableComments          Boolean           @default(true) @map("disable_comments")
+  requireParticipantEmail  Boolean           @default(false) @map("require_participant_email")
+  requireEmailVerification Boolean           @default(true) @map("require_email_verification")
+  muted                    Boolean           @default(false)
 
   user           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
   scheduledEvent ScheduledEvent? @relation(fields: [scheduledEventId], references: [id], onDelete: SetNull)
@@ -207,14 +208,15 @@ model Comment {
 }
 
 model PollGroup {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  spaceId     String?  @map("space_id")
-  userId      String?  @map("user_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  pollOrder   String[] @default([]) @map("poll_order")
+  id                       String   @id @default(cuid())
+  title                    String
+  description              String?
+  spaceId                  String?  @map("space_id")
+  userId                   String?  @map("user_id")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+  pollOrder                String[] @default([]) @map("poll_order")
+  requireEmailVerification Boolean  @default(true) @map("require_email_verification")
 
   space Space? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
   user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -35,6 +35,7 @@ import {
   TableIcon,
   TrashIcon,
   XIcon,
+  UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -239,28 +240,20 @@ function PollListItem({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  render={<Link href={`/poll/${id}/edit-details?returnTo=${pathname}`} />}
+                  render={<Link href={`/poll/${id}/edit?returnTo=${pathname}`} />}
                 >
                   <Icon>
                     <PencilIcon />
                   </Icon>
-                  <Trans i18nKey="editDetails" defaults="Edit details" />
+                  <Trans i18nKey="edit" defaults="Edit" />
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  render={<Link href={`/poll/${id}/edit-options?returnTo=${pathname}`} />}
+                  render={<Link href={`/poll/${id}/results`} />}
                 >
                   <Icon>
-                    <TableIcon />
+                    <UsersIcon />
                   </Icon>
-                  <Trans i18nKey="editOptions" defaults="Edit options" />
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  render={<Link href={`/poll/${id}/edit-settings?returnTo=${pathname}`} />}
-                >
-                  <Icon>
-                    <Settings2Icon />
-                  </Icon>
-                  <Trans i18nKey="editSettings" defaults="Edit settings" />
+                  <Trans i18nKey="results" defaults="Results" />
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {status === "open" && (

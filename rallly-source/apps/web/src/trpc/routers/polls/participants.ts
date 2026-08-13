@@ -451,10 +451,22 @@ export const participants = router({
     .mutation(async ({ input: { participantId, votes, token }, ctx }) => {
       const actor = await resolveActor(token, ctx.user);
 
-      const existingParticipant = await canModifyParticipant(
-        participantId,
-        actor.id,
-      );
+      // Check if we can bypass auth for unverified emails
+      let existingParticipant = await prisma.participant.findUnique({
+        where: { id: participantId },
+        include: { poll: { select: { requireEmailVerification: true } } }
+      });
+
+      if (!existingParticipant) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Participant not found" });
+      }
+
+      if (existingParticipant.poll.requireEmailVerification) {
+        existingParticipant = await canModifyParticipant(
+          participantId,
+          actor.id,
+        ) as any;
+      }
 
       const pollId = existingParticipant.pollId;
 

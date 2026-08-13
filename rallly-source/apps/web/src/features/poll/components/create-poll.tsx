@@ -190,6 +190,7 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
               disableComments: !formData?.enableComments,
               hideScores: formData?.hideScores,
               requireParticipantEmail: formData?.requireParticipantEmail,
+              requireEmailVerification: formData?.requireEmailVerification ?? true,
               options: required(formData?.options).map((option) => ({
                 startDate: option.type === "date" ? option.date : option.start,
                 endDate: option.type === "timeSlot" ? option.end : undefined,

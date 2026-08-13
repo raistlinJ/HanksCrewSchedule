@@ -1,9 +1,9 @@
-FROM node:24 AS base
+FROM public.ecr.aws/docker/library/node:24 AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-FROM node:24-slim AS base-slim
+FROM public.ecr.aws/docker/library/node:24-slim AS base-slim
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
@@ -34,8 +34,9 @@ ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION
 ARG SELF_HOSTED
 ENV NEXT_PUBLIC_SELF_HOSTED=$SELF_HOSTED
 
-ENV NODE_OPTIONS="--max_old_space_size=1536"
-RUN SKIP_ENV_VALIDATION=1 BETTER_AUTH_SECRET=dummy pnpm build
+ENV NODE_OPTIONS="--max_old_space_size=768"
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN SKIP_ENV_VALIDATION=1 BETTER_AUTH_SECRET=dummy pnpm build --concurrency=1
 
 # --- Runner Stage ---
 FROM base-slim AS runner

@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import Link from "next/link";
 import { ArrowLeftIcon, DownloadIcon } from "lucide-react";
 import { Button } from "@rallly/ui/button";
+import { ResponsesMatrix } from "./matrix";
 
 export default async function PollGroupResponsesPage({
   params,
@@ -93,88 +94,7 @@ export default async function PollGroupResponsesPage({
       </div>
 
       <div className="space-y-12">
-        {group.polls.length === 0 ? (
-          <p className="text-muted-foreground">This group has no polls.</p>
-        ) : (
-          group.polls.map((poll) => {
-            const hasVotes = poll.participants.length > 0;
-            return (
-              <div key={poll.id} className="bg-card border rounded-lg shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b bg-muted/30">
-                  <h2 className="text-xl font-semibold">{poll.title}</h2>
-                  {poll.description && (
-                    <p className="text-sm text-muted-foreground mt-1">{poll.description}</p>
-                  )}
-                </div>
-                
-                <div className="p-6 overflow-x-auto">
-                  {!hasVotes ? (
-                    <p className="text-sm text-muted-foreground italic">No responses yet.</p>
-                  ) : (
-                    <table className="w-full text-left border-collapse min-w-[600px]">
-                      <thead>
-                        <tr>
-                          <th className="p-3 border-b font-semibold bg-muted/10 w-48">Participant</th>
-                          {poll.options.map((opt) => (
-                            <th key={opt.id} className="p-3 border-b font-semibold bg-muted/10 text-center min-w-[100px]">
-                              {formatOption(opt)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {poll.participants.map((participant) => (
-                          <tr key={participant.id} className="border-b last:border-0 hover:bg-muted/10 transition-colors">
-                            <td className="p-3">
-                              <div className="font-medium text-sm">{participant.name}</div>
-                              {participant.email && <div className="text-xs text-muted-foreground">{participant.email}</div>}
-                            </td>
-                            {poll.options.map((opt) => {
-                              const vote = participant.votes.find((v: any) => v.optionId === opt.id);
-                              const voteType = vote?.type || "no";
-                              let voteDisplay = "❌";
-                              let voteClass = "text-gray-300";
-                              
-                              if (voteType === "yes") {
-                                voteDisplay = "✅";
-                                voteClass = "text-green-600";
-                              } else if (voteType === "ifNeedBe") {
-                                voteDisplay = "⚠️";
-                                voteClass = "text-yellow-600";
-                              }
-
-                              return (
-                                <td key={opt.id} className={`p-3 text-center ${voteClass}`}>
-                                  {voteDisplay}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-muted/5 font-semibold">
-                          <td className="p-3 border-t">Total Yes</td>
-                          {poll.options.map((opt) => {
-                            const yesCount = poll.participants.reduce((acc: number, p: any) => {
-                              const v = p.votes.find((v: any) => v.optionId === opt.id);
-                              return acc + (v?.type === "yes" ? 1 : 0);
-                            }, 0);
-                            return (
-                              <td key={opt.id} className="p-3 border-t text-center text-green-600">
-                                {yesCount}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
+        <ResponsesMatrix group={group} />
       </div>
     </div>
   );

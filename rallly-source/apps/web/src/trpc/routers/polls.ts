@@ -59,6 +59,21 @@ export const polls = router({
       });
       return { success: true };
     }),
+  
+  listAll: spaceProcedure.query(async ({ ctx }) => {
+    return prisma.poll.findMany({
+      where: {
+        spaceId: ctx.space.id,
+        deleted: false,
+      },
+      select: {
+        id: true,
+        title: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }),
+
   infiniteChronological: spaceProcedure
     .input(
       z.object({
@@ -112,6 +127,7 @@ export const polls = router({
         hideScores: z.boolean().optional(),
         disableComments: z.boolean().optional(),
         requireParticipantEmail: z.boolean().optional(),
+        requireEmailVerification: z.boolean().optional(),
         options: z
           .object({
             startDate: z.string(),
@@ -220,6 +236,7 @@ export const polls = router({
           disableComments: input.disableComments,
           hideScores: input.hideScores,
           requireParticipantEmail: input.requireParticipantEmail,
+          requireEmailVerification: input.requireEmailVerification ?? true,
           spaceId,
         },
       });
@@ -285,6 +302,7 @@ export const polls = router({
             hideParticipants: poll.hideParticipants,
             hideScores: poll.hideScores,
             requireParticipantEmail: poll.requireParticipantEmail,
+            requireEmailVerification: poll.requireEmailVerification,
             isGuest: ctx.user.isGuest,
           },
           groups: {
@@ -464,6 +482,8 @@ export const polls = router({
           description: true,
           disableComments: true,
           requireParticipantEmail: true,
+          requireEmailVerification: true,
+          requireEmailVerification: true,
           hideParticipants: true,
           hideScores: true,
           timeZone: true,
@@ -561,6 +581,7 @@ export const polls = router({
               hide_participants: !!updatedPoll.hideParticipants,
               hide_scores: !!updatedPoll.hideScores,
               require_participant_email: !!updatedPoll.requireParticipantEmail,
+              require_email_verification: updatedPoll.requireEmailVerification ?? true,
             },
             groups: {
               poll: pollId,
@@ -605,6 +626,44 @@ export const polls = router({
       );
     }),
   // END LEGACY ROUTES
+
+  getParticipantByEmail: publicProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        email: z.string().email(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { pollId, email } = input;
+      
+      const poll = await prisma.poll.findUnique({
+        where: { id: pollId },
+        select: { requireEmailVerification: true },
+      });
+
+      if (!poll) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Poll not found" });
+      }
+
+      if (poll.requireEmailVerification) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Email verification is required for this poll" });
+      }
+
+      const participant = await prisma.participant.findFirst({
+        where: {
+          pollId: pollId,
+          email: email,
+          deleted: false,
+        },
+        include: {
+          votes: true
+        }
+      });
+
+      return participant;
+    }),
+
   get: publicProcedure
     .input(
       z.object({
@@ -626,6 +685,7 @@ export const polls = router({
           disableComments: true,
           hideScores: true,
           requireParticipantEmail: true,
+          requireEmailVerification: true,
           options: {
             select: {
               id: true,
@@ -1214,6 +1274,7 @@ export const polls = router({
           hideParticipants: true,
           hideScores: true,
           requireParticipantEmail: true,
+          requireEmailVerification: true,
           disableComments: true,
           spaceId: true,
           kind: true,
@@ -1242,6 +1303,7 @@ export const polls = router({
           location: poll.location,
           spaceId: poll.spaceId,
           requireParticipantEmail: poll.requireParticipantEmail,
+            requireEmailVerification: poll.requireEmailVerification,
           description: poll.description,
           hideParticipants: poll.hideParticipants,
           hideScores: poll.hideScores,

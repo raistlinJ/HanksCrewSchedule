@@ -43,6 +43,16 @@ export const useVotingForm = () => {
         })),
       });
     },
+    editParticipantByEmailData: (participant: any) => {
+      form.reset({
+        mode: "edit",
+        participantId: participant.id,
+        votes: options.map((option) => ({
+          optionId: option.id,
+          type: participant.votes.find((vote: any) => vote.optionId === option.id)?.type,
+        })),
+      });
+    },
     setEditingParticipantId: (newParticipantId: string) => {
       const participant = participants.find((p) => p.id === newParticipantId);
       if (participant) {

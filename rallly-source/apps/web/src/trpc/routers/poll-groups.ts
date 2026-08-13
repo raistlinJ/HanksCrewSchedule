@@ -84,6 +84,7 @@ export const pollGroups = router({
         title: z.string().trim().min(1),
         description: z.string().trim().optional(),
         pollIds: z.array(z.string()).optional(),
+        requireEmailVerification: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -94,6 +95,7 @@ export const pollGroups = router({
           spaceId: ctx.space.id,
           userId: ctx.user.id,
           pollOrder: input.pollIds || [],
+          requireEmailVerification: input.requireEmailVerification ?? true,
         },
       });
 
@@ -119,10 +121,11 @@ export const pollGroups = router({
         title: z.string().trim().min(1),
         description: z.string().trim().optional(),
         pollIds: z.array(z.string()).optional(),
+        requireEmailVerification: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { groupId, title, description, pollIds = [] } = input;
+      const { groupId, title, description, pollIds = [], requireEmailVerification } = input;
 
       const existingGroup = await prisma.pollGroup.findUnique({
         where: { id: groupId },
@@ -145,6 +148,7 @@ export const pollGroups = router({
           title,
           description,
           pollOrder: newPollOrder,
+          requireEmailVerification: requireEmailVerification ?? true,
         },
       });
 
@@ -273,6 +277,46 @@ export const pollGroups = router({
       };
     }),
 
+  
+  getParticipantByEmail: publicProcedure
+    .input(
+      z.object({
+        groupId: z.string(),
+        email: z.string().email(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { groupId, email } = input;
+      
+      const group = await prisma.pollGroup.findUnique({
+        where: { id: groupId },
+        select: { requireEmailVerification: true, polls: { select: { id: true } } },
+      });
+
+      if (!group) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Group not found" });
+      }
+
+      if (group.requireEmailVerification) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Email verification is required for this group" });
+      }
+
+      const pollIds = group.polls.map(p => p.id);
+      
+      const participants = await prisma.participant.findMany({
+        where: {
+          pollId: { in: pollIds },
+          email: email,
+          deleted: false,
+        },
+        include: {
+          votes: true
+        }
+      });
+
+      return participants;
+    }),
+
   submitGroupVotes: publicProcedure
     .input(
       z.object({
@@ -298,7 +342,7 @@ export const pollGroups = router({
 
       const group = await prisma.pollGroup.findUnique({
         where: { id: groupId },
-        select: { id: true },
+        select: { id: true, requireEmailVerification: true },
       });
 
       if (!group) {
@@ -319,6 +363,13 @@ export const pollGroups = router({
             ],
           },
         });
+
+        if (existingParticipant && group.requireEmailVerification) {
+           const isOwner = existingParticipant.userId && ctx.user && existingParticipant.userId === ctx.user.id;
+           if (!isOwner) {
+             throw new TRPCError({ code: "FORBIDDEN", message: "Email verification required. Please log in to edit." });
+           }
+        }
 
         let participantId: string;
 
@@ -448,5 +499,129 @@ export const pollGroups = router({
       });
 
       return { newGroupId };
+    }),
+  getRemindableParticipants: spaceProcedure
+    .input(z.object({ groupId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const group = await prisma.pollGroup.findUnique({
+        where: { id: input.groupId, spaceId: ctx.space.id },
+        include: {
+          polls: {
+            where: { deleted: false },
+            include: {
+              participants: {
+                where: { deleted: false, email: { not: null } },
+                include: {
+                  votes: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!group) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Poll Group not found",
+        });
+      }
+
+      const participantMap = new Map<string, { name: string, email: string }>();
+      for (const poll of group.polls) {
+        for (const participant of poll.participants) {
+          if (participant.email) {
+            // Check if they voted "yes"
+            const hasYesVote = participant.votes.some(v => v.type === "yes");
+            if (hasYesVote) {
+              const key = participant.email.toLowerCase();
+              if (!participantMap.has(key)) {
+                participantMap.set(key, { name: participant.name, email: participant.email });
+              }
+            }
+          }
+        }
+      }
+
+      return Array.from(participantMap.values());
+    }),
+  sendReminderEmails: spaceProcedure
+    .input(z.object({ groupId: z.string(), subject: z.string(), body: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const group = await prisma.pollGroup.findUnique({
+        where: { id: input.groupId, spaceId: ctx.space.id },
+        include: {
+          polls: {
+            where: { deleted: false },
+            include: {
+              participants: {
+                where: { deleted: false, email: { not: null } },
+                include: {
+                  votes: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!group) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Poll Group not found",
+        });
+      }
+
+      const emails = new Set<string>();
+      for (const poll of group.polls) {
+        for (const participant of poll.participants) {
+          if (participant.email) {
+            const hasYesVote = participant.votes.some(v => v.type === "yes");
+            if (hasYesVote) {
+              emails.add(participant.email);
+            }
+          }
+        }
+      }
+
+      const subject = input.subject;
+      const textBody = input.body;
+      
+      // Dispatch emails in parallel
+      await Promise.all(
+        Array.from(emails).map((email) =>
+          sendRawEmail({
+            to: email,
+            subject: subject,
+            text: textBody,
+          })
+        )
+      );
+
+      return { success: true, count: emails.size };
+    }),
+  updateVoteToYes: spaceProcedure
+    .input(z.object({ voteId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Find the vote and ensure it belongs to a poll in this space
+      const vote = await prisma.vote.findUnique({
+        where: { id: input.voteId },
+        include: { poll: true }
+      });
+      if (!vote || vote.poll.spaceId !== ctx.space.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Vote not found or access denied" });
+      }
+      
+      // Only allow updating from ifNeedBe to yes for safety
+      if (vote.type !== "ifNeedBe") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only 'ifNeedBe' votes can be updated to 'yes'" });
+      }
+
+      const updatedVote = await prisma.vote.update({
+        where: { id: input.voteId },
+        data: { type: "yes" }
+      });
+
+      return updatedVote;
     }),
 });

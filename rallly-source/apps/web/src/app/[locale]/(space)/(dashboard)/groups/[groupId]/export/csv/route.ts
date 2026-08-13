@@ -64,14 +64,61 @@ export async function GET(
   const { t } = await getTranslation(locale);
   
   // Format dates
-  const formatOption = (opt: any) => {
-    if (opt.type === "TEXT") return opt.title;
-    if (opt.type === "DATE") {
-      const d = new Date(opt.startTime);
-      // Using locale for date formatting
-      return new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric' }).format(d);
+  const formatOption = (poll: any, opt: any) => {
+    const d = new Date(opt.startTime);
+    const timeZone = poll.timeZone || 'UTC';
+    const dateStr = new Intl.DateTimeFormat(locale, { 
+      weekday: 'short', month: 'short', day: 'numeric', timeZone
+    }).format(d);
+
+    if (poll.kind === "time" || opt.duration > 0) {
+      const timeFormatter = new Intl.DateTimeFormat(locale, {
+        hour: 'numeric', minute: '2-digit', timeZone
+      });
+      const startStr = timeFormatter.format(d);
+      
+      if (opt.duration > 0) {
+        const endDate = new Date(d.getTime() + opt.duration * 60000);
+        const endStr = timeFormatter.format(endDate);
+        const hours = opt.duration / 60;
+        const hoursStr = Number.isInteger(hours) ? hours.toString() : hours.toFixed(1);
+        return `${dateStr} (${startStr} - ${endStr}, ${hoursStr}h)`;
+      }
+      
+      return `${dateStr} (${startStr})`;
     }
-    return "Option";
+    
+    return dateStr;
+  };
+
+  const calculateTotalHours = (poll: any, participant: any) => {
+    const yesOptions = poll.options.filter((opt: any) => {
+      const vote = participant.votes.find((v: any) => v.optionId === opt.id);
+      return vote?.type === "yes";
+    });
+
+    if (yesOptions.length === 0) return 0;
+
+    const intervals = yesOptions.map((opt: any) => {
+      const start = new Date(opt.startTime).getTime();
+      const duration = opt.duration || 0;
+      return { start, end: start + (duration * 60 * 1000) };
+    }).sort((a: any, b: any) => a.start - b.start);
+
+    const merged = [intervals[0]];
+    for (let i = 1; i < intervals.length; i++) {
+      const current = intervals[i];
+      const previous = merged[merged.length - 1];
+
+      if (current.start <= previous.end) {
+        previous.end = Math.max(previous.end, current.end);
+      } else {
+        merged.push(current);
+      }
+    }
+
+    const totalMs = merged.reduce((sum: number, interval: any) => sum + (interval.end - interval.start), 0);
+    return totalMs / (1000 * 60 * 60);
   };
 
   const rows: string[] = [];
@@ -86,22 +133,33 @@ export async function GET(
     const header = [
       t("name", { defaultValue: "Name" }),
       t("email", { defaultValue: "Email" }),
-      ...poll.options.map((opt: any) => `"${formatOption(opt).replace(/"/g, '""')}"`)
+      t("note", { defaultValue: "Note" }),
+      t("submittedAt", { defaultValue: "Submitted At" }),
+      ...poll.options.map((opt: any) => `"${formatOption(poll, opt).replace(/"/g, '""')}"`),
+      "Total Hours"
     ].join(",");
     rows.push(header);
     
     // Rows for each participant
     for (const participant of poll.participants) {
+      const totalHours = calculateTotalHours(poll, participant);
+      const hoursStr = Number.isInteger(totalHours) ? totalHours.toString() : totalHours.toFixed(1);
+
+      const createdAtStr = participant.createdAt ? new Date(participant.createdAt).toLocaleString(locale) : "";
+      
       const row = [
         `"${participant.name.replace(/"/g, '""')}"`,
         `"${(participant.email || "").replace(/"/g, '""')}"`,
+        `"${(participant.note || "").replace(/"/g, '""')}"`,
+        `"${createdAtStr}"`,
         ...poll.options.map((opt: any) => {
           const vote = participant.votes.find((v: any) => v.optionId === opt.id);
           const voteType = vote?.type || "no";
           if (voteType === "yes") return t("yes");
           if (voteType === "ifNeedBe") return t("ifNeedBe");
           return t("no");
-        })
+        }),
+        `"${hoursStr}"`
       ].join(",");
       rows.push(row);
     }
