@@ -700,7 +700,7 @@ export default function PollGroupsDashboardPage() {
                           <div className="flex items-center gap-4">
                             <Link href={`/groups/${group.id}/responses`}>
                               <Button variant="default" size="sm">
-                                View Responses
+                                View All Responses
                               </Button>
                             </Link>
                           </div>

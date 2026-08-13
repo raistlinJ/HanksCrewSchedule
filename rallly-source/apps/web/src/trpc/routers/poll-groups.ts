@@ -600,28 +600,141 @@ export const pollGroups = router({
 
       return { success: true, count: emails.size };
     }),
-  updateVoteToYes: spaceProcedure
-    .input(z.object({ voteId: z.string() }))
+  cycleVote: spaceProcedure
+    .input(z.object({ 
+      voteId: z.string().optional(),
+      participantId: z.string(),
+      optionId: z.string(),
+      pollId: z.string()
+    }))
     .mutation(async ({ ctx, input }) => {
-      // Find the vote and ensure it belongs to a poll in this space
-      const vote = await prisma.vote.findUnique({
-        where: { id: input.voteId },
-        include: { poll: true }
+      // Ensure the poll belongs to the current space
+      const poll = await prisma.poll.findUnique({ where: { id: input.pollId } });
+      if (!poll || poll.spaceId !== ctx.space.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Poll not found or access denied" });
+      }
+
+      if (input.voteId) {
+        // Vote exists, cycle its state: no -> ifNeedBe -> yes -> no
+        const vote = await prisma.vote.findUnique({ where: { id: input.voteId } });
+        if (!vote) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Vote not found" });
+        }
+        
+        let newType = "yes";
+        if (vote.type === "no") newType = "ifNeedBe";
+        else if (vote.type === "ifNeedBe") newType = "yes";
+        else if (vote.type === "yes") newType = "no";
+
+        const updatedVote = await prisma.vote.update({
+          where: { id: input.voteId },
+          data: { type: newType }
+        });
+        return updatedVote;
+      } else {
+        // Vote doesn't exist. It's implicitly "no". So we cycle it to "ifNeedBe".
+        const newVote = await prisma.vote.create({
+          data: {
+            participantId: input.participantId,
+            optionId: input.optionId,
+            pollId: input.pollId,
+            type: "ifNeedBe"
+          }
+        });
+        return newVote;
+      }
+    }),
+  addGroupParticipant: spaceProcedure
+    .input(z.object({
+      groupId: z.string(),
+      name: z.string().min(1, "Name is required"),
+      email: z.string().email().optional().or(z.literal(''))
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const group = await prisma.pollGroup.findUnique({
+        where: { id: input.groupId },
+        include: { polls: true }
       });
-      if (!vote || vote.poll.spaceId !== ctx.space.id) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Vote not found or access denied" });
+
+      if (!group || group.spaceId !== ctx.space.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Group not found or access denied" });
+      }
+
+      const emailStr = input.email ? input.email.toLowerCase() : null;
+
+      const participants = await Promise.all(group.polls.map(poll => 
+        prisma.participant.create({
+          data: {
+            name: input.name,
+            email: emailStr,
+            pollId: poll.id,
+          }
+        })
+      ));
+
+      return { success: true, count: participants.length };
+    }),
+  deleteGroupParticipant: spaceProcedure
+    .input(z.object({
+      groupId: z.string(),
+      participantIds: z.array(z.string())
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const group = await prisma.pollGroup.findUnique({ where: { id: input.groupId } });
+      if (!group || group.spaceId !== ctx.space.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Group not found or access denied" });
+      }
+
+      await prisma.participant.updateMany({
+        where: { id: { in: input.participantIds } },
+        data: {
+          deleted: true,
+          deletedAt: new Date()
+        }
+      });
+      return { success: true };
+    }),
+  updateGroupParticipant: spaceProcedure
+    .input(z.object({
+      groupId: z.string(),
+      participantIds: z.array(z.string()),
+      name: z.string().min(1, "Name is required"),
+      email: z.string().email().optional().or(z.literal(''))
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const group = await prisma.pollGroup.findUnique({ where: { id: input.groupId } });
+      if (!group || group.spaceId !== ctx.space.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Group not found or access denied" });
+      }
+      const emailStr = input.email ? input.email.toLowerCase() : null;
+      await prisma.participant.updateMany({
+        where: { id: { in: input.participantIds } },
+        data: { name: input.name, email: emailStr }
+      });
+      return { success: true };
+    }),
+  updateOption: spaceProcedure
+    .input(z.object({
+      groupId: z.string(),
+      optionId: z.string(),
+      startTime: z.string().datetime(),
+      duration: z.number().min(0)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const group = await prisma.pollGroup.findUnique({ where: { id: input.groupId } });
+      if (!group || group.spaceId !== ctx.space.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Group not found or access denied" });
       }
       
-      // Only allow updating from ifNeedBe to yes for safety
-      if (vote.type !== "ifNeedBe") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only 'ifNeedBe' votes can be updated to 'yes'" });
+      const option = await prisma.option.findUnique({ where: { id: input.optionId }, include: { poll: true } });
+      if (!option || option.poll.pollGroupId !== input.groupId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Option not found in this group" });
       }
 
-      const updatedVote = await prisma.vote.update({
-        where: { id: input.voteId },
-        data: { type: "yes" }
+      await prisma.option.update({
+        where: { id: input.optionId },
+        data: { startTime: new Date(input.startTime), duration: input.duration }
       });
-
-      return updatedVote;
-    }),
+      return { success: true };
+    })
 });

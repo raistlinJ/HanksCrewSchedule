@@ -1,45 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/trpc/client";
 import { Button } from "@rallly/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@rallly/ui/dialog";
+import { Input } from "@rallly/ui/input";
+import { useSearchParams } from "next/navigation";
 
 export default function VotingClient({ group, userEmail }: { group: any; userEmail: string | null }) {
+  const searchParams = useSearchParams();
+  const urlEmail = searchParams.get("email");
+
   type VoteState = "no" | "ifNeedBe" | "yes";
   const [name, setName] = useState("");
-  const [email, setEmail] = useState(userEmail || "");
+  const [email, setEmail] = useState(userEmail || urlEmail || "");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<Record<string, Record<string, VoteState>>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [viewingParticipants, setViewingParticipants] = useState<{ optionId: string, type: string, names: string[] } | null>(null);
   
-  const [showLookupModal, setShowLookupModal] = useState(false);
-  const [lookupEmail, setLookupEmail] = useState("");
-  const [lookupError, setLookupError] = useState("");
+  const [hasPassedGatekeeper, setHasPassedGatekeeper] = useState(!!(userEmail || urlEmail));
+  const [gatekeeperEmail, setGatekeeperEmail] = useState(userEmail || urlEmail || "");
+  const [gatekeeperError, setGatekeeperError] = useState("");
   const [isLookingUp, setIsLookingUp] = useState(false);
+  
   const utils = trpc.useUtils();
 
-  // Initialize selectedOptions if empty and user has past votes (via email match or participant)
-  // This is a simple implementation; ideally we'd look up past votes from group.polls
-  
   const submitVotesMutation = trpc.pollGroups.submitGroupVotes.useMutation({
     onSuccess: () => {
       setIsSubmitted(true);
     },
   });
 
-  
-  const handleLookup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLookupError("");
+  const performLookup = async (targetEmail: string) => {
+    setGatekeeperError("");
     setIsLookingUp(true);
     try {
-      const participants = await utils.pollGroups.getParticipantByEmail.fetch({ groupId: group.id, email: lookupEmail });
+      const participants = await utils.pollGroups.getParticipantByEmail.fetch({ groupId: group.id, email: targetEmail });
       if (participants && participants.length > 0) {
         setName(participants[0].name || "");
-        setEmail(participants[0].email || "");
+        setEmail(participants[0].email || targetEmail);
         setNote(participants[0].note || "");
         
         const newSelectedOptions: Record<string, Record<string, VoteState>> = {};
@@ -50,17 +50,31 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
           }
         }
         setSelectedOptions(newSelectedOptions);
-        setShowLookupModal(false);
       } else {
-        setLookupError("No previous submission found for that email.");
+        setEmail(targetEmail);
       }
+      setHasPassedGatekeeper(true);
     } catch (err: any) {
-      setLookupError(err.message || "An error occurred");
+      setGatekeeperError(err.message || "An error occurred");
     } finally {
       setIsLookingUp(false);
     }
   };
 
+  useEffect(() => {
+    if (userEmail || urlEmail) {
+      performLookup(userEmail || urlEmail || "");
+    }
+  }, [userEmail, urlEmail]);
+
+  const handleGatekeeperSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gatekeeperEmail.includes("@")) {
+      setGatekeeperError("Please enter a valid email address");
+      return;
+    }
+    await performLookup(gatekeeperEmail);
+  };
 
   const cycleOption = (pollId: string, optionId: string) => {
     setSelectedOptions((prev) => {
@@ -119,41 +133,38 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     );
   }
 
+  if (!hasPassedGatekeeper) {
+    return (
+      <div className="bg-card border rounded-lg p-6 shadow-sm mx-auto max-w-md mt-8">
+        <h2 className="text-xl font-semibold mb-2">Welcome! Please enter your email</h2>
+        <p className="text-muted-foreground mb-4 text-sm">
+          Enter your email to view this poll group. If you've already voted, we'll load your previous responses.
+        </p>
+        
+        <form onSubmit={handleGatekeeperSubmit} className="flex flex-col gap-3">
+          <div>
+            <Input
+              type="email"
+              placeholder="name@example.com"
+              value={gatekeeperEmail}
+              onChange={(e) => setGatekeeperEmail(e.target.value)}
+              required
+              autoFocus
+              disabled={isLookingUp}
+              className="w-full"
+            />
+            {gatekeeperError && <p className="text-red-500 text-sm mt-1">{gatekeeperError}</p>}
+          </div>
+          <Button type="submit" variant="primary" loading={isLookingUp}>
+            Continue
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <>
-      {group.requireEmailVerification === false && (
-        <div className="mb-4 text-center">
-          <Button variant="outline" size="sm" onClick={() => setShowLookupModal(true)}>
-            Already voted? Pull up your submission
-          </Button>
-        </div>
-      )}
-
-      {showLookupModal && (
-        <Dialog open={showLookupModal} onOpenChange={setShowLookupModal}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Find your previous votes</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleLookup} className="space-y-4 pt-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={lookupEmail}
-                  onChange={(e) => setLookupEmail(e.target.value)}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                />
-              </div>
-              {lookupError && <p className="text-red-500 text-sm">{lookupError}</p>}
-              <Button type="submit" disabled={isLookingUp}>
-                {isLookingUp ? "Looking up..." : "Pull up submission"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-12">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
