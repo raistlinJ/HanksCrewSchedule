@@ -9,7 +9,7 @@ export const previewChrome: EmailChrome = {
   baseUrl: "https://rallly.co",
   domain: "rallly.co",
   supportEmail: "support@rallly.co",
-  appName: "HanksCrewSchedule",
+  appName: "Hanks Crew App",
   primaryColor: "#4f46e5",
   hideAttribution: false,
 };

@@ -3,6 +3,7 @@ import { buttonVariants } from "@rallly/ui";
 import { Alert, AlertAction, AlertDescription } from "@rallly/ui/alert";
 import { ArrowUpRightIcon, CrownIcon } from "lucide-react";
 import Link from "next/link";
+import { HanksThemeLogo } from "@/components/hanks-theme-logo";
 import { usePoll } from "@/features/poll/client";
 import { CommentsSheet } from "@/features/poll/components/comments-sheet";
 import { EventCard } from "@/features/poll/components/event-card";
@@ -53,6 +54,9 @@ export function InvitePage() {
         tabIndex={-1}
         className="mx-auto w-full max-w-4xl space-y-3"
       >
+        <div className="flex justify-center py-2">
+          <HanksThemeLogo className="w-24 sm:w-28" preload />
+        </div>
         <GoToApp />
         <EventCard />
         <VotingForm>

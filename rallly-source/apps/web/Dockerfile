@@ -25,6 +25,9 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # Build the project
 COPY --from=builder /app/out/full/ .
+# The Hanks Crew theme is stored outside the pruned workspace packages but is
+# imported by the web app at build time.
+COPY --from=builder /app/assets ./assets
 COPY turbo.json turbo.json
 RUN pnpm db:generate
 

@@ -19,7 +19,7 @@ export async function PoweredBy({
 
   return (
     <Text small light={true}>
-      An app by Acosta3d for Hanks Crew Schedule
+      An app by Acosta3d for Hanks Crew App
     </Text>
   );
 }

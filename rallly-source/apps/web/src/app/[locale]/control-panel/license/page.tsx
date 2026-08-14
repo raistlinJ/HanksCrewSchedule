@@ -139,7 +139,7 @@ export default async function LicensePage() {
                   <p className="text-muted-foreground text-sm leading-relaxed">
                     <Trans
                       i18nKey="whiteLabelAddonDescription"
-                      defaults="This add-on allows you to brand Rallly with your own logo and colors."
+                      defaults="This add-on allows you to brand Hanks Crew App with your own logo and colors."
                     />
                   </p>
                   <p className="mt-4 text-sm">

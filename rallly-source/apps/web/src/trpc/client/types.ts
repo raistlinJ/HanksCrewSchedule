@@ -14,6 +14,14 @@ export type GetPollApiResponse = {
   } | null;
   timeZone: string | null;
   canManage: boolean;
+  groupNavigation: {
+    groupId: string;
+    groupTitle: string;
+    position: number;
+    total: number;
+    previous: { id: string; title: string } | null;
+    next: { id: string; title: string } | null;
+  } | null;
   status: PollStatus;
   createdAt: Date;
   deleted: boolean;

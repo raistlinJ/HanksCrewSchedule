@@ -20,7 +20,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, CheckIcon, XIcon, ClockIcon, DownloadIcon, MoreHorizontal, ExternalLink, MailIcon, ChevronDownIcon, LinkIcon, QrCodeIcon } from "lucide-react";
+import { GripVertical, CheckIcon, XIcon, DownloadIcon, MoreHorizontal, ExternalLink, MailIcon, ChevronDownIcon, LinkIcon, QrCodeIcon } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@rallly/ui/dropdown-menu";
 import { Button } from "@rallly/ui/button";
 import { shortUrl } from "@rallly/utils/absolute-url";
@@ -36,6 +36,7 @@ import {
 } from "@rallly/ui/dialog";
 import { toast } from "@rallly/ui/sonner";
 import { QRCodeCanvas } from "qrcode.react";
+import VoteIcon from "@/features/poll/components/vote-icon";
 
 interface PollGroupDTO {
   requireEmailVerification: boolean;
@@ -89,7 +90,7 @@ function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCou
             {poll.voteCounts.no}
           </span>
           <span className="flex items-center gap-1 text-yellow-500">
-            <ClockIcon className="h-3.5 w-3.5" />
+            <VoteIcon type="ifNeedBe" className="size-3.5" />
             {poll.voteCounts.ifNeedBe}
           </span>
         </div>
@@ -159,7 +160,7 @@ function SortableGroupPolls({
                   {poll.voteCounts.no}
                 </span>
                 <span className="flex items-center gap-1 text-yellow-500">
-                  <ClockIcon className="h-3.5 w-3.5" />
+                  <VoteIcon type="ifNeedBe" className="size-3.5" />
                   {poll.voteCounts.ifNeedBe}
                 </span>
               </div>

@@ -169,7 +169,7 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
               <div className="text-xs text-muted-foreground">Yes</div>
             </div>
             <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950 p-2">
-              <div className="text-2xl">⚠️</div>
+              <VoteIcon type="ifNeedBe" className="mx-auto size-7" />
               <div className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">{ifNeedBeCount}</div>
               <div className="text-xs text-muted-foreground">If Need Be</div>
             </div>
@@ -193,7 +193,7 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
               const vote = participant.votes.find((v) => v.optionId === currentOption.id);
               const voteType = vote?.type || "no";
 
-              let voteDisplay = "❌";
+              let voteDisplay: React.ReactNode = "❌";
               let voteBgColor = "bg-gray-100 dark:bg-gray-800";
               let voteTextColor = "text-gray-600 dark:text-gray-400";
 
@@ -202,7 +202,9 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
                 voteBgColor = "bg-green-100 dark:bg-green-900";
                 voteTextColor = "text-green-700 dark:text-green-300";
               } else if (voteType === "ifNeedBe") {
-                voteDisplay = "⚠️";
+                voteDisplay = (
+                  <VoteIcon type="ifNeedBe" className="mx-auto size-6" />
+                );
                 voteBgColor = "bg-yellow-100 dark:bg-yellow-900";
                 voteTextColor = "text-yellow-700 dark:text-yellow-300";
               }

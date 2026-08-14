@@ -248,7 +248,7 @@ export const updateSpaceHideAttributionAction = authActionClient
   .action(async ({ ctx, parsedInput }) => {
     const { space } = ctx;
 
-    // Checks for branding and attribution removal disabled for HanksCrewSchedule
+    // Checks for branding and attribution removal disabled for Hanks Crew App
 
     await updateSpaceHideAttribution({
       spaceId: space.id,

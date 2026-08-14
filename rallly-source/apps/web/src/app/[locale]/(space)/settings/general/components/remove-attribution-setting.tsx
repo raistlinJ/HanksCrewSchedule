@@ -64,7 +64,7 @@ export function RemoveAttributionSetting({
         <FieldDescription>
           <Trans
             i18nKey="removeAttributionSettingDescription"
-            defaults='Hide "Powered by Rallly" on invite pages and participant emails.'
+            defaults='Hide "Powered by Hanks Crew App" on invite pages and participant emails.'
           />
         </FieldDescription>
       </FieldContent>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Trans } from "react-i18next/TransWithoutContext";
 import { OIDCAutoSignIn } from "@/app/[locale]/(auth)/login/components/oidc-auto-sign-in";
+import { HanksThemeLogo } from "@/components/hanks-theme-logo";
 import { env } from "@/env";
 import { LoginWithOIDC } from "@/features/auth/components/login-with-oidc";
 import { OrDivider } from "@/features/auth/components/or-divider";
@@ -78,7 +79,9 @@ export default async function LoginPage(props: {
   }
 
   return (
-    <AuthPageContainer>
+    <AuthPageContainer
+      brand={<HanksThemeLogo className="w-40 sm:w-44" preload />}
+    >
       <AuthPageHeader>
         <AuthPageTitle>
           <Trans

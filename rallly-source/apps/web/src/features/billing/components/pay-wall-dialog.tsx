@@ -349,7 +349,7 @@ export function PayWallDialog({
                     description={
                       <Trans
                         i18nKey="removeAttributionBenefitDescription"
-                        defaults='Hide "Powered by Rallly" from your participants'
+                        defaults='Hide "Powered by Hanks Crew App" from your participants'
                       />
                     }
                   />

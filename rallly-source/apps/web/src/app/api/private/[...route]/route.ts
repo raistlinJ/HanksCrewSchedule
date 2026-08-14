@@ -136,7 +136,7 @@ async function buildOpenApiSpec() {
   const spec = await generateSpecs(app, {
     documentation: {
       info: {
-        title: "Rallly Private API",
+        title: "Hanks Crew App Private API",
         version: "0.0.1",
         description: [
           "## Rate limits",
@@ -192,7 +192,7 @@ app.get(
   "/docs",
   Scalar({
     url: "/api/private/openapi",
-    pageTitle: "Rallly Private API Documentation",
+    pageTitle: "Hanks Crew App Private API Documentation",
     theme: "purple",
   }),
 );

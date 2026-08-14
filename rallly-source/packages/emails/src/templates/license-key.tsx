@@ -132,7 +132,7 @@ async function LicenseKeyEmail({
               ns="emails"
               i18nKey="license_key_activationSteps"
               defaults={
-                "Follow these <a>instructions</a> to activate your license on your Rallly Self-Hosted instance."
+                "Follow these <a>instructions</a> to activate your license on your Hanks Crew App Self-Hosted instance."
               }
               components={{
                 a: (
@@ -181,7 +181,7 @@ async function LicenseKeyEmail({
               i18n={i18n}
               ns="emails"
               i18nKey="license_key_signoff"
-              defaults="Thank you for choosing Rallly!"
+              defaults="Thank you for choosing Hanks Crew App!"
             />
           </Text>
         </Container>
@@ -211,7 +211,7 @@ export async function sendLicenseKeyEmail({
   await sendRenderedEmail({
     to,
     subject: t("license_key_subject", {
-      defaultValue: "Your Rallly Self-Hosted {tier} License",
+      defaultValue: "Your Hanks Crew App Self-Hosted {tier} License",
       tier: props.tier,
     }),
     element: (

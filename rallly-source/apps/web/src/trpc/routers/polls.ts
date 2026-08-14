@@ -892,6 +892,21 @@ export const polls = router({
             },
           },
           muted: true,
+          pollGroup: {
+            select: {
+              id: true,
+              title: true,
+              pollOrder: true,
+              polls: {
+                where: { deleted: false },
+                select: {
+                  id: true,
+                  title: true,
+                },
+                orderBy: { createdAt: "asc" },
+              },
+            },
+          },
           scheduledEvent: {
             select: {
               id: true,
@@ -930,6 +945,39 @@ export const polls = router({
         ? await canUserManagePoll(ctx.user, res)
         : false;
 
+      const { pollGroup, ...poll } = res;
+      const orderedGroupPolls = pollGroup
+        ? [...pollGroup.polls].sort((a, b) => {
+            const indexA = pollGroup.pollOrder.indexOf(a.id);
+            const indexB = pollGroup.pollOrder.indexOf(b.id);
+
+            if (indexA === -1 && indexB === -1) return 0;
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+          })
+        : [];
+      const groupPollIndex = orderedGroupPolls.findIndex(
+        (groupPoll) => groupPoll.id === res.id,
+      );
+      const groupNavigation =
+        canManage && pollGroup && groupPollIndex !== -1
+          ? {
+              groupId: pollGroup.id,
+              groupTitle: pollGroup.title,
+              position: groupPollIndex + 1,
+              total: orderedGroupPolls.length,
+              previous:
+                groupPollIndex > 0
+                  ? orderedGroupPolls[groupPollIndex - 1]
+                  : null,
+              next:
+                groupPollIndex < orderedGroupPolls.length - 1
+                  ? orderedGroupPolls[groupPollIndex + 1]
+                  : null,
+            }
+          : null;
+
       const event = res.scheduledEvent
         ? {
             id: res.scheduledEvent.id,
@@ -955,7 +1003,7 @@ export const polls = router({
         : null;
 
       return {
-        ...res,
+        ...poll,
         // Space-level attribution removal is cloud-only; self-hosted
         // attribution is licensed at instance level via the white label
         // addon.
@@ -966,6 +1014,7 @@ export const polls = router({
             }
           : null,
         canManage,
+        groupNavigation,
         inviteLink,
         event,
       };

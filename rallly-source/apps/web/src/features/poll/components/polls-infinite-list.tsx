@@ -43,7 +43,6 @@ import { absoluteUrl, shortUrl } from "@rallly/utils/absolute-url";
 import {
   CheckIcon,
   CircleStopIcon,
-  ClockIcon,
   GripVertical,
   MoreHorizontalIcon,
   PencilIcon,
@@ -61,6 +60,7 @@ import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { Spinner } from "@/components/spinner";
 import { StackedList, StackedListItem } from "@/components/stacked-list";
+import VoteIcon from "@/features/poll/components/vote-icon";
 import type { PollClosedReason, PollStatus } from "@/features/poll/schema";
 import { Trans, useTranslation } from "@/i18n/client";
 import { trpc } from "@/trpc/client";
@@ -177,7 +177,7 @@ function PollListItem({
                 {voteCounts.no}
               </span>
               <span className="flex items-center gap-1 text-yellow-500">
-                <ClockIcon className="h-3.5 w-3.5" />
+                <VoteIcon type="ifNeedBe" className="size-3.5" />
                 {voteCounts.ifNeedBe}
               </span>
             </div>

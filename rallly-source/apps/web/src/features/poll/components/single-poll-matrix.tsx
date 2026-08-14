@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { createBreakpoint } from "react-use";
 import { trpc } from "@/trpc/client";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/lib/locale/client";
 import { OptionEditForm } from "./option-edit-form";
 import MobilePollMatrix from "./single-poll-matrix/mobile-matrix";
+import VoteIcon from "./vote-icon";
 
 const useBreakpoint = createBreakpoint({ mobile: 0, tablet: 768 });
 
@@ -406,7 +407,7 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                   const vote = row.votes?.find((v: any) => v.optionId === opt.id);
                   const voteType = vote?.type || "no";
                   
-                  let voteDisplay = "❌";
+                  let voteDisplay: ReactNode = "❌";
                   let voteClass = "text-gray-300 cursor-pointer";
                   let titleAttr = "Click to change to If Need Be";
                   
@@ -415,7 +416,9 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                     voteClass = "text-green-600 cursor-pointer";
                     titleAttr = "Click to change to No";
                   } else if (voteType === "ifNeedBe") {
-                    voteDisplay = "⚠️";
+                    voteDisplay = (
+                      <VoteIcon type="ifNeedBe" className="mx-auto size-6" />
+                    );
                     voteClass = "text-yellow-600 cursor-pointer";
                     titleAttr = "Click to change to Yes";
                   }
@@ -423,9 +426,16 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                   const cellKey = `${row.id}-${opt.id}`;
                   const originalVoteType = originalVotes.get(cellKey);
                   const isChanged = originalVoteType && originalVoteType !== voteType;
-                  let originalDisplay = "";
+                  let originalDisplay: ReactNode = "";
                   if (isChanged) {
-                    originalDisplay = originalVoteType === "yes" ? "✅" : originalVoteType === "ifNeedBe" ? "⚠️" : "❌";
+                    originalDisplay =
+                      originalVoteType === "yes" ? (
+                        "✅"
+                      ) : originalVoteType === "ifNeedBe" ? (
+                        <VoteIcon type="ifNeedBe" className="size-3" />
+                      ) : (
+                        "❌"
+                      );
                   }
                   
                   return (
@@ -443,7 +453,7 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                           className="absolute top-1 right-1 text-[10px] opacity-60 bg-card rounded-full px-1 shadow-sm border cursor-help" 
                           title={`Original: ${originalVoteType === "yes" ? "Yes" : originalVoteType === "ifNeedBe" ? "If Need Be" : "No"}`}
                         >
-                          ({originalDisplay})
+                          {originalDisplay}
                         </span>
                       )}
                     </td>

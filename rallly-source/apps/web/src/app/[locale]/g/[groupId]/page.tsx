@@ -1,8 +1,6 @@
-import { notFound } from "next/navigation";
-import { headers } from "next/headers";
-import { getTranslation } from "@/i18n/server";
-import { Button } from "@rallly/ui/button";
 import { prisma } from "@rallly/database";
+import { notFound } from "next/navigation";
+import { HanksThemeLogo } from "@/components/hanks-theme-logo";
 import { getSession } from "@/lib/auth";
 
 // Voting Client Component
@@ -13,12 +11,11 @@ export default async function PublicPollGroupPage({
 }: {
   params: Promise<{ groupId: string; locale: string }>;
 }) {
-  const { groupId, locale } = await params;
+  const { groupId } = await params;
   const session = await getSession();
 
-  let group;
-  try {
-    group = await prisma.pollGroup.findUnique({
+  const group = await prisma.pollGroup
+    .findUnique({
       where: { id: groupId },
       include: {
         polls: {
@@ -34,10 +31,8 @@ export default async function PublicPollGroupPage({
           },
         },
       },
-    });
-  } catch (error) {
-    return notFound();
-  }
+    })
+    .catch(() => null);
 
   if (!group) {
     return notFound();
@@ -55,16 +50,17 @@ export default async function PublicPollGroupPage({
     });
   }
 
-  const { t } = await getTranslation(locale);
-
   return (
     <div className="mx-auto max-w-4xl px-4 py-12">
+      <div className="mb-6 flex justify-center">
+        <HanksThemeLogo className="w-24 sm:w-28" preload />
+      </div>
       <div className="mb-8 border-b pb-8">
-        <h1 className="text-4xl font-extrabold tracking-tight mb-2">
+        <h1 className="mb-2 font-extrabold text-4xl tracking-tight">
           {group.title}
         </h1>
         {group.description && (
-          <p className="text-lg text-muted-foreground whitespace-pre-wrap">
+          <p className="whitespace-pre-wrap text-lg text-muted-foreground">
             {group.description}
           </p>
         )}

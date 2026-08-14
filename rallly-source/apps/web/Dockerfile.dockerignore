@@ -1,0 +1,23 @@
+node_modules
+.git
+.github
+.vscode
+.turbo
+tsconfig.tsbuildinfo
+.env*
+.sentryclirc
+sentry.properties
+Dockerfile
+docker-compose.yml
+/docs
+README.md
+**/._*
+
+# The production Dockerfile builds these outputs from source. Excluding host
+# artifacts prevents stale caches and keeps the Docker context small.
+apps/*/.next
+apps/*/dist
+packages/*/dist
+
+# Turbo prune output
+out/

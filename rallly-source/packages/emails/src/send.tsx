@@ -26,7 +26,7 @@ export type SendArgs<P> = {
 function resolveFrom(from?: From): From {
   return (
     from ?? {
-      name: process.env.NOREPLY_EMAIL_NAME ?? "HanksCrewSchedule",
+      name: process.env.NOREPLY_EMAIL_NAME ?? "Hanks Crew App",
       address: process.env.NOREPLY_EMAIL || process.env.SUPPORT_EMAIL || "",
     }
   );

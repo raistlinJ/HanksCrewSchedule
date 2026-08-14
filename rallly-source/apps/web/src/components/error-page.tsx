@@ -25,7 +25,7 @@ export function ErrorPage({
         className="mx-auto w-full max-w-7xl px-6 pt-10 pb-16 sm:pb-24 lg:px-8"
       >
         <div className="mx-auto text-center font-extrabold text-2xl tracking-tighter text-primary">
-          Hanks Crew Schedule
+          Hanks Crew App
         </div>
         <div className="mx-auto mt-16 max-w-2xl text-center">
           <p className="font-semibold text-base/8 text-primary">{label}</p>

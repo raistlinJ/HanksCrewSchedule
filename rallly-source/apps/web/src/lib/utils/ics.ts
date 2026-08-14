@@ -1,6 +1,6 @@
 import * as ics from "ics";
 
-const productId = "-//Rallly//EN";
+const productId = "-//Hanks Crew App//EN";
 
 export interface CreateIcsEventOptions {
   uid: string;

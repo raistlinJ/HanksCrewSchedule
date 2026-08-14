@@ -40,7 +40,7 @@ async function fetchLatestRelease(): Promise<UpdatesPayload | null> {
   const res = await fetch(GITHUB_RELEASES_URL, {
     headers: {
       Accept: "application/vnd.github+json",
-      "User-Agent": "Rallly",
+      "User-Agent": "Hanks Crew App",
     },
   });
   if (!res.ok) return null;

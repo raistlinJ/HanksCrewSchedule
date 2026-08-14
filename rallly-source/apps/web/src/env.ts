@@ -71,7 +71,7 @@ export const env = createEnv({
      */
     SUPPORT_EMAIL: z.email(),
     NOREPLY_EMAIL: z.email().optional(),
-    NOREPLY_EMAIL_NAME: z.string().default("HanksCrewSchedule"),
+    NOREPLY_EMAIL_NAME: z.string().default("Hanks Crew App"),
 
     /**
      * S3 Configuration
@@ -117,7 +117,7 @@ export const env = createEnv({
     /**
      * App name
      */
-    APP_NAME: z.string().optional().default("HanksCrewSchedule"),
+    APP_NAME: z.string().optional().default("Hanks Crew App"),
     /**
      * Primary color for theming (hex format, e.g., "#4f46e5")
      */
@@ -172,7 +172,7 @@ export const env = createEnv({
      */
     TURNSTILE_SECRET_KEY: z.string().optional(),
     /**
-     * Base URL of the Rallly cloud API (e.g. https://api.rallly.co).
+     * Base URL of the Hanks Crew App cloud API (e.g. https://api.rallly.co).
      * Set by the self-hosted Docker image so the instance can phone home for
      * update checks. Unset elsewhere — the features that depend on it no-op
      * when it's missing.

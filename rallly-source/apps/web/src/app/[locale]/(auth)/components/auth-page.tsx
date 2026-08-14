@@ -1,11 +1,15 @@
 import { Logo } from "@/features/branding/components/logo";
 
-export function AuthPageContainer({ children }: { children: React.ReactNode }) {
+export function AuthPageContainer({
+  children,
+  brand,
+}: {
+  children: React.ReactNode;
+  brand?: React.ReactNode;
+}) {
   return (
     <div className="space-y-8">
-      <div className="mb-12 flex justify-center">
-        <Logo />
-      </div>
+      <div className="mb-12 flex justify-center">{brand ?? <Logo />}</div>
       {children}
     </div>
   );
