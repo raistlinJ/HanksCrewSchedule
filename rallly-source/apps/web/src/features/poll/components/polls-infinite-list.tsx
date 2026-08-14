@@ -155,7 +155,7 @@ function PollListItem({
             </Tooltip>
           )}
         </div>
-        <div className="hidden items-center justify-end gap-4 sm:flex">
+        <div className="flex items-center justify-end gap-2 sm:gap-4">
           {voteCounts ? (
             <div className="flex items-center gap-3 text-xs font-medium">
               <span className="flex items-center gap-1 text-green-600">

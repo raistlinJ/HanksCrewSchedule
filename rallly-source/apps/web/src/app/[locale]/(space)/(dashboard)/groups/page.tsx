@@ -59,11 +59,11 @@ function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCou
       ref={setNodeRef}
       style={style}
       onClick={() => router.push(`/poll/${poll.id}`)}
-      className="flex items-center justify-between text-sm bg-muted/10 hover:bg-muted/20 p-1.5 rounded border border-transparent hover:border-border mb-1 group transition-colors cursor-pointer"
+      className="flex items-center justify-between text-sm bg-muted/10 hover:bg-muted/20 p-2 sm:p-3 rounded border border-transparent hover:border-border mb-1 group transition-colors cursor-pointer"
     >
       <div className="flex items-center space-x-2 overflow-hidden flex-1">
         <div 
-          className="text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100 flex-shrink-0 cursor-grab touch-none p-1"
+          className="text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100 flex-shrink-0 cursor-grab touch-none p-2 sm:p-3"
           {...attributes}
           {...listeners}
           onClick={(e) => e.stopPropagation()}

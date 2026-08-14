@@ -208,12 +208,12 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
 
   return (
     <div className="bg-card border rounded-lg shadow-sm overflow-hidden mt-8 mb-16">
-      <div className="p-6 overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[800px]">
+      <div className="p-0 sm:p-6 overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[600px] sm:min-w-[800px]">
           <thead>
             {/* Option Headers */}
             <tr>
-              <th className="p-3 border-b font-semibold bg-muted/10 w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">Participant</th>
+              <th className="p-3 border-b font-semibold bg-muted/10 min-w-[120px] w-32 sm:w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">Participant</th>
               {allOptions.map((opt: any) => (
                 <th key={opt.id} className="group p-3 border-b font-semibold bg-muted/10 text-center min-w-[100px] border-l relative">
                   {editingOptionId === opt.id ? (
@@ -274,8 +274,8 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                         </>
                       )}
                       <div className="flex gap-1 mt-1 w-full">
-                        <button type="submit" className="flex-1 text-[10px] bg-primary text-primary-foreground px-1 py-1 rounded disabled:opacity-50" disabled={updateOptionMutation.isPending}>Save</button>
-                        <button type="button" onClick={() => setEditingOptionId(null)} className="flex-1 text-[10px] bg-muted px-1 py-1 rounded disabled:opacity-50" disabled={updateOptionMutation.isPending}>Cancel</button>
+                        <button type="submit" className="flex-1 text-xs bg-primary text-primary-foreground px-2 py-2 rounded font-medium disabled:opacity-50" disabled={updateOptionMutation.isPending}>Save</button>
+                        <button type="button" onClick={() => setEditingOptionId(null)} className="flex-1 text-xs bg-muted px-2 py-2 rounded font-medium disabled:opacity-50" disabled={updateOptionMutation.isPending}>Cancel</button>
                       </div>
                     </form>
                   ) : (
@@ -342,8 +342,8 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                         />
                       </div>
                       <div className="flex items-center gap-1 mt-1">
-                        <button type="submit" disabled={updateParticipantMutation.isPending} className="flex-1 text-[10px] bg-primary text-primary-foreground px-2 py-1 rounded font-medium disabled:opacity-50">Save</button>
-                        <button type="button" disabled={updateParticipantMutation.isPending} onClick={() => setEditingParticipantId(null)} className="flex-1 text-[10px] bg-muted px-2 py-1 rounded disabled:opacity-50">Cancel</button>
+                        <button type="submit" disabled={updateParticipantMutation.isPending} className="flex-1 text-sm bg-primary text-primary-foreground px-3 py-2 rounded font-medium disabled:opacity-50">Save</button>
+                        <button type="button" disabled={updateParticipantMutation.isPending} onClick={() => setEditingParticipantId(null)} className="flex-1 text-sm bg-muted px-3 py-2 rounded font-medium disabled:opacity-50">Cancel</button>
                       </div>
                     </form>
                   ) : (
@@ -360,9 +360,9 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                             setEditParticipantEmail(row.email || "");
                           }}
                           title="Edit Participant"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700 p-1"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path><path d="m15 5 4 4"></path></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path><path d="m15 5 4 4"></path></svg>
                         </button>
                         <button
                           onClick={() => {
@@ -371,10 +371,10 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                             }
                           }}
                           title="Delete Participant"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 disabled:opacity-50"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
                           disabled={deleteParticipantMutation.isPending}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
                         </button>
                       </div>
                     </div>
@@ -409,11 +409,11 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                   return (
                     <td 
                       key={opt.id} 
-                      className={`p-3 text-center border-l relative ${voteClass}`}
+                      className={`p-3 text-center border-l relative ${voteClass} min-w-[60px]`}
                       onClick={() => handleUpdateVote(vote?.id, voteType, row.id, opt.id)}
                       title={titleAttr}
                     >
-                      <div className="inline-block hover:scale-125 transition-transform">
+                      <div className="inline-block hover:scale-125 transition-transform text-2xl">
                         {voteDisplay}
                       </div>
                       {isChanged && (

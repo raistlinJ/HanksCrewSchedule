@@ -123,28 +123,7 @@ export async function DashboardHome({
               </TileDescription>
             </Tile>
 
-            <Tile render={<HoverPrefetchLink href="/events" />}>
-              <EventPageIcon />
-              <TileTitle>
-                <Trans
-                  t={t}
-                  i18n={i18n}
-                  ns="app"
-                  i18nKey="events"
-                  defaults="Events"
-                />
-              </TileTitle>
-              <TileDescription>
-                <Trans
-                  t={t}
-                  i18n={i18n}
-                  ns="app"
-                  i18nKey="upcomingEventCount"
-                  defaults="{count, plural, other {# upcoming}}"
-                  values={{ count: upcomingEventCount }}
-                />
-              </TileDescription>
-            </Tile>
+
           </TileGrid>
         </div>
         <div className="space-y-4">

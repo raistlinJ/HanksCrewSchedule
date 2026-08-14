@@ -71,13 +71,7 @@ export const useSpaceMenu = () => {
               icon: FolderIcon,
               isActive: pathname.startsWith("/groups"),
             },
-            {
-              id: "events",
-              label: t("events", { defaultValue: "Events" }),
-              href: "/events",
-              icon: CalendarIcon,
-              isActive: pathname === "/events",
-            },
+
             ...(isCalendarsEnabled
               ? [
                   {
