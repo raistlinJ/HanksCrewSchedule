@@ -94,7 +94,7 @@ export const ParticipantDropdown = ({
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsChangeNameModalVisible(true)}>
             <TagIcon />
-            <Trans i18nKey="changeName" defaults="Change name" />
+            <Trans i18nKey="changeInfo" defaults="Change info" />
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
@@ -106,10 +106,11 @@ export const ParticipantDropdown = ({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <ChangeNameModal
+      <ChangeInfoModal
         open={isChangeNameModalVisible}
         onOpenChange={setIsChangeNameModalVisible}
         oldName={participant.name}
+        oldEmail={participant.email || ""}
         participantId={participant.id}
       />
       <DeleteParticipantModal
@@ -184,27 +185,31 @@ const DeleteParticipantModal = ({
   );
 };
 
-type ChangeNameForm = {
+type ChangeInfoForm = {
   name: string;
+  email: string;
 };
 
-const changeNameSchema = z.object({
+const changeInfoSchema = z.object({
   name: z.string().trim().min(1),
+  email: z.string().email().or(z.literal("")).optional(),
 });
 
-const ChangeNameModal = (props: {
+const ChangeInfoModal = (props: {
   oldName: string;
+  oldEmail: string;
   participantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
   const token = useEditToken();
-  const changeName = trpc.polls.participants.rename.useMutation();
+  const changeInfo = trpc.polls.participants.rename.useMutation();
   const form = useForm({
     defaultValues: {
       name: props.oldName,
+      email: props.oldEmail,
     },
-    resolver: zodResolver(changeNameSchema),
+    resolver: zodResolver(changeInfoSchema),
   });
 
   const { control, reset, handleSubmit, setFocus, formState } = form;
@@ -217,39 +222,40 @@ const ChangeNameModal = (props: {
 
   const { participantId, onOpenChange } = props;
 
-  const handler = React.useCallback<SubmitHandler<ChangeNameForm>>(
-    async ({ name }) => {
+  const handler = React.useCallback<SubmitHandler<ChangeInfoForm>>(
+    async ({ name, email }) => {
       if (formState.isDirty) {
-        // change name
-        await changeName.mutateAsync({
+        // change info
+        await changeInfo.mutateAsync({
           participantId,
           newName: name,
+          newEmail: email,
           token,
         });
       }
       onOpenChange(false);
     },
-    [changeName, formState.isDirty, participantId, token, onOpenChange],
+    [changeInfo, formState.isDirty, participantId, token, onOpenChange],
   );
 
   const { requiredString } = useFormValidation();
-  const formName = `change-name-${props.participantId}`;
+  const formName = `change-info-${props.participantId}`;
   const { t } = useTranslation();
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {t("changeName", { defaultValue: "Change name" })}
+            {t("changeInfo", { defaultValue: "Change info" })}
           </DialogTitle>
           <DialogDescription>
-            {t("changeNameDescription", {
-              defaultValue: "Enter a new name for this participant.",
+            {t("changeInfoDescription", {
+              defaultValue: "Update the name and email for this participant.",
             })}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form id={formName} onSubmit={handleSubmit(handler)}>
+          <form id={formName} onSubmit={handleSubmit(handler)} className="space-y-4">
             <FormField
               control={control}
               name="name"
@@ -266,16 +272,34 @@ const ChangeNameModal = (props: {
                       disabled={formState.isSubmitting}
                     />
                   </FormControl>
-                  <FormDescription>
-                    {t("changeNameInfo", {
-                      defaultValue:
-                        "This will not affect any votes you have already made.",
-                    })}
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <FormField
+              control={control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("email", { defaultValue: "Email (optional)" })}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      className="w-full"
+                      {...field}
+                      disabled={formState.isSubmitting}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormDescription className="pt-2">
+              {t("changeNameInfo", {
+                defaultValue:
+                  "This will not affect any votes you have already made.",
+              })}
+            </FormDescription>
           </form>
         </Form>
         <DialogFooter>

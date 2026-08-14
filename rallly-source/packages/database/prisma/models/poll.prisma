@@ -187,6 +187,7 @@ model Vote {
   @@index([pollId], type: Hash)
   @@index([participantId], type: Hash)
   @@index([optionId], type: Hash)
+  @@unique([participantId, optionId])
   @@map("votes")
 }
 

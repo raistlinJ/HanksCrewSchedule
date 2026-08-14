@@ -248,12 +248,12 @@ function PollListItem({
                   <Trans i18nKey="edit" defaults="Edit" />
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  render={<Link href={`/poll/${id}/results`} />}
+                  render={<Link href={`/poll/${id}`} />}
                 >
                   <Icon>
                     <UsersIcon />
                   </Icon>
-                  <Trans i18nKey="results" defaults="Results" />
+                  <Trans i18nKey="responses" defaults="Responses" />
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {status === "open" && (

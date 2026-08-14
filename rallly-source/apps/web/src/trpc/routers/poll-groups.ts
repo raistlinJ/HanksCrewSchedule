@@ -28,7 +28,8 @@ export const pollGroups = router({
               title: true,
               status: true,
               votes: {
-                select: { type: true }
+                where: { participant: { deleted: false } },
+                select: { type: true, participantId: true }
               }
             },
           },
@@ -47,9 +48,9 @@ export const pollGroups = router({
         title: poll.title,
         status: poll.status,
         voteCounts: {
-          yes: poll.votes.filter(v => v.type === "yes").length,
-          no: poll.votes.filter(v => v.type === "no").length,
-          ifNeedBe: poll.votes.filter(v => v.type === "ifNeedBe").length,
+          yes: new Set(poll.votes.filter(v => v.type === "yes").map(v => v.participantId)).size,
+          no: new Set(poll.votes.filter(v => v.type === "no").map(v => v.participantId)).size,
+          ifNeedBe: new Set(poll.votes.filter(v => v.type === "ifNeedBe").map(v => v.participantId)).size,
         }
       }));
 
@@ -107,6 +108,8 @@ export const pollGroups = router({
           },
           data: {
             pollGroupId: group.id,
+            requireParticipantEmail: group.requireEmailVerification,
+            requireEmailVerification: group.requireEmailVerification,
           },
         });
       }
@@ -129,7 +132,7 @@ export const pollGroups = router({
 
       const existingGroup = await prisma.pollGroup.findUnique({
         where: { id: groupId },
-        select: { pollOrder: true },
+        select: { pollOrder: true, requireEmailVerification: true },
       });
 
       if (!existingGroup) {
@@ -163,15 +166,36 @@ export const pollGroups = router({
         },
       });
 
-      // Assign newly selected polls to group
-      if (pollIds.length > 0) {
+      // Assign newly selected polls to group and cascade email settings if changed
+      const newRequireEmail = requireEmailVerification ?? true;
+      const emailSettingsChanged = newRequireEmail !== existingGroup.requireEmailVerification;
+      
+      const newlyAddedPolls = pollIds.filter(id => !existingOrder.includes(id));
+      const existingPollsRetained = pollIds.filter(id => existingOrder.includes(id));
+
+      if (newlyAddedPolls.length > 0) {
         await prisma.poll.updateMany({
           where: {
-            id: { in: pollIds },
+            id: { in: newlyAddedPolls },
             spaceId: ctx.space.id,
           },
           data: {
             pollGroupId: groupId,
+            requireParticipantEmail: newRequireEmail,
+            requireEmailVerification: newRequireEmail,
+          },
+        });
+      }
+
+      if (emailSettingsChanged && existingPollsRetained.length > 0) {
+        await prisma.poll.updateMany({
+          where: {
+            id: { in: existingPollsRetained },
+            spaceId: ctx.space.id,
+          },
+          data: {
+            requireParticipantEmail: newRequireEmail,
+            requireEmailVerification: newRequireEmail,
           },
         });
       }
@@ -417,7 +441,7 @@ export const pollGroups = router({
     }),
 
   duplicate: spaceProcedure
-    .input(z.object({ groupId: z.string() }))
+    .input(z.object({ groupId: z.string(), newName: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const group = await prisma.pollGroup.findUnique({
         where: { id: input.groupId },
@@ -437,16 +461,19 @@ export const pollGroups = router({
         });
       }
 
-      // Helper to append/increment suffix like " (1)"
-      const incrementTitle = (title: string) => {
-        const match = title.match(/(.*)\s\((\d+)\)$/);
-        if (match) {
-          const base = match[1];
-          const num = parseInt(match[2], 10);
-          return `${base} (${num + 1})`;
+      const existingName = await prisma.pollGroup.findFirst({
+        where: {
+          spaceId: ctx.space.id,
+          title: input.newName,
         }
-        return `${title} (1)`;
-      };
+      });
+
+      if (existingName) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A group with that name already exists.",
+        });
+      }
 
       const newGroupId = nanoid();
 
@@ -455,7 +482,7 @@ export const pollGroups = router({
         await tx.pollGroup.create({
           data: {
             id: newGroupId,
-            title: incrementTitle(group.title),
+            title: input.newName,
             description: group.description,
             spaceId: ctx.space.id,
             pollOrder: group.pollOrder,
@@ -469,7 +496,7 @@ export const pollGroups = router({
           await tx.poll.create({
             data: {
               id: newPollId,
-              title: incrementTitle(poll.title),
+              title: `${poll.title} - ${input.newName}`,
               description: poll.description,
               location: poll.location,
               userId: poll.userId, // keep the same user? yes
@@ -503,6 +530,7 @@ export const pollGroups = router({
   getRemindableParticipants: spaceProcedure
     .input(z.object({ groupId: z.string() }))
     .query(async ({ ctx, input }) => {
+      console.error("DEBUG getRemindableParticipants HIT for group:", input.groupId, "space:", ctx.space?.id);
       const group = await prisma.pollGroup.findUnique({
         where: { id: input.groupId, spaceId: ctx.space.id },
         include: {

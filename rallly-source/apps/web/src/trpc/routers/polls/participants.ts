@@ -416,13 +416,16 @@ export const participants = router({
       z.object({
         participantId: z.string(),
         newName: z.string().min(1, "Participant name is required").max(100),
+        newEmail: z.string().email().optional().or(z.literal('')),
         token: z.string().optional(),
       }),
     )
-    .mutation(async ({ input: { participantId, newName, token }, ctx }) => {
+    .mutation(async ({ input: { participantId, newName, newEmail, token }, ctx }) => {
       const { id: userId } = await resolveActor(token, ctx.user);
 
       await canModifyParticipant(participantId, userId);
+      
+      const emailStr = newEmail ? newEmail.toLowerCase() : null;
 
       await prisma.participant.update({
         where: {
@@ -430,6 +433,7 @@ export const participants = router({
         },
         data: {
           name: newName,
+          email: emailStr,
         },
         select: null,
       });

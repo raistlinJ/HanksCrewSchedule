@@ -626,6 +626,80 @@ export const polls = router({
       );
     }),
   // END LEGACY ROUTES
+  
+  cycleVote: publicProcedure
+    .input(z.object({ 
+      voteId: z.string().optional(),
+      participantId: z.string(),
+      optionId: z.string(),
+      pollId: z.string(),
+      type: z.enum(["yes", "no", "ifNeedBe"]).optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Ensure the poll exists
+      const poll = await prisma.poll.findUnique({ where: { id: input.pollId } });
+      if (!poll) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Poll not found" });
+      }
+
+      // Find existing vote for this participant and option
+      const vote = await prisma.vote.findFirst({
+        where: {
+          participantId: input.participantId,
+          optionId: input.optionId
+        }
+      });
+      
+      if (vote) {
+        let newType = input.type;
+        if (!newType) {
+          newType = "yes";
+          if (vote.type === "no") newType = "ifNeedBe";
+          else if (vote.type === "ifNeedBe") newType = "yes";
+          else if (vote.type === "yes") newType = "no";
+        }
+
+        const updatedVote = await prisma.vote.update({
+          where: { id: vote.id },
+          data: { type: newType }
+        });
+        return updatedVote;
+      } else {
+        const newType = input.type || "ifNeedBe";
+        const newVote = await prisma.vote.create({
+          data: {
+            participantId: input.participantId,
+            optionId: input.optionId,
+            pollId: input.pollId,
+            type: newType
+          }
+        });
+        return newVote;
+      }
+    }),
+
+  updateOption: publicProcedure
+    .input(z.object({
+      pollId: z.string(),
+      optionId: z.string(),
+      startTime: z.string(),
+      duration: z.number().min(0)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const hasAccess = await hasPollAdminAccess(input.pollId, ctx.user?.id);
+      if (!hasAccess) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Not allowed to edit options" });
+      }
+      
+      const updated = await prisma.option.update({
+        where: { id: input.optionId },
+        data: {
+          startTime: new Date(input.startTime),
+          duration: input.duration
+        }
+      });
+      return updated;
+    }),
 
   getParticipantByEmail: publicProcedure
     .input(

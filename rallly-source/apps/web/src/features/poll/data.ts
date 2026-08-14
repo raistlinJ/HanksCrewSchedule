@@ -287,8 +287,10 @@ export const getPolls = async ({
           },
         },
         votes: {
+          where: { participant: { deleted: false } },
           select: {
             type: true,
+            participantId: true,
           },
         },
       },
@@ -331,9 +333,9 @@ export const getPolls = async ({
       image: participant.user?.image ?? undefined,
     })),
     voteCounts: {
-      yes: poll.votes.filter((v) => v.type === "yes").length,
-      no: poll.votes.filter((v) => v.type === "no").length,
-      ifNeedBe: poll.votes.filter((v) => v.type === "ifNeedBe").length,
+      yes: new Set(poll.votes.filter((v) => v.type === "yes").map(v => v.participantId)).size,
+      no: new Set(poll.votes.filter((v) => v.type === "no").map(v => v.participantId)).size,
+      ifNeedBe: new Set(poll.votes.filter((v) => v.type === "ifNeedBe").map(v => v.participantId)).size,
     },
   }));
 

@@ -40,7 +40,10 @@ interface PollGroupDTO {
   polls: { id: string; title: string; status: string }[];
 }
 
+import { useRouter } from "next/navigation";
+
 function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCounts?: { yes: number; no: number; ifNeedBe: number } } }) {
+  const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: poll.id,
   });
@@ -55,12 +58,16 @@ function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCou
     <li
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
-      className="flex items-center justify-between text-sm bg-muted/10 hover:bg-muted/20 p-1.5 rounded border border-transparent hover:border-border mb-1 group transition-colors cursor-grab touch-none"
+      onClick={() => router.push(`/poll/${poll.id}`)}
+      className="flex items-center justify-between text-sm bg-muted/10 hover:bg-muted/20 p-1.5 rounded border border-transparent hover:border-border mb-1 group transition-colors cursor-pointer"
     >
       <div className="flex items-center space-x-2 overflow-hidden flex-1">
-        <div className="text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100 flex-shrink-0">
+        <div 
+          className="text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100 flex-shrink-0 cursor-grab touch-none p-1"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
           <GripVertical size={14} className="pointer-events-none" />
         </div>
         <span className="font-medium truncate pointer-events-none">{poll.title}</span>
@@ -84,11 +91,9 @@ function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCou
       )}
       <a 
         href={`/poll/${poll.id}`} 
-        target="_blank" 
-        rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
         className="ml-2 mr-1 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
         title="View Poll"
-        onPointerDown={(e) => e.stopPropagation()}
       >
         <ExternalLink size={14} />
       </a>
@@ -222,6 +227,8 @@ export default function PollGroupsDashboardPage() {
   const [reminderGroup, setReminderGroup] = useState<PollGroupDTO | null>(null);
   const [remindableParticipants, setRemindableParticipants] = useState<{name: string, email: string}[]>([]);
   const [isLoadingReminder, setIsLoadingReminder] = useState(false);
+  const [reminderSubject, setReminderSubject] = useState("");
+  const [reminderBody, setReminderBody] = useState("");
 
   const groupsQuery = trpc.pollGroups.list.useQuery();
   const allPollsQuery = trpc.polls.listAll.useQuery();
@@ -262,8 +269,9 @@ export default function PollGroupsDashboardPage() {
       utils.polls.invalidate();
       setDuplicatingId(null);
     },
-    onError: () => {
+    onError: (err) => {
       setDuplicatingId(null);
+      alert(err.message);
     }
   });
 
@@ -356,14 +364,14 @@ export default function PollGroupsDashboardPage() {
       setRemindableParticipants([]);
       setReminderGroup(group);
       setReminderSubject(`Reminder: ${group.title}`);
-      setReminderBody(`Hi everyone,\n\nPlease remember to fill out your availability for the polls in the ${group.title} group:\n\n${window.location.origin}/g/${group.id}\n\nThanks!`);
+      setReminderBody(`Thanks for giving us your availability; reminder that the event ${group.title} is coming up. If you need to update your availability please do so now:\n${window.location.origin}/g/${group.id}`);
       setReminderModalOpen(true);
       
-      const participants = await utils.client.pollGroups.getRemindableParticipants.query({ groupId: group.id });
+      const participants = await utils.pollGroups.getRemindableParticipants.fetch({ groupId: group.id });
       setRemindableParticipants(participants);
     } catch (err) {
       console.error(err);
-      alert("Failed to retrieve emails.");
+      alert("Failed to retrieve emails: " + (err instanceof Error ? err.message : JSON.stringify(err)));
       setReminderModalOpen(false);
     } finally {
       setIsLoadingReminder(false);
@@ -417,6 +425,7 @@ export default function PollGroupsDashboardPage() {
       title: editTitle,
       description: editDescription,
       pollIds: editSelectedPollIds,
+      requireEmailVerification: editRequireEmailVerification,
     });
   };
 
@@ -650,8 +659,16 @@ export default function PollGroupsDashboardPage() {
                                     className="cursor-pointer"
                                     disabled={duplicatingId === group.id}
                                     onClick={() => {
-                                      setDuplicatingId(group.id);
-                                      duplicateGroupMutation.mutate({ groupId: group.id });
+                                      const newName = window.prompt("Enter name for duplicated group:", `${group.title} (Copy)`);
+                                      if (newName) {
+                                        setDuplicatingId(group.id);
+                                        duplicateGroupMutation.mutate(
+                                          { groupId: group.id, newName },
+                                          {
+                                            onError: () => setDuplicatingId(null)
+                                          }
+                                        );
+                                      }
                                     }}
                                   >
                                     📄 {duplicatingId === group.id ? "Duplicating..." : "Duplicate"}
