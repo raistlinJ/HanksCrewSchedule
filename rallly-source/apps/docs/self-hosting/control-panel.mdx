@@ -28,6 +28,30 @@ To claim admin rights:
 
 Once claimed, this user can manage other users and settings.
 
+## Instance archives
+
+Administrators can open **Instance archive** in the Control Panel to download a
+portable JSON copy of the instance's users, spaces and memberships, polls and
+poll groups, responses, comments, invitations, scheduled events, event types,
+and sheets.
+
+An archive can be restored from the same page. Restore replaces the existing
+portable data in one transaction and signs everyone out. If any part of the
+archive is invalid, the restore is rolled back and the existing data is left
+unchanged. Instance configuration and licensing stay with the destination
+installation.
+
+<Warning>
+  Archive files contain personal data, password hashes, poll responses, and
+  private access links. Protect them like database backups. Restoring is
+  destructive, so download a current archive or database backup first.
+</Warning>
+
+Instance archives intentionally exclude sessions, verification codes, OAuth
+tokens, integration secrets, API keys, billing identifiers, licenses, and
+uploaded file contents. Use the [CLI backup workflow](/self-hosting/management#backup-and-restore)
+for complete disaster recovery, and back up object storage separately.
+
 ## Troubleshooting
 
 If you see an **Administrator access required** message when visiting `/control-panel`, the account you are signed in with does not have the admin role. This usually means:

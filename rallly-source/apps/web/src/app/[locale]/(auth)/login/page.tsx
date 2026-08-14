@@ -80,7 +80,14 @@ export default async function LoginPage(props: {
 
   return (
     <AuthPageContainer
-      brand={<HanksThemeLogo className="w-40 sm:w-44" preload />}
+      brand={
+        <div className="flex flex-col items-center gap-4">
+          <HanksThemeLogo className="w-40 sm:w-44" preload />
+          <div className="text-balance text-center font-semibold text-2xl text-foreground tracking-tight sm:text-3xl">
+            Hanks Crew Schedule
+          </div>
+        </div>
+      }
     >
       <AuthPageHeader>
         <AuthPageTitle>
@@ -149,6 +156,10 @@ export default async function LoginPage(props: {
         </div>
       </AuthPageContent>
       <AuthErrors />
+      <footer className="absolute inset-x-0 bottom-5 px-6 text-center text-muted-foreground text-xs sm:bottom-6">
+        an application by{" "}
+        <span className="font-medium text-foreground">Jaime Acosta</span>
+      </footer>
     </AuthPageContainer>
   );
 }

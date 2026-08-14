@@ -8,9 +8,9 @@ import {
   SidebarMenu,
 } from "@rallly/ui/sidebar";
 import {
+  ArchiveIcon,
   ArrowLeftIcon,
   HomeIcon,
-  KeySquareIcon,
   PaletteIcon,
   SettingsIcon,
   UsersIcon,
@@ -57,6 +57,10 @@ export async function ControlPanelSidebar(
             <NavItem href="/control-panel/settings">
               <SettingsIcon className="size-4" />
               <Trans i18nKey="settings" defaults="Settings" />
+            </NavItem>
+            <NavItem href="/control-panel/archive">
+              <ArchiveIcon className="size-4" />
+              <Trans i18nKey="instanceArchive" defaults="Instance archive" />
             </NavItem>
           </SidebarMenu>
         </SidebarGroup>

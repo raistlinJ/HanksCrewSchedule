@@ -2,6 +2,7 @@ import { cn } from "@rallly/ui";
 import { Icon } from "@rallly/ui/icon";
 import { Tile, TileGrid, TileTitle } from "@rallly/ui/tile";
 import {
+  ArchiveIcon,
   InfinityIcon,
   KeySquareIcon,
   PaletteIcon,
@@ -126,6 +127,17 @@ export default async function AdminPage() {
               </div>
               <TileTitle>
                 <Trans i18nKey="settings" defaults="Settings" />
+              </TileTitle>
+            </Tile>
+            {/* INSTANCE ARCHIVE */}
+            <Tile render={<Link href="/control-panel/archive" />}>
+              <div className="flex justify-between">
+                <PageIcon>
+                  <ArchiveIcon />
+                </PageIcon>
+              </div>
+              <TileTitle>
+                <Trans i18nKey="instanceArchive" defaults="Instance archive" />
               </TileTitle>
             </Tile>
             {/* VERSION */}
