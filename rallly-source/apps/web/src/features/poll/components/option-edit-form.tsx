@@ -43,6 +43,9 @@ export function OptionEditForm({
   const [endDate, setEndDate] = useState(initialValues.endDate);
   const [endTime, setEndTime] = useState(initialValues.endTime);
   const [error, setError] = useState("");
+  const startTimeOptions = halfHourTimes.includes(startTimeValue)
+    ? halfHourTimes
+    : [...halfHourTimes, startTimeValue].sort();
   const endTimeOptions = halfHourTimes.includes(endTime)
     ? halfHourTimes
     : [...halfHourTimes, endTime].sort();
@@ -106,13 +109,18 @@ export function OptionEditForm({
             <span className="block font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
               Start time
             </span>
-            <input
-              type="time"
+            <select
               className={fieldClassName}
               value={startTimeValue}
               onChange={(event) => setStartTimeValue(event.target.value)}
               required
-            />
+            >
+              {startTimeOptions.map((time) => (
+                <option key={time} value={time}>
+                  {formatTimeLabel(time)}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="space-y-1 text-left">
             <span className="block font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
