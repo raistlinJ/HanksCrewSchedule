@@ -1,10 +1,11 @@
 import { createLogger } from "@rallly/logger";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { env } from "@/env";
 import { createInstanceArchive } from "@/features/archive/data";
 import { restoreInstanceArchive } from "@/features/archive/mutations";
 import { getUser } from "@/features/user/data";
-import { getSessionState } from "@/lib/auth";
+import { authLib, getSessionState } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,18 @@ async function isAdmin() {
 
 function isSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  return origin === null || origin === new URL(request.url).origin;
+  if (origin === null) {
+    return true;
+  }
+
+  try {
+    // request.url can contain the proxy's internal HTTP origin after TLS is
+    // terminated upstream. NEXT_PUBLIC_BASE_URL is the canonical browser
+    // origin and cannot be changed through forwarded request headers.
+    return new URL(origin).origin === new URL(env.NEXT_PUBLIC_BASE_URL).origin;
+  } catch {
+    return false;
+  }
 }
 
 export async function GET() {
@@ -75,6 +87,14 @@ export async function POST(request: Request) {
 
     const input: unknown = JSON.parse(text);
     const counts = await restoreInstanceArchive(input);
+
+    // Restoring replaces every user and session. Expire both the session
+    // token and Better Auth's signed cookie cache in this response so the
+    // browser cannot keep using the pre-restore user for up to five minutes.
+    // Better Auth deliberately still clears the cookies when the database
+    // session has already been removed by the restore.
+    await authLib.api.signOut({ headers: request.headers });
+
     return NextResponse.json({ success: true, counts });
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof ZodError) {

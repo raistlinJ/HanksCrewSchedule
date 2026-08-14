@@ -22,7 +22,6 @@ import { DEFAULT_SEAT_LIMIT } from "@/features/licensing/constants";
 import { loadInstanceLicense } from "@/features/licensing/data";
 import { getUserCount } from "@/features/user/data";
 import { Trans } from "@/i18n/client";
-import { VersionTile } from "./version-tile";
 
 async function loadData() {
   const [userCount, license] = await Promise.all([
@@ -140,8 +139,6 @@ export default async function AdminPage() {
                 <Trans i18nKey="instanceArchive" defaults="Instance archive" />
               </TileTitle>
             </Tile>
-            {/* VERSION */}
-            <VersionTile />
           </TileGrid>
         </div>
       </SettingsPageContent>

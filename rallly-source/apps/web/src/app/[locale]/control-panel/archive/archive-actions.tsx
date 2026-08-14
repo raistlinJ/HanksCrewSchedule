@@ -18,6 +18,16 @@ import { Trans } from "@/i18n/client";
 
 const RESTORE_CONFIRMATION = "RESTORE";
 
+const restoreErrorMessages: Record<string, string> = {
+  archive_restore_failed:
+    "The database could not restore this archive. No data was changed.",
+  archive_too_large: "This archive is too large to restore.",
+  forbidden: "Your administrator session has expired. Sign in and try again.",
+  invalid_archive: "This file is not a valid archive.",
+  invalid_origin:
+    "The restore request came from an unexpected address. Open the configured application URL and try again.",
+};
+
 export function DownloadArchiveButton() {
   return (
     <Button render={<a href="/api/admin/archive" download />}>
@@ -54,15 +64,14 @@ export function RestoreArchiveButton() {
         throw new Error(body?.error ?? "archive_restore_failed");
       }
 
-      // Restoring removes all old sessions, including the one used for this
-      // request. A fresh login prevents stale cached session data being used.
+      // The restore response expires the old database session and signed
+      // cookie cache. A fresh login picks up the restored user's identity.
       window.location.assign("/login");
     } catch (error) {
       const reason = error instanceof Error ? error.message : "unknown_error";
       toast.error(
-        reason === "invalid_archive"
-          ? "This file is not a valid archive."
-          : "The archive could not be restored. No data was changed.",
+        restoreErrorMessages[reason] ??
+          "The archive could not be restored. No data was changed.",
       );
       setIsRestoring(false);
     }

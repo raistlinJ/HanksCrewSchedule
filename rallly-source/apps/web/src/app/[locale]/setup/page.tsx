@@ -5,7 +5,7 @@ import { SetupForm } from "@/app/[locale]/setup/components/setup-form";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Logo } from "@/features/branding/components/logo";
 import { getOwnedSpace } from "@/features/space/data";
-import { requireUser } from "@/features/user/loaders";
+import { getCurrentUser, requireUser } from "@/features/user/loaders";
 import { Trans } from "@/i18n/client";
 import { getTranslation } from "@/i18n/server";
 import { getDeviceDateTimeConfig } from "@/lib/datetime/server";
@@ -14,7 +14,14 @@ import { validateRedirectUrl } from "@/lib/utils/redirect";
 export default async function SetupPage(props: {
   searchParams?: Promise<{ redirectTo?: string }>;
 }) {
-  const user = await requireUser();
+  // requireUser provides the normal login redirect. The database-backed
+  // lookup then rejects a signed cookie-cache session whose user was removed
+  // by an archive restore instead of rendering a form that can never submit.
+  await requireUser();
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect("/login");
+  }
   const searchParams = await props.searchParams;
 
   // Whether onboarding is done is "does a space exist", not "is one

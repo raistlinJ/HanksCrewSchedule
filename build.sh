@@ -3,11 +3,25 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
+SOURCE_VERSION="$(awk -F '"' '/"version"[[:space:]]*:/ { print $4; exit }' "$SCRIPT_DIR/rallly-source/package.json")"
+SOURCE_REVISION="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+
+if ! git -C "$SCRIPT_DIR" diff --quiet --ignore-submodules -- 2>/dev/null; then
+  SOURCE_REVISION="${SOURCE_REVISION:+$SOURCE_REVISION-}dirty"
+fi
+
+BUILD_VERSION="${APP_VERSION:-${SOURCE_VERSION:-custom}${SOURCE_REVISION:+-$SOURCE_REVISION}}"
 
 echo "Building custom Rallly Docker image (this may take a few minutes)..."
+echo "Application version: $BUILD_VERSION"
 echo "------------------------------------------------------------------"
 
-DOCKER_BUILDKIT=1 docker build --build-arg SELF_HOSTED="true" -t custom-rallly:latest -f "$SCRIPT_DIR/rallly-source/apps/web/Dockerfile" "$SCRIPT_DIR/rallly-source/"
+DOCKER_BUILDKIT=1 docker build \
+  --build-arg APP_VERSION="$BUILD_VERSION" \
+  --build-arg SELF_HOSTED="true" \
+  -t custom-rallly:latest \
+  -f "$SCRIPT_DIR/rallly-source/apps/web/Dockerfile" \
+  "$SCRIPT_DIR/rallly-source/"
 
 echo "------------------------------------------------------------------"
 echo "Build complete! Image tagged as custom-rallly:latest"
