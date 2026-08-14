@@ -486,6 +486,7 @@ export const pollGroups = router({
             description: group.description,
             spaceId: ctx.space.id,
             pollOrder: group.pollOrder,
+            requireEmailVerification: group.requireEmailVerification,
           },
         });
 
@@ -506,6 +507,10 @@ export const pollGroups = router({
               hideScores: poll.hideScores,
               disableComments: poll.disableComments,
               requireParticipantEmail: poll.requireParticipantEmail,
+              requireEmailVerification: poll.requireEmailVerification,
+              muted: poll.muted,
+              deadline: poll.deadline,
+              status: poll.status,
               spaceId: ctx.space.id,
               pollGroupId: newGroupId,
             },
