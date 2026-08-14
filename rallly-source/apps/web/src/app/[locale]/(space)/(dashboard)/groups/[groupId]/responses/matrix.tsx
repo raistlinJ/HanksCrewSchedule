@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/trpc/client";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/lib/locale/client";
@@ -15,6 +15,13 @@ export function ResponsesMatrix({ group }: { group: any }) {
   // Track original vote types before they are changed in this session
   // Key: `${participantId}-${optionId}`
   const [originalVotes, setOriginalVotes] = useState<Map<string, string>>(new Map());
+
+  // Local optimistic vote overrides for instant UI feedback
+  // Key: `${participantId}-${optionId}`, Value: the vote type
+  const [localVoteOverrides, setLocalVoteOverrides] = useState<Map<string, string>>(new Map());
+
+  // Debounce timers for vote updates
+  const timeoutRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // 1. Consolidate options across all polls
   const allOptions: any[] = [];
@@ -101,6 +108,7 @@ export function ResponsesMatrix({ group }: { group: any }) {
 
   const addParticipantMutation = trpc.pollGroups.addGroupParticipant.useMutation();
   const deleteParticipantMutation = trpc.pollGroups.deleteGroupParticipant.useMutation();
+  const autoCreateParticipantMutation = trpc.pollGroups.autoCreateParticipant.useMutation();
   const [newParticipantName, setNewParticipantName] = useState("");
   const [newParticipantEmail, setNewParticipantEmail] = useState("");
   const [addError, setAddError] = useState("");
@@ -126,14 +134,17 @@ export function ResponsesMatrix({ group }: { group: any }) {
     setEditOptionDuration((opt.duration / 60).toString());
   };
 
-  const handleUpdateVote = async (
+  const handleUpdateVote = (
     voteId: string | undefined, 
     currentType: string,
     participantId: string,
     optionId: string,
     pollId: string
   ) => {
-    if (updateVoteMutation.isPending) return;
+    let newType = "yes";
+    if (currentType === "no") newType = "ifNeedBe";
+    else if (currentType === "ifNeedBe") newType = "yes";
+    else if (currentType === "yes") newType = "no";
 
     const cellKey = `${participantId}-${optionId}`;
     if (!originalVotes.has(cellKey)) {
@@ -144,14 +155,41 @@ export function ResponsesMatrix({ group }: { group: any }) {
       });
     }
 
-    try {
-      await updateVoteMutation.mutateAsync({ voteId, participantId, optionId, pollId });
-      utils.pollGroups.invalidate();
-      router.refresh(); // refresh the server component data
-    } catch (e) {
-      console.error(e);
-      alert("Failed to update vote.");
+    // Optimistically update local state immediately
+    setLocalVoteOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(cellKey, newType);
+      return next;
+    });
+
+    // Debounce the server call
+    if (timeoutRefs.current.has(cellKey)) {
+      clearTimeout(timeoutRefs.current.get(cellKey)!);
     }
+
+    const timeout = setTimeout(() => {
+      updateVoteMutation.mutateAsync({ 
+        voteId, 
+        participantId, 
+        optionId, 
+        pollId,
+        type: newType as "yes" | "no" | "ifNeedBe"
+      }).then(() => {
+        utils.pollGroups.invalidate();
+        router.refresh();
+      }).catch((e) => {
+        console.error(e);
+        alert("Failed to update vote.");
+        // Revert optimistic update on error
+        setLocalVoteOverrides((prev) => {
+          const next = new Map(prev);
+          next.delete(cellKey);
+          return next;
+        });
+      });
+    }, 400);
+
+    timeoutRefs.current.set(cellKey, timeout);
   };
 
   const handleAddParticipant = async (e: React.FormEvent) => {
@@ -400,8 +438,14 @@ export function ResponsesMatrix({ group }: { group: any }) {
                 </td>
                 {allOptions.map((opt) => {
                   const vote = row.votes.get(opt.id);
-                  const voteType = vote?.type || "no";
+                  const serverVoteType = vote?.type || "no";
                   const participantId = row.participantIds.get(opt.pollId);
+                  const cellKey = participantId ? `${participantId}-${opt.id}` : `pending-${pKey}-${opt.id}`;
+                  
+                  // Use local override if available (optimistic), otherwise server value
+                  const voteType = localVoteOverrides.has(cellKey)
+                    ? localVoteOverrides.get(cellKey)! 
+                    : serverVoteType;
                   
                   let voteDisplay = "❌";
                   let voteClass = "text-gray-300 cursor-pointer";
@@ -417,45 +461,67 @@ export function ResponsesMatrix({ group }: { group: any }) {
                     titleAttr = "Click to change to Yes";
                   }
 
-                  const cellKey = participantId ? `${participantId}-${opt.id}` : "";
-                  const originalVoteType = cellKey ? originalVotes.get(cellKey) : undefined;
+                  const originalVoteType = originalVotes.get(cellKey);
                   const isChanged = originalVoteType && originalVoteType !== voteType;
                   let originalDisplay = "";
                   if (isChanged) {
                     originalDisplay = originalVoteType === "yes" ? "✅" : originalVoteType === "ifNeedBe" ? "⚠️" : "❌";
                   }
-                  
-                  const isPending = updateVoteMutation.isPending && 
-                    updateVoteMutation.variables?.optionId === opt.id &&
-                    updateVoteMutation.variables?.participantId === participantId;
 
                   return (
                     <td 
                       key={opt.id} 
                       className={`p-3 text-center border-l relative ${voteClass}`}
-                      onClick={() => {
+                      onClick={async () => {
                         if (participantId) {
                           handleUpdateVote(vote?.id, voteType, participantId, opt.id, opt.pollId);
+                        } else {
+                          // Participant doesn't exist in this poll yet — auto-create them
+                          try {
+                            const result = await autoCreateParticipantMutation.mutateAsync({
+                              pollId: opt.pollId,
+                              name: row.name,
+                              email: row.email || undefined,
+                            });
+                            // Now vote with the new participant
+                            let newType = "ifNeedBe";
+                            if (voteType === "no") newType = "ifNeedBe";
+                            else if (voteType === "ifNeedBe") newType = "yes";
+                            else if (voteType === "yes") newType = "no";
+
+                            // Optimistic update
+                            setLocalVoteOverrides((prev) => {
+                              const next = new Map(prev);
+                              next.set(cellKey, newType);
+                              return next;
+                            });
+
+                            await updateVoteMutation.mutateAsync({
+                              participantId: result.id,
+                              optionId: opt.id,
+                              pollId: opt.pollId,
+                              type: newType as "yes" | "no" | "ifNeedBe",
+                            });
+                            utils.pollGroups.invalidate();
+                            router.refresh();
+                          } catch (e) {
+                            console.error(e);
+                            alert("Failed to create participant vote.");
+                          }
                         }
                       }}
-                      title={participantId ? titleAttr : "Cannot edit (participant not in this poll)"}
+                      title={titleAttr}
                     >
-                      {isPending ? (
-                        <span className="text-xs animate-pulse">⏳</span>
-                      ) : (
-                        <>
-                          <div className={participantId ? "inline-block hover:scale-125 transition-transform" : "inline-block opacity-50"}>
-                            {voteDisplay}
-                          </div>
-                          {isChanged && (
-                            <span 
-                              className="absolute top-1 right-1 text-[10px] opacity-60 bg-card rounded-full px-1 shadow-sm border cursor-help" 
-                              title={`Original: ${originalVoteType === "yes" ? "Yes" : originalVoteType === "ifNeedBe" ? "If Need Be" : "No"}`}
-                            >
-                              ({originalDisplay})
-                            </span>
-                          )}
-                        </>
+                      <div className="inline-block hover:scale-125 transition-transform">
+                        {voteDisplay}
+                      </div>
+                      {isChanged && (
+                        <span 
+                          className="absolute top-1 right-1 text-[10px] opacity-60 bg-card rounded-full px-1 shadow-sm border cursor-help" 
+                          title={`Original: ${originalVoteType === "yes" ? "Yes" : originalVoteType === "ifNeedBe" ? "If Need Be" : "No"}`}
+                        >
+                          ({originalDisplay})
+                        </span>
                       )}
                     </td>
                   );

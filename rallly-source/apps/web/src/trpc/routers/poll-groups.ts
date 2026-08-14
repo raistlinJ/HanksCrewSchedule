@@ -633,12 +633,48 @@ export const pollGroups = router({
 
       return { success: true, count: emails.size };
     }),
+  autoCreateParticipant: spaceProcedure
+    .input(z.object({
+      pollId: z.string(),
+      name: z.string().min(1),
+      email: z.string().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const poll = await prisma.poll.findUnique({ where: { id: input.pollId } });
+      if (!poll || poll.spaceId !== ctx.space.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Poll not found or access denied" });
+      }
+
+      const emailStr = input.email ? input.email.toLowerCase() : null;
+
+      // Check if participant already exists in this poll
+      const existing = await prisma.participant.findFirst({
+        where: {
+          pollId: input.pollId,
+          ...(emailStr ? { email: emailStr } : { name: input.name, email: null }),
+        }
+      });
+
+      if (existing) {
+        return existing;
+      }
+
+      const participant = await prisma.participant.create({
+        data: {
+          name: input.name,
+          email: emailStr,
+          pollId: input.pollId,
+        }
+      });
+      return participant;
+    }),
   cycleVote: spaceProcedure
     .input(z.object({ 
       voteId: z.string().optional(),
       participantId: z.string(),
       optionId: z.string(),
-      pollId: z.string()
+      pollId: z.string(),
+      type: z.enum(["yes", "no", "ifNeedBe"]).optional()
     }))
     .mutation(async ({ ctx, input }) => {
       // Ensure the poll belongs to the current space
@@ -648,16 +684,18 @@ export const pollGroups = router({
       }
 
       if (input.voteId) {
-        // Vote exists, cycle its state: no -> ifNeedBe -> yes -> no
+        // Vote exists — use explicit type if provided, otherwise cycle
         const vote = await prisma.vote.findUnique({ where: { id: input.voteId } });
         if (!vote) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Vote not found" });
         }
         
-        let newType = "yes";
-        if (vote.type === "no") newType = "ifNeedBe";
-        else if (vote.type === "ifNeedBe") newType = "yes";
-        else if (vote.type === "yes") newType = "no";
+        let newType = input.type;
+        if (!newType) {
+          if (vote.type === "no") newType = "ifNeedBe";
+          else if (vote.type === "ifNeedBe") newType = "yes";
+          else newType = "no";
+        }
 
         const updatedVote = await prisma.vote.update({
           where: { id: input.voteId },
@@ -665,13 +703,14 @@ export const pollGroups = router({
         });
         return updatedVote;
       } else {
-        // Vote doesn't exist. It's implicitly "no". So we cycle it to "ifNeedBe".
+        // Vote doesn't exist — use explicit type if provided, otherwise default to ifNeedBe
+        const newType = input.type || "ifNeedBe";
         const newVote = await prisma.vote.create({
           data: {
             participantId: input.participantId,
             optionId: input.optionId,
             pollId: input.pollId,
-            type: "ifNeedBe"
+            type: newType
           }
         });
         return newVote;
