@@ -15,18 +15,17 @@ To access the Control Panel:
 2.  Open your web browser and navigate to `/control-panel`.
 3.  You may be prompted to log in if you haven't already. Only users with administrative privileges can access the Control Panel features.
 
-## Claiming Initial Admin Rights
+## Initial administrator
 
-The first user designated as an administrator needs to manually claim their admin role. This user is specified by the `INITIAL_ADMIN_EMAIL` environment variable during setup (see [Configuration](/self-hosting/configuration)).
+The initial administrator is specified by the `INITIAL_ADMIN_EMAIL` environment variable during setup (see [Configuration](/self-hosting/configuration)).
 
-To claim admin rights:
+To activate the initial administrator:
 
 1.  Ensure the user account associated with the `INITIAL_ADMIN_EMAIL` has been created (e.g., by logging in once).
 2.  Navigate to the Control Panel: `/control-panel`.
-3.  If you are the user specified in `INITIAL_ADMIN_EMAIL` and have not yet claimed admin rights, you should see a section or button prompting you to "Make me an admin".
-4.  Click this button to elevate your account to an administrator.
+3.  The account is automatically assigned the administrator role and admitted to the Control Panel.
 
-Once claimed, this user can manage other users and settings.
+Existing administrators can grant the role to additional users from the **Users** section. Those users receive Control Panel access automatically; no separate claim step is required.
 
 ## Instance archives
 
@@ -59,4 +58,4 @@ If you see an **Administrator access required** message when visiting `/control-
 - The `INITIAL_ADMIN_EMAIL` environment variable is not set, or
 - It does not match the email address of the account you are signed in with.
 
-Update `INITIAL_ADMIN_EMAIL` to match your account's email address, restart your instance, and visit `/control-panel` again to claim admin rights. Alternatively, an existing administrator can grant your account the admin role from the **Users** section of the Control Panel.
+Update `INITIAL_ADMIN_EMAIL` to match your account's email address, restart your instance, and visit `/control-panel` again. Alternatively, an existing administrator can grant your account the admin role from the **Users** section of the Control Panel.

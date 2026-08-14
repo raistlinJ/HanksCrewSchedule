@@ -33,7 +33,7 @@ test.describe("Admin Setup Page Access", () => {
     await expect(page).toHaveURL(/.*\/login/);
   });
 
-  test("should allow access if user is the designated initial admin (and not yet admin role)", async ({
+  test("should automatically promote the designated initial admin", async ({
     page,
   }) => {
     await createUserInDb({
@@ -44,11 +44,15 @@ test.describe("Admin Setup Page Access", () => {
     await loginWithEmail(page, { email: INITIAL_ADMIN_TEST_EMAIL });
 
     await page.goto("/control-panel");
-    await expect(page).toHaveURL(/.*\/admin-setup/);
-    await expect(page.getByText("Are you the admin?")).toBeVisible();
+    await expect(page).toHaveURL("/control-panel");
     await expect(
-      page.getByRole("button", { name: "Make me an admin" }),
+      page.getByRole("heading", { name: "Home", level: 1 }),
     ).toBeVisible();
+
+    const user = await prisma.user.findUnique({
+      where: { email: INITIAL_ADMIN_TEST_EMAIL },
+    });
+    expect(user?.role).toBe("admin");
   });
 
   test("should explain missing admin access to a regular user (not initial admin, not admin role)", async ({
@@ -92,41 +96,5 @@ test.describe("Admin Setup Page Access", () => {
 
     await page.goto("/admin-setup");
     await expect(page.getByText("Administrator access required")).toBeVisible();
-  });
-
-  test("initial admin can make themselves admin using the button", async ({
-    page,
-  }) => {
-    await createUserInDb({
-      email: INITIAL_ADMIN_TEST_EMAIL,
-      name: "Initial Admin To Be",
-      role: "user",
-    });
-    await loginWithEmail(page, { email: INITIAL_ADMIN_TEST_EMAIL });
-
-    await page.goto("/admin-setup");
-    await expect(page.getByText("Are you the admin?")).toBeVisible();
-
-    // The button is visible before React hydrates it and its onClick
-    // handler is attached, so a click that lands too early is silently
-    // lost. Retry until the action redirects.
-    await expect(async () => {
-      await page.getByRole("button", { name: "Make me an admin" }).click();
-      await page.waitForURL("/control-panel", { timeout: 5000 });
-    }).toPass();
-
-    // The URL check above can pass on the transient redirect even when a
-    // stale session cookie bounces us back to /admin-setup, so assert the
-    // control panel actually rendered.
-    await expect(
-      page.getByRole("heading", { name: "Home", level: 1 }),
-    ).toBeVisible();
-    await expect(page).toHaveURL("/control-panel");
-
-    const user = await prisma.user.findUnique({
-      where: { email: INITIAL_ADMIN_TEST_EMAIL },
-    });
-    expect(user).toBeTruthy();
-    expect(user?.role).toBe("admin");
   });
 });
