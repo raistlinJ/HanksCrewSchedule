@@ -217,7 +217,7 @@ model PollGroup {
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
   pollOrder                String[] @default([]) @map("poll_order")
-  requireEmailVerification Boolean  @default(true) @map("require_email_verification")
+  requireEmailVerification Boolean  @default(false) @map("require_email_verification")
 
   space Space? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
   user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)

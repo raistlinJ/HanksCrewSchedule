@@ -215,7 +215,7 @@ export default function PollGroupsDashboardPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedPollIds, setSelectedPollIds] = useState<string[]>([]);
-  const [newRequireEmailVerification, setNewRequireEmailVerification] = useState(true);
+  const [newRequireEmailVerification, setNewRequireEmailVerification] = useState(false);
   const [qrCodeGroup, setQrCodeGroup] = useState<PollGroupDTO | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
@@ -227,7 +227,7 @@ export default function PollGroupsDashboardPage() {
   const [editingGroup, setEditingGroup] = useState<PollGroupDTO | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  const [editRequireEmailVerification, setEditRequireEmailVerification] = useState(true);
+  const [editRequireEmailVerification, setEditRequireEmailVerification] = useState(false);
   const [editSelectedPollIds, setEditSelectedPollIds] = useState<string[]>([]);
 
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
@@ -252,6 +252,7 @@ export default function PollGroupsDashboardPage() {
       setTitle("");
       setDescription("");
       setSelectedPollIds([]);
+      setNewRequireEmailVerification(false);
       groupsQuery.refetch();
     },
   });
@@ -419,7 +420,7 @@ export default function PollGroupsDashboardPage() {
     setEditingGroup(group);
     setEditTitle(group.title);
     setEditDescription(group.description || "");
-    setEditRequireEmailVerification(group.requireEmailVerification ?? true);
+    setEditRequireEmailVerification(group.requireEmailVerification ?? false);
     setEditSelectedPollIds(group.polls.map((p) => p.id));
   };
 
@@ -558,7 +559,9 @@ export default function PollGroupsDashboardPage() {
                   />
                   <span>Require Email Verification</span>
                 </label>
-                <p className="text-xs text-muted-foreground mt-1">If unchecked, anyone can edit votes by typing the email address.</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  When enabled, participants receive a secure link to edit their response. When disabled, they can load it by entering their email address.
+                </p>
               </div>
 
               <label className="block text-sm font-medium mb-2">Select Polls to Include</label>
@@ -882,7 +885,9 @@ export default function PollGroupsDashboardPage() {
                   />
                   <span>Require Email Verification</span>
                 </label>
-                <p className="text-xs text-muted-foreground mt-1">If unchecked, anyone can edit votes by typing the email address.</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  When enabled, participants receive a secure link to edit their response. When disabled, they can load it by entering their email address.
+                </p>
               </div>
 
               <div>

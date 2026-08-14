@@ -9,6 +9,8 @@ import { useSearchParams } from "next/navigation";
 export default function VotingClient({ group, userEmail }: { group: any; userEmail: string | null }) {
   const searchParams = useSearchParams();
   const urlEmail = searchParams.get("email");
+  const editToken = searchParams.get("token");
+  const requiresEmailVerification = group.requireEmailVerification ?? false;
 
   type VoteState = "no" | "ifNeedBe" | "yes";
   const [name, setName] = useState("");
@@ -19,10 +21,13 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [viewingParticipants, setViewingParticipants] = useState<{ optionId: string, type: string, names: string[] } | null>(null);
   
-  const [hasPassedGatekeeper, setHasPassedGatekeeper] = useState(!!(userEmail || urlEmail));
+  const [hasPassedGatekeeper, setHasPassedGatekeeper] = useState(
+    requiresEmailVerification || !!(userEmail || urlEmail),
+  );
   const [gatekeeperEmail, setGatekeeperEmail] = useState(userEmail || urlEmail || "");
   const [gatekeeperError, setGatekeeperError] = useState("");
   const [isLookingUp, setIsLookingUp] = useState(false);
+  const [isEditingViaLink, setIsEditingViaLink] = useState(false);
   
   const utils = trpc.useUtils();
 
@@ -32,14 +37,10 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     },
   });
 
-  const performLookup = async (targetEmail: string) => {
-    setGatekeeperError("");
-    setIsLookingUp(true);
-    try {
-      const participants = await utils.pollGroups.getParticipantByEmail.fetch({ groupId: group.id, email: targetEmail });
-      if (participants && participants.length > 0) {
+  const applyParticipants = (participants: any[], fallbackEmail = "") => {
+    if (participants.length > 0) {
         setName(participants[0].name || "");
-        setEmail(participants[0].email || targetEmail);
+        setEmail(participants[0].email || fallbackEmail);
         setNote(participants[0].note || "");
         
         const newSelectedOptions: Record<string, Record<string, VoteState>> = {};
@@ -50,9 +51,17 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
           }
         }
         setSelectedOptions(newSelectedOptions);
-      } else {
-        setEmail(targetEmail);
-      }
+    } else if (fallbackEmail) {
+      setEmail(fallbackEmail);
+    }
+  };
+
+  const performLookup = async (targetEmail: string) => {
+    setGatekeeperError("");
+    setIsLookingUp(true);
+    try {
+      const participants = await utils.pollGroups.getParticipantByEmail.fetch({ groupId: group.id, email: targetEmail });
+      applyParticipants(participants, targetEmail);
       setHasPassedGatekeeper(true);
     } catch (err: any) {
       setGatekeeperError(err.message || "An error occurred");
@@ -61,11 +70,33 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     }
   };
 
+  const performEditTokenLookup = async (token: string) => {
+    setGatekeeperError("");
+    setIsLookingUp(true);
+    try {
+      const participants = await utils.pollGroups.getParticipantByEditToken.fetch({
+        groupId: group.id,
+        token,
+      });
+      if (participants.length === 0) {
+        throw new Error("No response was found for this edit link.");
+      }
+      applyParticipants(participants);
+      setIsEditingViaLink(true);
+    } catch (err: any) {
+      setGatekeeperError(err.message || "This edit link is invalid.");
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+
   useEffect(() => {
-    if (userEmail || urlEmail) {
+    if (requiresEmailVerification && editToken) {
+      performEditTokenLookup(editToken);
+    } else if (!requiresEmailVerification && (userEmail || urlEmail)) {
       performLookup(userEmail || urlEmail || "");
     }
-  }, [userEmail, urlEmail]);
+  }, [editToken, requiresEmailVerification, userEmail, urlEmail]);
 
   const handleGatekeeperSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,12 +130,13 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
 
-    const votes = Object.entries(selectedOptions).map(([pollId, pollVotes]) => {
+    const votes = group.polls.map((poll: any) => {
+      const pollVotes = selectedOptions[poll.id] || {};
       const options = Object.entries(pollVotes)
         .filter(([, type]) => type !== "no")
         .map(([optionId, type]) => ({ optionId, type }));
       return {
-        pollId,
+        pollId: poll.id,
         options,
       };
     });
@@ -115,6 +147,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
       groupId: group.id,
       name,
       email,
+      token: editToken || undefined,
       note: combinedNote || undefined,
       votes,
     });
@@ -126,9 +159,15 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
         <div className="absolute inset-0 bg-primary/10 blur-3xl -z-10 rounded-full scale-150 animate-pulse"></div>
         <h2 className="text-4xl font-black tracking-tight text-foreground">Thank You!</h2>
         <p className="mt-3 text-lg font-medium text-muted-foreground">Your responses have been recorded.</p>
-        <Button onClick={() => setIsSubmitted(false)} size="lg" className="mt-8 rounded-full px-8 font-semibold shadow-md hover:scale-105 transition-transform">
-          Edit Responses
-        </Button>
+        {requiresEmailVerification && !isEditingViaLink ? (
+          <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">
+            Check your email for your secure link to review or update your responses.
+          </p>
+        ) : (
+          <Button onClick={() => setIsSubmitted(false)} size="lg" className="mt-8 rounded-full px-8 font-semibold shadow-md hover:scale-105 transition-transform">
+            Edit Responses
+          </Button>
+        )}
       </div>
     );
   }
@@ -167,6 +206,11 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     <>
 
       <form onSubmit={handleSubmit} className="space-y-12">
+      {requiresEmailVerification && gatekeeperError && (
+        <p className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+          {gatekeeperError}
+        </p>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {group.polls.map((poll: any) => (
         <div key={poll.id} className="rounded-xl border bg-card p-6 shadow-sm flex flex-col">
@@ -268,6 +312,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
             <input
               type="email"
               required
+              disabled={isEditingViaLink}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

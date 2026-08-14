@@ -1,6 +1,12 @@
 import { prisma } from "@rallly/database";
+import { sendRawEmail } from "@rallly/emails";
+import { sendNewParticipantConfirmationEmail } from "@rallly/emails/templates/new-participant-confirmation";
+import { absoluteUrl } from "@rallly/utils/absolute-url";
 import { TRPCError } from "@trpc/server";
+import { after } from "next/server";
 import * as z from "zod";
+import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
+import { createToken, decryptToken } from "@/lib/session";
 import { publicProcedure, router, spaceProcedure } from "../trpc";
 import { nanoid } from "@rallly/utils/nanoid";
 
@@ -14,6 +20,26 @@ const sortByOrder = <T extends { id: string }>(items: T[], order: string[]) => {
     return indexA - indexB;
   });
 };
+
+type GroupEditTokenPayload = {
+  groupId: string;
+  email: string;
+};
+
+async function getGroupEditTokenPayload(token: string | undefined) {
+  if (!token) return null;
+
+  try {
+    const payload = await decryptToken<GroupEditTokenPayload>(token);
+    if (!payload?.groupId || !payload.email) return null;
+    return {
+      groupId: payload.groupId,
+      email: payload.email.toLowerCase(),
+    };
+  } catch {
+    return null;
+  }
+}
 
 export const pollGroups = router({
   list: spaceProcedure.query(async ({ ctx }) => {
@@ -96,7 +122,7 @@ export const pollGroups = router({
           spaceId: ctx.space.id,
           userId: ctx.user.id,
           pollOrder: input.pollIds || [],
-          requireEmailVerification: input.requireEmailVerification ?? true,
+          requireEmailVerification: input.requireEmailVerification ?? false,
         },
       });
 
@@ -144,6 +170,8 @@ export const pollGroups = router({
         ...existingOrder.filter((id) => pollIds.includes(id)),
         ...pollIds.filter((id) => !existingOrder.includes(id)),
       ];
+      const newRequireEmail =
+        requireEmailVerification ?? existingGroup.requireEmailVerification;
 
       const group = await prisma.pollGroup.update({
         where: { id: groupId },
@@ -151,7 +179,7 @@ export const pollGroups = router({
           title,
           description,
           pollOrder: newPollOrder,
-          requireEmailVerification: requireEmailVerification ?? true,
+          requireEmailVerification: newRequireEmail,
         },
       });
 
@@ -167,7 +195,6 @@ export const pollGroups = router({
       });
 
       // Assign newly selected polls to group and cascade email settings if changed
-      const newRequireEmail = requireEmailVerification ?? true;
       const emailSettingsChanged = newRequireEmail !== existingGroup.requireEmailVerification;
       
       const newlyAddedPolls = pollIds.filter(id => !existingOrder.includes(id));
@@ -341,12 +368,54 @@ export const pollGroups = router({
       return participants;
     }),
 
+  getParticipantByEditToken: publicProcedure
+    .input(
+      z.object({
+        groupId: z.string(),
+        token: z.string().min(1),
+      }),
+    )
+    .query(async ({ input }) => {
+      const payload = await getGroupEditTokenPayload(input.token);
+      if (!payload || payload.groupId !== input.groupId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This edit link is invalid or has expired",
+        });
+      }
+
+      const group = await prisma.pollGroup.findUnique({
+        where: { id: input.groupId },
+        select: {
+          requireEmailVerification: true,
+          polls: { select: { id: true } },
+        },
+      });
+
+      if (!group || !group.requireEmailVerification) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This edit link is not valid for this group",
+        });
+      }
+
+      return prisma.participant.findMany({
+        where: {
+          pollId: { in: group.polls.map((poll) => poll.id) },
+          email: payload.email,
+          deleted: false,
+        },
+        include: { votes: true },
+      });
+    }),
+
   submitGroupVotes: publicProcedure
     .input(
       z.object({
         groupId: z.string(),
         name: z.string().trim().min(1, "Name is required"),
         email: z.string().trim().email("Valid email address is required"),
+        token: z.string().optional(),
         note: z.string().optional(),
         votes: z.array(
           z.object({
@@ -362,11 +431,25 @@ export const pollGroups = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { groupId, name, email, note, votes } = input;
+      const { groupId, name, email, token, note, votes } = input;
+      const normalizedEmail = email.toLowerCase();
 
       const group = await prisma.pollGroup.findUnique({
         where: { id: groupId },
-        select: { id: true, requireEmailVerification: true },
+        select: {
+          id: true,
+          title: true,
+          requireEmailVerification: true,
+          polls: { where: { deleted: false }, select: { id: true } },
+          space: {
+            select: {
+              showBranding: true,
+              hideAttribution: true,
+              primaryColor: true,
+              image: true,
+            },
+          },
+        },
       });
 
       if (!group) {
@@ -376,13 +459,39 @@ export const pollGroups = router({
         });
       }
 
+      const groupPollIds = new Set(group.polls.map((poll) => poll.id));
+      const editTokenPayload = group.requireEmailVerification
+        ? await getGroupEditTokenPayload(token)
+        : null;
+      const hasValidEditToken = editTokenPayload?.groupId === groupId;
+      if (
+        hasValidEditToken &&
+        editTokenPayload.email !== normalizedEmail
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "The response email cannot be changed from an edit link",
+        });
+      }
+      const participantLookupEmail = hasValidEditToken
+        ? editTokenPayload.email
+        : normalizedEmail;
+      let createdParticipant = false;
+
       for (const voteItem of votes) {
+        if (!groupPollIds.has(voteItem.pollId)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "A submitted poll does not belong to this group",
+          });
+        }
+
         let existingParticipant = await prisma.participant.findFirst({
           where: {
             pollId: voteItem.pollId,
             deleted: false,
             OR: [
-              { email: email },
+              { email: participantLookupEmail },
               ...(ctx.user ? [{ userId: ctx.user.id }] : []),
             ],
           },
@@ -390,8 +499,8 @@ export const pollGroups = router({
 
         if (existingParticipant && group.requireEmailVerification) {
            const isOwner = existingParticipant.userId && ctx.user && existingParticipant.userId === ctx.user.id;
-           if (!isOwner) {
-             throw new TRPCError({ code: "FORBIDDEN", message: "Email verification required. Please log in to edit." });
+           if (!isOwner && !hasValidEditToken) {
+             throw new TRPCError({ code: "FORBIDDEN", message: "Use the edit link sent to your email to update this response." });
            }
         }
 
@@ -403,7 +512,7 @@ export const pollGroups = router({
             where: { id: participantId },
             data: {
               name,
-              email,
+              email: normalizedEmail,
               note: note || null,
               updatedAt: new Date(),
             },
@@ -416,13 +525,14 @@ export const pollGroups = router({
           const newParticipant = await prisma.participant.create({
             data: {
               name,
-              email,
+              email: normalizedEmail,
               note: note || null,
               pollId: voteItem.pollId,
               userId: ctx.user?.id || null,
             },
           });
           participantId = newParticipant.id;
+          createdParticipant = true;
         }
 
         if (voteItem.options.length > 0) {
@@ -435,6 +545,27 @@ export const pollGroups = router({
             })),
           });
         }
+      }
+
+      if (createdParticipant && group.requireEmailVerification) {
+        const editToken = await createToken(
+          { groupId, email: normalizedEmail },
+          { ttl: 0 },
+        );
+
+        after(async () =>
+          sendNewParticipantConfirmationEmail({
+            to: normalizedEmail,
+            locale: ctx.locale,
+            branding: group.space
+              ? await getSpaceBranding(group.space)
+              : await getInstanceBranding(),
+            props: {
+              title: group.title,
+              editSubmissionUrl: absoluteUrl(`/g/${groupId}?token=${editToken}`),
+            },
+          }),
+        );
       }
 
       return { success: true };
