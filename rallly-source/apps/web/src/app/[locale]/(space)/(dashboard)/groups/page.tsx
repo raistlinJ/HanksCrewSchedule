@@ -806,17 +806,24 @@ export default function PollGroupsDashboardPage() {
           </DialogHeader>
           {qrCodeGroup && (
             <div className="flex flex-col items-center gap-4">
-              <div className="aspect-square w-40 max-w-full rounded-xl border bg-white p-2">
+              <div className="rounded-xl border bg-white p-2">
                 <QRCodeCanvas
-                  className="block size-full"
                   level="M"
                   marginSize={4}
-                  ref={qrCodeRef}
-                  size={1024}
+                  size={192}
                   title={`QR code for ${qrCodeGroup.title}`}
                   value={shortUrl(`/g/${qrCodeGroup.id}`)}
                 />
               </div>
+              <QRCodeCanvas
+                aria-hidden="true"
+                className="hidden"
+                level="M"
+                marginSize={4}
+                ref={qrCodeRef}
+                size={1024}
+                value={shortUrl(`/g/${qrCodeGroup.id}`)}
+              />
               <p className="w-full break-all rounded-md bg-muted p-3 text-center text-xs text-muted-foreground">
                 {shortUrl(`/g/${qrCodeGroup.id}`)}
               </p>
