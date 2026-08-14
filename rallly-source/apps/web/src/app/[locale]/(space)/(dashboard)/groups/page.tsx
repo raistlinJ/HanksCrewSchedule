@@ -806,9 +806,9 @@ export default function PollGroupsDashboardPage() {
           </DialogHeader>
           {qrCodeGroup && (
             <div className="flex flex-col items-center gap-4">
-              <div className="rounded-xl border bg-white p-3">
+              <div className="aspect-square w-full max-w-72 rounded-xl border bg-white p-3">
                 <QRCodeCanvas
-                  className="h-auto w-full max-w-64"
+                  className="block size-full"
                   level="M"
                   marginSize={4}
                   ref={qrCodeRef}
