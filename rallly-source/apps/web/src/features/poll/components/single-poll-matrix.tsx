@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { createBreakpoint } from "react-use";
 import { trpc } from "@/trpc/client";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/lib/locale/client";
 import { dayjs } from "@/lib/dayjs";
+import MobilePollMatrix from "./single-poll-matrix/mobile-matrix";
+
+const useBreakpoint = createBreakpoint({ mobile: 0, tablet: 768 });
 
 export function SinglePollMatrix({ poll }: { poll: any }) {
   const router = useRouter();
@@ -202,11 +206,80 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
     }
   };
 
+  const handleEditParticipant = async (participantId: string, newName: string, newEmail: string) => {
+    if (!newName.trim() || updateParticipantMutation.isPending) return;
+    try {
+      await updateParticipantMutation.mutateAsync({
+        participantId,
+        newName: newName.trim(),
+        newEmail: newEmail.trim() || undefined
+      });
+      utils.polls.participants.list.invalidate({ pollId: poll.id });
+    } catch (error) {
+      console.error(error);
+      alert("Failed to update participant.");
+    }
+  };
+
   if (allOptions.length === 0) {
     return <p className="text-muted-foreground">This poll has no options yet.</p>;
   }
 
-  return (
+  const breakpoint = useBreakpoint();
+  const isMobileView = breakpoint === "mobile";
+
+  // Mobile view
+  if (isMobileView) {
+    const handleMobileAddParticipant = async (name: string, email: string) => {
+      if (!name.trim() || addParticipantMutation.isPending) return;
+      
+      setAddError("");
+      const emailStr = email.trim().toLowerCase();
+      const nameStr = name.trim().toLowerCase();
+      
+      const exists = participants.some((r: any) => {
+        if (emailStr) return r.email?.toLowerCase() === emailStr;
+        return !r.email && r.name.toLowerCase() === nameStr;
+      });
+
+      if (exists) {
+        setAddError("User already exists");
+        return;
+      }
+
+      try {
+        await addParticipantMutation.mutateAsync({
+          pollId: poll.id,
+          name: name.trim(),
+          email: email.trim() || undefined,
+          note: "",
+          votes: []
+        });
+        setNewParticipantName("");
+        setNewParticipantEmail("");
+        utils.polls.participants.list.invalidate({ pollId: poll.id });
+      } catch (error) {
+        console.error(error);
+        alert("Failed to add participant.");
+      }
+    };
+
+    return (
+      <div className="mt-8 mb-16">
+        <MobilePollMatrix
+          options={allOptions}
+          participants={participants}
+          poll={poll}
+          onVoteChange={handleUpdateVote}
+          onAddParticipant={handleMobileAddParticipant}
+          onDeleteParticipant={handleDeleteParticipant}
+          onEditParticipant={handleEditParticipant}
+        />
+      </div>
+    );
+  }
+
+  // Desktop view (original table)
     <div className="bg-card border rounded-lg shadow-sm overflow-hidden mt-8 mb-16">
       <div className="p-0 sm:p-6 overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[600px] sm:min-w-[800px]">
