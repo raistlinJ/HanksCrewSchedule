@@ -201,7 +201,12 @@ function SortableGroupWrapper({ id, children }: { id: string; children: (listene
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-50" : ""}>
+    <div
+      id={`poll-group-${id}`}
+      ref={setNodeRef}
+      style={style}
+      className={`scroll-mt-4 ${isDragging ? "opacity-50" : ""}`}
+    >
       {children(listeners, attributes)}
 
     </div>

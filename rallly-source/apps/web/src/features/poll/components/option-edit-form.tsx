@@ -27,6 +27,27 @@ const halfHourTimes = Array.from({ length: 48 }, (_, index) => {
   return `${String(hours).padStart(2, "0")}:${minutes}`;
 });
 
+const timeToMinutes = (time: string) => {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+const minutesToTime = (minutes: number) => {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+};
+
+const getSuggestedEndTime = (start: string) => {
+  const latestTime = halfHourTimes[halfHourTimes.length - 1] ?? "23:30";
+  const suggestedMinutes = Math.min(
+    timeToMinutes(start) + 60,
+    timeToMinutes(latestTime),
+  );
+
+  return minutesToTime(suggestedMinutes);
+};
+
 export function OptionEditForm({
   startTime,
   duration,
@@ -57,6 +78,44 @@ export function OptionEditForm({
       locale,
       timeFormat,
     });
+  };
+
+  const handleStartDateChange = (nextStartDate: string) => {
+    setStartDate(nextStartDate);
+
+    const validEndDate = endDate < nextStartDate ? nextStartDate : endDate;
+    if (validEndDate !== endDate) {
+      setEndDate(nextStartDate);
+    }
+
+    if (validEndDate === nextStartDate && endTime < startTimeValue) {
+      setEndTime(getSuggestedEndTime(startTimeValue));
+    }
+  };
+
+  const handleStartTimeChange = (nextStartTime: string) => {
+    setStartTimeValue(nextStartTime);
+
+    if (endDate === startDate && endTime < nextStartTime) {
+      setEndTime(getSuggestedEndTime(nextStartTime));
+    }
+  };
+
+  const handleEndDateChange = (nextEndDate: string) => {
+    const validEndDate = nextEndDate < startDate ? startDate : nextEndDate;
+    setEndDate(validEndDate);
+
+    if (validEndDate === startDate && endTime < startTimeValue) {
+      setEndTime(getSuggestedEndTime(startTimeValue));
+    }
+  };
+
+  const handleEndTimeChange = (nextEndTime: string) => {
+    setEndTime(
+      endDate === startDate && nextEndTime < startTimeValue
+        ? getSuggestedEndTime(startTimeValue)
+        : nextEndTime,
+    );
   };
 
   return (
@@ -98,7 +157,7 @@ export function OptionEditForm({
           type="date"
           className={fieldClassName}
           value={startDate}
-          onChange={(event) => setStartDate(event.target.value)}
+          onChange={(event) => handleStartDateChange(event.target.value)}
           required
         />
       </label>
@@ -112,7 +171,7 @@ export function OptionEditForm({
             <select
               className={fieldClassName}
               value={startTimeValue}
-              onChange={(event) => setStartTimeValue(event.target.value)}
+              onChange={(event) => handleStartTimeChange(event.target.value)}
               required
             >
               {startTimeOptions.map((time) => (
@@ -131,7 +190,7 @@ export function OptionEditForm({
               className={fieldClassName}
               value={endDate}
               min={startDate}
-              onChange={(event) => setEndDate(event.target.value)}
+              onChange={(event) => handleEndDateChange(event.target.value)}
               required
             />
           </label>
@@ -142,7 +201,7 @@ export function OptionEditForm({
             <select
               className={fieldClassName}
               value={endTime}
-              onChange={(event) => setEndTime(event.target.value)}
+              onChange={(event) => handleEndTimeChange(event.target.value)}
               required
             >
               {endTimeOptions.map((time) => (

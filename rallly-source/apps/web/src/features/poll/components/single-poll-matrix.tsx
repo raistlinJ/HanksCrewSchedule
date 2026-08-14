@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createBreakpoint } from "react-use";
 import { trpc } from "@/trpc/client";
 import { useRouter } from "next/navigation";
@@ -24,6 +24,16 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
   // Track debounce timeouts
   // Key: `${participantId}-${optionId}`
   const timeoutRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const pendingVoteTypesRef = useRef<Map<string, "yes" | "no" | "ifNeedBe">>(
+    new Map(),
+  );
+
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach((timeout) => clearTimeout(timeout));
+      timeoutRefs.current.clear();
+    };
+  }, []);
 
   const allOptions = poll.options || [];
   
@@ -97,12 +107,13 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
     participantId: string,
     optionId: string
   ) => {
-    let newType = "yes";
-    if (currentType === "no") newType = "ifNeedBe";
-    else if (currentType === "ifNeedBe") newType = "yes";
-    else if (currentType === "yes") newType = "no";
-
     const cellKey = `${participantId}-${optionId}`;
+    const effectiveType = pendingVoteTypesRef.current.get(cellKey) ?? currentType;
+    let newType = "yes";
+    if (effectiveType === "no") newType = "ifNeedBe";
+    else if (effectiveType === "ifNeedBe") newType = "yes";
+    else if (effectiveType === "yes") newType = "no";
+
     if (!originalVotes.has(cellKey)) {
       setOriginalVotes((prev) => {
         const next = new Map(prev);
@@ -110,6 +121,10 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
         return next;
       });
     }
+    pendingVoteTypesRef.current.set(
+      cellKey,
+      newType as "yes" | "no" | "ifNeedBe",
+    );
 
     // Optimistically update the cache
     utils.polls.participants.list.setData({ pollId: poll.id }, (old: any) => {
@@ -132,21 +147,31 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
     }
 
     const timeout = setTimeout(() => {
-      updateVoteMutation.mutateAsync({ 
-        voteId, 
-        participantId, 
-        optionId, 
-        pollId: poll.id,
-        type: newType as "yes" | "no" | "ifNeedBe"
-      }).then(() => {
-        utils.polls.participants.list.invalidate({ pollId: poll.id });
-        utils.polls.infiniteChronological.invalidate(); // Update dashboard counts
-      }).catch((e) => {
-        utils.polls.participants.list.invalidate({ pollId: poll.id });
-        console.error(e);
-        alert("Failed to update vote.");
-      });
-    }, 400);
+      timeoutRefs.current.delete(cellKey);
+      updateVoteMutation
+        .mutateAsync({
+          voteId,
+          participantId,
+          optionId,
+          pollId: poll.id,
+          type: newType as "yes" | "no" | "ifNeedBe",
+        })
+        .then(() => {
+          if (pendingVoteTypesRef.current.get(cellKey) !== newType) return;
+
+          pendingVoteTypesRef.current.delete(cellKey);
+          utils.polls.participants.list.invalidate({ pollId: poll.id });
+          utils.polls.infiniteChronological.invalidate(); // Update dashboard counts
+        })
+        .catch((e) => {
+          if (pendingVoteTypesRef.current.get(cellKey) !== newType) return;
+
+          pendingVoteTypesRef.current.delete(cellKey);
+          utils.polls.participants.list.invalidate({ pollId: poll.id });
+          console.error(e);
+          alert("Failed to update vote.");
+        });
+    }, 1000);
 
     timeoutRefs.current.set(cellKey, timeout);
   };
