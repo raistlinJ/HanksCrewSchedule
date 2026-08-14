@@ -214,7 +214,7 @@ export function ResponsesMatrix({ group }: { group: any }) {
           <thead>
             {/* Poll Headers */}
             <tr>
-              <th className="p-3 border-b font-semibold bg-muted/20 w-48 sticky left-0 bg-card z-10 border-r"></th>
+              <th className="p-3 border-b font-semibold w-48 sticky left-0 bg-card z-10 border-r"></th>
               {group.polls.map((poll: any) => {
                 const colSpan = poll.options.length;
                 if (colSpan === 0) return null;
@@ -227,7 +227,7 @@ export function ResponsesMatrix({ group }: { group: any }) {
             </tr>
             {/* Option Headers */}
             <tr>
-              <th className="p-3 border-b font-semibold bg-muted/10 w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">Participant</th>
+              <th className="p-3 border-b font-semibold w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">Participant</th>
               {allOptions.map((opt) => (
                 <th key={opt.id} className="group p-3 border-b font-semibold bg-muted/10 text-center min-w-[100px] border-l relative">
                   {editingOptionId === opt.id ? (

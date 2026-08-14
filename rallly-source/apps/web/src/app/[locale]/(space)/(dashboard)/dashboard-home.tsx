@@ -60,14 +60,14 @@ export async function DashboardHome({
           </h2>
           <TileGrid>
             <Tile render={<HoverPrefetchLink href="/new" />}>
-              <CreatePageIcon />
+              <PollPageIcon />
               <TileTitle>
                 <Trans
                   t={t}
                   i18n={i18n}
                   ns="app"
-                  i18nKey="create"
-                  defaults="Create"
+                  i18nKey="createPoll"
+                  defaults="Create Poll"
                 />
               </TileTitle>
             </Tile>

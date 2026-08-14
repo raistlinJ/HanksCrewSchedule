@@ -213,7 +213,7 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
           <thead>
             {/* Option Headers */}
             <tr>
-              <th className="p-3 border-b font-semibold bg-muted/10 min-w-[120px] w-32 sm:w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">Participant</th>
+              <th className="p-3 border-b font-semibold min-w-[120px] w-32 sm:w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">Participant</th>
               {allOptions.map((opt: any) => (
                 <th key={opt.id} className="group p-3 border-b font-semibold bg-muted/10 text-center min-w-[100px] border-l relative">
                   {editingOptionId === opt.id ? (
