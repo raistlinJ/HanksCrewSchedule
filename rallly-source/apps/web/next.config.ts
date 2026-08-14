@@ -52,9 +52,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   async rewrites() {
     if (!process.env.API_BASE_URL) return [];
     const host = new URL(process.env.API_BASE_URL).host;

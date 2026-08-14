@@ -280,6 +280,7 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
   }
 
   // Desktop view (original table)
+  return (
     <div className="bg-card border rounded-lg shadow-sm overflow-hidden mt-8 mb-16">
       <div className="p-0 sm:p-6 overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[600px] sm:min-w-[800px]">
