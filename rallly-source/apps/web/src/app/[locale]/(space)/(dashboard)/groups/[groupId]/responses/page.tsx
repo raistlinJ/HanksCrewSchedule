@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import Link from "next/link";
 import { ArrowLeftIcon, DownloadIcon } from "lucide-react";
 import { Button } from "@rallly/ui/button";
+import { MobileLandscapeHint } from "@/components/mobile-landscape-hint";
 import { ResponsesMatrix } from "./matrix";
 
 export default async function PollGroupResponsesPage({
@@ -94,6 +95,7 @@ export default async function PollGroupResponsesPage({
       </div>
 
       <div className="space-y-12">
+        <MobileLandscapeHint />
         <ResponsesMatrix group={group} />
       </div>
     </div>

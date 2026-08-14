@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/trpc/client";
 import {
   DndContext,
@@ -20,17 +20,22 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, CheckIcon, XIcon, ClockIcon, DownloadIcon, MoreHorizontal, ExternalLink, MailIcon } from "lucide-react";
+import { GripVertical, CheckIcon, XIcon, ClockIcon, DownloadIcon, MoreHorizontal, ExternalLink, MailIcon, ChevronDownIcon, LinkIcon, QrCodeIcon } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@rallly/ui/dropdown-menu";
 import { Button } from "@rallly/ui/button";
+import { shortUrl } from "@rallly/utils/absolute-url";
 import Link from "next/link";
+import { useCopyToClipboard } from "react-use";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@rallly/ui/dialog";
+import { toast } from "@rallly/ui/sonner";
+import { QRCodeCanvas } from "qrcode.react";
 
 interface PollGroupDTO {
   requireEmailVerification: boolean;
@@ -203,13 +208,15 @@ function SortableGroupWrapper({ id, children }: { id: string; children: (listene
 }
 
 export default function PollGroupsDashboardPage() {
+  const [, copyToClipboard] = useCopyToClipboard();
+  const qrCodeRef = useRef<HTMLCanvasElement>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedPollIds, setSelectedPollIds] = useState<string[]>([]);
   const [newRequireEmailVerification, setNewRequireEmailVerification] = useState(true);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [qrCodeGroup, setQrCodeGroup] = useState<PollGroupDTO | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
@@ -364,7 +371,7 @@ export default function PollGroupsDashboardPage() {
       setRemindableParticipants([]);
       setReminderGroup(group);
       setReminderSubject(`Reminder: ${group.title}`);
-      setReminderBody(`Thanks for giving us your availability; reminder that the event ${group.title} is coming up. If you need to update your availability please do so now:\n${window.location.origin}/g/${group.id}`);
+      setReminderBody(`Thanks for giving us your availability; reminder that the event ${group.title} is coming up. If you need to update your availability please do so now:\n${shortUrl(`/g/${group.id}`)}`);
       setReminderModalOpen(true);
       
       const participants = await utils.pollGroups.getRemindableParticipants.fetch({ groupId: group.id });
@@ -430,10 +437,53 @@ export default function PollGroupsDashboardPage() {
   };
 
   const handleCopyLink = (groupId: string) => {
-    const url = `${window.location.origin}/g/${groupId}`;
-    navigator.clipboard.writeText(url);
-    setCopiedId(groupId);
-    setTimeout(() => setCopiedId(null), 2000);
+    copyToClipboard(shortUrl(`/g/${groupId}`));
+    toast.success("Share link copied");
+  };
+
+  const handleSaveQrCode = async () => {
+    if (!qrCodeGroup || !qrCodeRef.current) return;
+
+    const fileName =
+      qrCodeGroup.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "") || "poll-group";
+    const imageDataUrl = qrCodeRef.current.toDataURL("image/png");
+    const encodedImage = imageDataUrl.split(",")[1];
+
+    if (!encodedImage) {
+      toast.error("Unable to save QR code");
+      return;
+    }
+
+    const imageBytes = Uint8Array.from(atob(encodedImage), (character) =>
+      character.charCodeAt(0),
+    );
+    const imageFile = new File([imageBytes], `${fileName}-qr-code.png`, {
+      type: "image/png",
+    });
+
+    if (
+      typeof navigator.share === "function" &&
+      typeof navigator.canShare === "function" &&
+      navigator.canShare({ files: [imageFile] })
+    ) {
+      try {
+        await navigator.share({
+          files: [imageFile],
+          title: `QR code for ${qrCodeGroup.title}`,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = imageDataUrl;
+    downloadLink.download = `${fileName}-qr-code.png`;
+    downloadLink.click();
   };
 
   return (
@@ -706,13 +756,22 @@ export default function PollGroupsDashboardPage() {
                         </div>
 
                         <div className="mt-6 flex items-center justify-between border-t pt-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCopyLink(group.id)}
-                          >
-                            {copiedId === group.id ? "✓ Copied!" : "Get Share Link"}
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger render={<Button size="sm" />}>
+                              Share Link
+                              <ChevronDownIcon data-icon="inline-end" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem onClick={() => handleCopyLink(group.id)}>
+                                <LinkIcon />
+                                Link
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setQrCodeGroup(group)}>
+                                <QrCodeIcon />
+                                QR Code
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
 
                           <div className="flex items-center gap-4">
                             <Link href={`/groups/${group.id}/responses`}>
@@ -731,6 +790,52 @@ export default function PollGroupsDashboardPage() {
           </SortableContext>
         </DndContext>
       )}
+
+      <Dialog
+        open={qrCodeGroup !== null}
+        onOpenChange={(open) => {
+          if (!open) setQrCodeGroup(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Share {qrCodeGroup?.title}</DialogTitle>
+            <DialogDescription>
+              Scan this QR code to open the public poll group.
+            </DialogDescription>
+          </DialogHeader>
+          {qrCodeGroup && (
+            <div className="flex flex-col items-center gap-4">
+              <div className="rounded-xl border bg-white p-3">
+                <QRCodeCanvas
+                  className="h-auto w-full max-w-64"
+                  level="M"
+                  marginSize={4}
+                  ref={qrCodeRef}
+                  size={1024}
+                  title={`QR code for ${qrCodeGroup.title}`}
+                  value={shortUrl(`/g/${qrCodeGroup.id}`)}
+                />
+              </div>
+              <p className="w-full break-all rounded-md bg-muted p-3 text-center text-xs text-muted-foreground">
+                {shortUrl(`/g/${qrCodeGroup.id}`)}
+              </p>
+              <div className="grid w-full grid-cols-2 gap-2">
+                <Button
+                  onClick={() => handleCopyLink(qrCodeGroup.id)}
+                >
+                  <LinkIcon className="size-4" />
+                  Copy Link
+                </Button>
+                <Button onClick={handleSaveQrCode}>
+                  <DownloadIcon className="size-4" />
+                  Save Image
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Poll Group Modal */}
       {editingGroup && (
@@ -907,4 +1012,3 @@ export default function PollGroupsDashboardPage() {
     </div>
   );
 }
-
