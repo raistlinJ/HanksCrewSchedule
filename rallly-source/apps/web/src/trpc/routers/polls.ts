@@ -48,6 +48,106 @@ const optionEndsInFuture = (option: { startTime: Date; duration: number }) =>
 export const polls = router({
   participants,
   comments,
+  bulkAction: spaceProcedure
+    .input(
+      z.object({
+        pollIds: z.array(z.string()).min(1),
+        action: z.enum(["delete", "close", "reopen"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const pollIds = [...new Set(input.pollIds)];
+      const selectedPolls = await prisma.poll.findMany({
+        where: {
+          id: { in: pollIds },
+          spaceId: ctx.space.id,
+          deleted: false,
+        },
+        select: {
+          id: true,
+          status: true,
+          scheduledEventId: true,
+        },
+      });
+
+      if (selectedPolls.length !== pollIds.length) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or more selected polls could not be found",
+        });
+      }
+
+      if (
+        input.action === "close" &&
+        selectedPolls.some((poll) => poll.status !== "open")
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only open polls can be closed",
+        });
+      }
+
+      if (
+        input.action === "reopen" &&
+        selectedPolls.some((poll) => poll.status !== "closed")
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only closed polls can be reopened",
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        if (input.action === "delete") {
+          await tx.poll.updateMany({
+            where: { id: { in: pollIds } },
+            data: { deleted: true, deletedAt: new Date() },
+          });
+          return;
+        }
+
+        if (input.action === "close") {
+          await tx.poll.updateMany({
+            where: { id: { in: pollIds } },
+            data: { status: "closed", closedReason: "manual" },
+          });
+          return;
+        }
+
+        await tx.poll.updateMany({
+          where: { id: { in: pollIds } },
+          data: { status: "open", closedReason: null },
+        });
+
+        const scheduledEventIds = selectedPolls.flatMap((poll) =>
+          poll.scheduledEventId ? [poll.scheduledEventId] : [],
+        );
+        if (scheduledEventIds.length > 0) {
+          await tx.scheduledEvent.deleteMany({
+            where: { id: { in: scheduledEventIds } },
+          });
+        }
+      });
+
+      const event =
+        input.action === "delete"
+          ? "poll_delete"
+          : input.action === "close"
+            ? "poll_close"
+            : "poll_reopen";
+
+      for (const pollId of pollIds) {
+        track(
+          { ...ctx.user, anonymousDistinctId: ctx.anonymousDistinctId },
+          {
+            event,
+            groups: { poll: pollId },
+          },
+        );
+      }
+
+      return { count: pollIds.length };
+    }),
   reorder: spaceProcedure
     .input(z.object({ pollIds: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {

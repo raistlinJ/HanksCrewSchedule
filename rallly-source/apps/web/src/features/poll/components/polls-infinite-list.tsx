@@ -1,5 +1,22 @@
 "use client";
 
+import type { DragEndEvent } from "@dnd-kit/core";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@rallly/ui/badge";
 import { Button } from "@rallly/ui/button";
 import {
@@ -27,36 +44,18 @@ import {
   CheckIcon,
   CircleStopIcon,
   ClockIcon,
+  GripVertical,
   MoreHorizontalIcon,
   PencilIcon,
   PlayIcon,
-  Settings2Icon,
   StickerIcon,
-  TableIcon,
   TrashIcon,
-  XIcon,
   UsersIcon,
+  XIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import React from "react";
-import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
@@ -82,6 +81,8 @@ function PollListItem({
   user,
   voteCounts,
   disableDrag,
+  selected,
+  onSelectedChange,
 }: {
   id: string;
   title: string;
@@ -91,6 +92,8 @@ function PollListItem({
   user: { name: string; image: string | null } | null;
   voteCounts?: { yes: number; no: number; ifNeedBe: number };
   disableDrag?: boolean;
+  selected: boolean;
+  onSelectedChange: (selected: boolean) => void;
 }) {
   const {
     attributes,
@@ -120,8 +123,15 @@ function PollListItem({
     <div ref={setNodeRef} style={style} className="w-full">
       <div className="grid w-full grid-cols-[1fr_auto] gap-2 bg-background">
         <div className="relative -m-4 flex min-w-0 flex-1 items-center gap-2 p-4">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(event) => onSelectedChange(event.target.checked)}
+            aria-label={`Select ${title}`}
+            className="relative z-10 size-4 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
+          />
           <div
-            className="flex cursor-grab items-center justify-center p-1 text-muted-foreground touch-none"
+            className="relative z-10 flex cursor-grab touch-none items-center justify-center p-1 text-muted-foreground"
             {...(disableDrag ? {} : attributes)}
             {...(disableDrag ? {} : listeners)}
           >
@@ -157,7 +167,7 @@ function PollListItem({
         </div>
         <div className="flex items-center justify-end gap-2 sm:gap-4">
           {voteCounts ? (
-            <div className="flex items-center gap-3 text-xs font-medium">
+            <div className="flex items-center gap-3 font-medium text-xs">
               <span className="flex items-center gap-1 text-green-600">
                 <CheckIcon className="h-3.5 w-3.5" />
                 {voteCounts.yes}
@@ -240,16 +250,16 @@ function PollListItem({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  render={<Link href={`/poll/${id}/edit?returnTo=${pathname}`} />}
+                  render={
+                    <Link href={`/poll/${id}/edit?returnTo=${pathname}`} />
+                  }
                 >
                   <Icon>
                     <PencilIcon />
                   </Icon>
                   <Trans i18nKey="edit" defaults="Edit" />
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  render={<Link href={`/poll/${id}`} />}
-                >
+                <DropdownMenuItem render={<Link href={`/poll/${id}`} />}>
                   <Icon>
                     <UsersIcon />
                   </Icon>
@@ -378,28 +388,80 @@ export function PollsInfiniteList({
       },
     );
 
+  const polls = React.useMemo(
+    () => data.pages.flatMap((page) => page.polls),
+    [data.pages],
+  );
+
   // Optimistic state for dragging
-  const [items, setItems] = React.useState<{ id: string; [key: string]: any }[]>([]);
+  const [items, setItems] = React.useState<typeof polls>([]);
+  const [selectedPollIds, setSelectedPollIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+  const bulkDeleteDialog = useDialog();
+  const router = useRouter();
   const utils = trpc.useUtils();
   const reorderMutation = trpc.polls.reorder.useMutation({
     onSuccess: () => {
       utils.polls.infiniteChronological.invalidate();
     },
   });
+  const bulkActionMutation = trpc.polls.bulkAction.useMutation({
+    onSuccess: async () => {
+      setSelectedPollIds(new Set());
+      await utils.polls.infiniteChronological.invalidate();
+      router.refresh();
+    },
+  });
 
-  const polls = React.useMemo(() => data.pages.flatMap((page) => page.polls), [data.pages]);
   const isFiltered = Boolean(status || search || member);
 
   React.useEffect(() => {
     setItems(polls);
+    const pollIds = new Set(polls.map((poll) => poll.id));
+    setSelectedPollIds(
+      (selected) => new Set([...selected].filter((id) => pollIds.has(id))),
+    );
   }, [polls]);
+
+  const selectedPolls = items.filter((poll) => selectedPollIds.has(poll.id));
+  const allLoadedSelected =
+    items.length > 0 && items.every((poll) => selectedPollIds.has(poll.id));
+  const canClose =
+    selectedPolls.length > 0 &&
+    selectedPolls.every((poll) => poll.status === "open");
+  const canReopen =
+    selectedPolls.length > 0 &&
+    selectedPolls.every((poll) => poll.status === "closed");
+
+  const runBulkAction = (action: "delete" | "close" | "reopen") => {
+    const mutation = bulkActionMutation.mutateAsync({
+      pollIds: [...selectedPollIds],
+      action,
+    });
+    const actionLabel =
+      action === "delete"
+        ? "deleted"
+        : action === "close"
+          ? "closed"
+          : "reopened";
+
+    toast.promise(mutation, {
+      loading: `Updating ${selectedPollIds.size} polls...`,
+      success: `${selectedPollIds.size} polls ${actionLabel}`,
+      error: (error) =>
+        error instanceof Error ? error.message : "Failed to update polls",
+    });
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       setItems((items) => {
@@ -448,57 +510,165 @@ export function PollsInfiniteList({
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext
-        items={items.map((i) => i.id)}
-        strategy={verticalListSortingStrategy}
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-card-border bg-card/25 px-3 py-2">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={allLoadedSelected}
+            onChange={(event) =>
+              setSelectedPollIds(
+                event.target.checked
+                  ? new Set(items.map((poll) => poll.id))
+                  : new Set(),
+              )
+            }
+            className="size-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <span>Select all loaded</span>
+        </label>
+
+        {selectedPollIds.size > 0 && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="text-muted-foreground text-sm">
+              {selectedPollIds.size}{" "}
+              {selectedPollIds.size === 1 ? "poll" : "polls"} selected
+            </span>
+            {canClose && (
+              <Button
+                size="sm"
+                onClick={() => runBulkAction("close")}
+                disabled={bulkActionMutation.isPending}
+              >
+                <CircleStopIcon />
+                <Trans i18nKey="closePoll" defaults="Close" />
+              </Button>
+            )}
+            {canReopen && (
+              <Button
+                size="sm"
+                onClick={() => runBulkAction("reopen")}
+                disabled={bulkActionMutation.isPending}
+              >
+                <PlayIcon />
+                <Trans i18nKey="reopenPoll" defaults="Re-open" />
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => bulkDeleteDialog.trigger()}
+              disabled={bulkActionMutation.isPending}
+            >
+              <TrashIcon />
+              <Trans i18nKey="deleteMenuItem" defaults="Delete" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
       >
-        <StackedList>
-          {items.map(({ id, title, status, closedReason, participants, user, voteCounts }) => (
-            <StackedListItem key={id} className="bg-background">
-              <PollListItem
-                id={id}
-                title={title}
-                status={status}
-                closedReason={closedReason}
-                participants={participants}
-                user={user}
-                voteCounts={voteCounts}
-                disableDrag={isFiltered}
-              />
-            </StackedListItem>
-          ))}
+        <SortableContext
+          items={items.map((i) => i.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <StackedList>
+            {items.map(
+              ({
+                id,
+                title,
+                status,
+                closedReason,
+                participants,
+                user,
+                voteCounts,
+              }) => (
+                <StackedListItem key={id} className="bg-background">
+                  <PollListItem
+                    id={id}
+                    title={title}
+                    status={status}
+                    closedReason={closedReason}
+                    participants={participants}
+                    user={user}
+                    voteCounts={voteCounts}
+                    disableDrag={isFiltered || selectedPollIds.size > 0}
+                    selected={selectedPollIds.has(id)}
+                    onSelectedChange={(selected) =>
+                      setSelectedPollIds((current) => {
+                        const next = new Set(current);
+                        if (selected) {
+                          next.add(id);
+                        } else {
+                          next.delete(id);
+                        }
+                        return next;
+                      })
+                    }
+                  />
+                </StackedListItem>
+              ),
+            )}
 
-          {hasNextPage && (
-            <div ref={loadMoreRef} className="flex justify-center py-4">
-              {isFetchingNextPage && (
-                <div className="flex items-center gap-2">
-                  <Spinner />
-                  <span className="text-muted-foreground text-sm">
-                    <Trans i18nKey="loading" defaults="Loading..." />
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+            {hasNextPage && (
+              <div ref={loadMoreRef} className="flex justify-center py-4">
+                {isFetchingNextPage && (
+                  <div className="flex items-center gap-2">
+                    <Spinner />
+                    <span className="text-muted-foreground text-sm">
+                      <Trans i18nKey="loading" defaults="Loading..." />
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
-          {!hasNextPage && data.pages.length > 1 && (
-            <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
-              <Icon>
-                <StickerIcon />
-              </Icon>
-              <Trans
-                i18nKey="endOfList"
-                defaults="You've reached the end of the list"
-              />
-            </div>
-          )}
-        </StackedList>
-      </SortableContext>
-    </DndContext>
+            {!hasNextPage && data.pages.length > 1 && (
+              <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
+                <Icon>
+                  <StickerIcon />
+                </Icon>
+                <Trans
+                  i18nKey="endOfList"
+                  defaults="You've reached the end of the list"
+                />
+              </div>
+            )}
+          </StackedList>
+        </SortableContext>
+      </DndContext>
+
+      <Dialog {...bulkDeleteDialog.dialogProps}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete selected polls</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedPollIds.size}{" "}
+              {selectedPollIds.size === 1 ? "poll" : "polls"}? This cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button />}>
+              <Trans i18nKey="cancel" />
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                bulkDeleteDialog.dismiss();
+                runBulkAction("delete");
+              }}
+              loading={bulkActionMutation.isPending}
+            >
+              <Trans i18nKey="delete" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
