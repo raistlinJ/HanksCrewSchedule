@@ -5,7 +5,7 @@ import { createBreakpoint } from "react-use";
 import { trpc } from "@/trpc/client";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/lib/locale/client";
-import { dayjs } from "@/lib/dayjs";
+import { OptionEditForm } from "./option-edit-form";
 import MobilePollMatrix from "./single-poll-matrix/mobile-matrix";
 
 const useBreakpoint = createBreakpoint({ mobile: 0, tablet: 768 });
@@ -85,17 +85,9 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
 
   const updateOptionMutation = trpc.polls.updateOption.useMutation();
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
-  const [editOptionDate, setEditOptionDate] = useState("");
-  const [editOptionTime, setEditOptionTime] = useState("");
-  const [editOptionDuration, setEditOptionDuration] = useState("");
 
   const handleEditOption = (opt: any) => {
     setEditingOptionId(opt.id);
-    const tz = poll.timeZone || 'UTC';
-    const d = dayjs(opt.startTime).tz(tz);
-    setEditOptionDate(d.format("YYYY-MM-DD"));
-    setEditOptionTime(d.format("HH:mm"));
-    setEditOptionDuration((opt.duration / 60).toString());
   };
 
   const handleUpdateVote = (
@@ -291,67 +283,23 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
               {allOptions.map((opt: any) => (
                 <th key={opt.id} className="group p-3 border-b font-semibold bg-muted/10 text-center min-w-[100px] border-l relative">
                   {editingOptionId === opt.id ? (
-                    <form
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (updateOptionMutation.isPending) return;
-                        
-                        try {
-                          const tz = poll.timeZone || 'UTC';
-                          let dateStr = editOptionDate;
-                          if (poll.kind === 'time' || editOptionTime) {
-                            dateStr += `T${editOptionTime || "00:00"}`;
-                          }
-                          const isoStr = dayjs.tz(dateStr, tz).toISOString();
-                          const durMinutes = parseFloat(editOptionDuration || "0") * 60;
-
-                          await updateOptionMutation.mutateAsync({
-                            pollId: poll.id,
-                            optionId: opt.id,
-                            startTime: isoStr,
-                            duration: durMinutes
-                          });
-                          
-                          setEditingOptionId(null);
-                          router.refresh();
-                        } catch (err) {
-                          alert("Failed to update option");
-                        }
+                    <OptionEditForm
+                      startTime={opt.startTime}
+                      duration={opt.duration}
+                      timeZone={poll.timeZone}
+                      isTimed={poll.kind === "time" || opt.duration > 0}
+                      isSaving={updateOptionMutation.isPending}
+                      onSave={async (values) => {
+                        await updateOptionMutation.mutateAsync({
+                          pollId: poll.id,
+                          optionId: opt.id,
+                          ...values,
+                        });
+                        setEditingOptionId(null);
+                        router.refresh();
                       }}
-                      className="flex flex-col gap-1 items-center font-normal"
-                    >
-                      <input 
-                        type="date"
-                        className="text-xs border rounded px-1 w-full bg-background font-normal"
-                        value={editOptionDate}
-                        onChange={(e) => setEditOptionDate(e.target.value)}
-                        required
-                        autoFocus
-                      />
-                      {(poll.kind === 'time' || opt.duration > 0) && (
-                        <>
-                          <input 
-                            type="time"
-                            className="text-xs border rounded px-1 w-full bg-background font-normal"
-                            value={editOptionTime}
-                            onChange={(e) => setEditOptionTime(e.target.value)}
-                          />
-                          <input 
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            placeholder="Hours"
-                            className="text-xs border rounded px-1 w-full bg-background font-normal"
-                            value={editOptionDuration}
-                            onChange={(e) => setEditOptionDuration(e.target.value)}
-                          />
-                        </>
-                      )}
-                      <div className="flex gap-1 mt-1 w-full">
-                        <button type="submit" className="flex-1 text-xs bg-primary text-primary-foreground px-2 py-2 rounded font-medium disabled:opacity-50" disabled={updateOptionMutation.isPending}>Save</button>
-                        <button type="button" onClick={() => setEditingOptionId(null)} className="flex-1 text-xs bg-muted px-2 py-2 rounded font-medium disabled:opacity-50" disabled={updateOptionMutation.isPending}>Cancel</button>
-                      </div>
-                    </form>
+                      onCancel={() => setEditingOptionId(null)}
+                    />
                   ) : (
                     <>
                       {formatOption(opt)}

@@ -14,6 +14,49 @@ export const encodeDateOption = (option: DateTimeOption) => {
     : option.date;
 };
 
+export type OptionEditValues = {
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+};
+
+export const getOptionEditValues = (
+  startTime: Date | string,
+  duration: number,
+  timeZone?: string | null,
+): OptionEditValues => {
+  const start = dayjs(startTime).tz(timeZone || "UTC");
+  const end = start.add(duration, "minute");
+
+  return {
+    startDate: start.format("YYYY-MM-DD"),
+    startTime: start.format("HH:mm"),
+    endDate: end.format("YYYY-MM-DD"),
+    endTime: end.format("HH:mm"),
+  };
+};
+
+export const parseOptionEditValues = (
+  values: OptionEditValues,
+  timeZone?: string | null,
+  isTimed = true,
+) => {
+  const zone = timeZone || "UTC";
+  const start = dayjs.tz(
+    `${values.startDate}T${isTimed ? values.startTime : "00:00"}`,
+    zone,
+  );
+  const end = isTimed
+    ? dayjs.tz(`${values.endDate}T${values.endTime}`, zone)
+    : start;
+
+  return {
+    startTime: start.toISOString(),
+    duration: isTimed ? end.diff(start, "minute") : 0,
+  };
+};
+
 export interface ParsedDateOption {
   type: "date";
   optionId: string;
