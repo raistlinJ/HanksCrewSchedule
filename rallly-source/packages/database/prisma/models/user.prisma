@@ -54,6 +54,9 @@ model User {
   banReason       String?     @map("ban_reason")
   banExpires      DateTime?   @map("ban_expires")
   role            UserRole    @default(user)
+  /// Opaque credential encoded in the user's check-in QR code. It must never
+  /// contain the user's id or email and can be rotated if a badge is lost.
+  qrCodeToken     String      @unique @default(uuid()) @map("qr_code_token") @db.Uuid
   lastLoginMethod String?     @map("last_login_method")
   isAnonymous     Boolean     @default(false) @map("anonymous")
   lastSeenAt      DateTime    @default(now()) @map("last_seen_at")

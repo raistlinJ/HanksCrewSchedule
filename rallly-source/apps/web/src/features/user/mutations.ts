@@ -1,7 +1,7 @@
 import "server-only";
 
-import type { Prisma, TimeFormat } from "@rallly/database";
-import { prisma } from "@rallly/database";
+import type { TimeFormat, VoteType } from "@rallly/database";
+import { Prisma, prisma } from "@rallly/database";
 import { authLib } from "@/lib/auth";
 import { SESSION_TTL_SECONDS } from "@/lib/auth-config";
 import { deleteImageFromS3 } from "@/lib/storage/image-upload";
@@ -15,6 +15,8 @@ export async function createUser({
   timeFormat,
   locale,
   weekStart,
+  role = "user",
+  spaceIds = [],
 }: {
   name: string;
   email: string;
@@ -24,22 +26,46 @@ export async function createUser({
   timeFormat?: TimeFormat;
   locale?: string;
   weekStart?: number;
+  role?: "user" | "admin";
+  spaceIds?: string[];
 }) {
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      emailVerified,
-      image,
-      timeZone,
-      timeFormat,
-      locale,
-      weekStart,
-      role: "user",
-    },
-  });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name,
+          email: email.trim().toLowerCase(),
+          emailVerified,
+          image,
+          timeZone,
+          timeFormat,
+          locale,
+          weekStart,
+          role,
+        },
+      });
 
-  return user;
+      if (spaceIds.length > 0) {
+        await tx.spaceMember.createMany({
+          data: spaceIds.map((spaceId) => ({
+            spaceId,
+            userId: user.id,
+            role: "MEMBER" as const,
+          })),
+        });
+      }
+
+      return user;
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 // There are deliberately no self-profile mutations (name, image,
@@ -117,6 +143,77 @@ export async function unbanUser({ userId }: { userId: string }) {
     where: { id: userId },
     data: { bannedAt: null },
   });
+}
+
+export async function updateUserPollResponse({
+  userId,
+  participantId,
+  pollId,
+  optionId,
+  type,
+}: {
+  userId: string;
+  participantId: string;
+  pollId: string;
+  optionId: string;
+  type: VoteType | null;
+}) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+
+  if (!user) {
+    return { ok: false, reason: "user_not_found" } as const;
+  }
+
+  const participant = await prisma.participant.findFirst({
+    where: {
+      id: participantId,
+      pollId,
+      deleted: false,
+      poll: {
+        deleted: false,
+        options: { some: { id: optionId } },
+      },
+      OR: [
+        { userId },
+        {
+          userId: null,
+          email: {
+            equals: user.email,
+            mode: "insensitive",
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (!participant) {
+    return { ok: false, reason: "response_not_found" } as const;
+  }
+
+  if (type === null) {
+    await prisma.vote.deleteMany({
+      where: { participantId, optionId, pollId },
+    });
+  } else {
+    await prisma.vote.upsert({
+      where: {
+        participantId_optionId: { participantId, optionId },
+      },
+      create: {
+        participantId,
+        optionId,
+        pollId,
+        type,
+      },
+      update: { type },
+    });
+  }
+
+  return { ok: true } as const;
 }
 
 // Sessions are revoked through Better-Auth's internal adapter for the same

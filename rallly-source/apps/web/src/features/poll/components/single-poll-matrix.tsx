@@ -1,5 +1,7 @@
 "use client";
 
+import { QrCodeIcon } from "lucide-react";
+import Link from "next/link";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createBreakpoint } from "react-use";
 import { trpc } from "@/trpc/client";
@@ -82,7 +84,8 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
     return <span>{dateStr}</span>;
   };
 
-  const addParticipantMutation = trpc.polls.participants.add.useMutation();
+  const addParticipantMutation =
+    trpc.polls.participants.addManaged.useMutation();
   const deleteParticipantMutation = trpc.polls.participants.delete.useMutation();
   const [newParticipantName, setNewParticipantName] = useState("");
   const [newParticipantEmail, setNewParticipantEmail] = useState("");
@@ -178,19 +181,22 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
 
   const handleAddParticipant = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newParticipantName.trim() || addParticipantMutation.isPending) return;
-    
+    if (
+      !newParticipantName.trim() ||
+      !newParticipantEmail.trim() ||
+      addParticipantMutation.isPending
+    )
+      return;
+
     setAddError("");
     const emailStr = newParticipantEmail.trim().toLowerCase();
-    const nameStr = newParticipantName.trim().toLowerCase();
-    
+
     const exists = participants.some((r: any) => {
-      if (emailStr) return r.email?.toLowerCase() === emailStr;
-      return !r.email && r.name.toLowerCase() === nameStr;
+      return r.email?.toLowerCase() === emailStr;
     });
 
     if (exists) {
-      setAddError("User already exists");
+      setAddError("A participant with this email already exists");
       return;
     }
 
@@ -198,16 +204,16 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
       await addParticipantMutation.mutateAsync({
         pollId: poll.id,
         name: newParticipantName.trim(),
-        email: newParticipantEmail.trim() || undefined,
-        note: "",
-        votes: []
+        email: emailStr,
       });
       setNewParticipantName("");
       setNewParticipantEmail("");
       utils.polls.participants.list.invalidate({ pollId: poll.id });
     } catch (error) {
       console.error(error);
-      alert("Failed to add participant.");
+      setAddError(
+        error instanceof Error ? error.message : "Failed to add participant.",
+      );
     }
   };
 
@@ -249,36 +255,41 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
   // Mobile view
   if (isMobileView) {
     const handleMobileAddParticipant = async (name: string, email: string) => {
-      if (!name.trim() || addParticipantMutation.isPending) return;
-      
-      setAddError("");
+      if (!name.trim() || !email.trim() || addParticipantMutation.isPending)
+        return { ok: false as const, message: "Name and email are required." };
+
       const emailStr = email.trim().toLowerCase();
-      const nameStr = name.trim().toLowerCase();
       
       const exists = participants.some((r: any) => {
-        if (emailStr) return r.email?.toLowerCase() === emailStr;
-        return !r.email && r.name.toLowerCase() === nameStr;
+        return r.email?.toLowerCase() === emailStr;
       });
 
       if (exists) {
-        setAddError("User already exists");
-        return;
+        return {
+          ok: false as const,
+          message: "A participant with this email already exists",
+        };
       }
 
       try {
         await addParticipantMutation.mutateAsync({
           pollId: poll.id,
           name: name.trim(),
-          email: email.trim() || undefined,
-          note: "",
-          votes: []
+          email: emailStr,
         });
         setNewParticipantName("");
         setNewParticipantEmail("");
         utils.polls.participants.list.invalidate({ pollId: poll.id });
+        return { ok: true as const };
       } catch (error) {
         console.error(error);
-        alert("Failed to add participant.");
+        return {
+          ok: false as const,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to add participant.",
+        };
       }
     };
 
@@ -305,7 +316,21 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
           <thead>
             {/* Option Headers */}
             <tr>
-              <th className="p-3 border-b font-semibold min-w-[120px] w-32 sm:w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">Participant</th>
+              <th className="p-3 border-b font-semibold min-w-[120px] w-32 sm:w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">
+                <div className="flex items-center gap-2">
+                  <span>Participant</span>
+                  {poll.groupNavigation ? (
+                    <Link
+                      href={`/groups/${poll.groupNavigation.groupId}/polls/${poll.id}/scan`}
+                      aria-label="Scan user QR code"
+                      title="Scan user QR code"
+                      className="inline-flex text-muted-foreground transition-colors hover:text-primary"
+                    >
+                      <QrCodeIcon className="size-4" />
+                    </Link>
+                  ) : null}
+                </div>
+              </th>
               {allOptions.map((opt: any) => (
                 <th key={opt.id} className="group p-3 border-b font-semibold bg-muted/10 text-center min-w-[100px] border-l relative">
                   {editingOptionId === opt.id ? (
@@ -494,6 +519,7 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                   <input 
                     type="text" 
                     placeholder="+ Add Participant..." 
+                    required
                     className="text-sm border rounded px-2 py-1 w-full bg-background"
                     value={newParticipantName}
                     onChange={(e) => {
@@ -505,7 +531,8 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                     <div className="flex items-center gap-1 mt-1">
                       <input 
                         type="email" 
-                        placeholder="Email (optional)" 
+                        placeholder="Email"
+                        required
                         className="text-xs border rounded px-2 py-1 w-full bg-background"
                         value={newParticipantEmail}
                         onChange={(e) => {
@@ -516,7 +543,11 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
                       <button 
                         type="submit" 
                         className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded disabled:opacity-50 font-medium" 
-                        disabled={addParticipantMutation.isPending || !newParticipantName.trim()}
+                        disabled={
+                          addParticipantMutation.isPending ||
+                          !newParticipantName.trim() ||
+                          !newParticipantEmail.trim()
+                        }
                       >
                         {addParticipantMutation.isPending ? "..." : "Add"}
                       </button>

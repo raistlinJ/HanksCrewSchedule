@@ -20,7 +20,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, CheckIcon, XIcon, DownloadIcon, MoreHorizontal, ExternalLink, MailIcon, ChevronDownIcon, LinkIcon, QrCodeIcon } from "lucide-react";
+import { BellIcon, BellOffIcon, GripVertical, CheckIcon, XIcon, DownloadIcon, MoreHorizontal, ExternalLink, MailIcon, ChevronDownIcon, LinkIcon, QrCodeIcon } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@rallly/ui/dropdown-menu";
 import { Button } from "@rallly/ui/button";
 import { shortUrl } from "@rallly/utils/absolute-url";
@@ -43,12 +43,18 @@ interface PollGroupDTO {
   id: string;
   title: string;
   description: string | null;
-  polls: { id: string; title: string; status: string }[];
+  polls: {
+    id: string;
+    title: string;
+    status: string;
+    muted: boolean;
+    voteCounts?: { yes: number; no: number; ifNeedBe: number };
+  }[];
 }
 
 import { useRouter } from "next/navigation";
 
-function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCounts?: { yes: number; no: number; ifNeedBe: number } } }) {
+function SortablePollItem({ groupId, poll }: { groupId: string; poll: { id: string; title: string; voteCounts?: { yes: number; no: number; ifNeedBe: number } } }) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: poll.id,
@@ -95,6 +101,14 @@ function SortablePollItem({ poll }: { poll: { id: string; title: string; voteCou
           </span>
         </div>
       )}
+      <Link
+        href={`/groups/${groupId}/polls/${poll.id}/scan`}
+        onClick={(e) => e.stopPropagation()}
+        className="ml-2 text-muted-foreground hover:text-primary flex-shrink-0"
+        title="Scan user QR code"
+      >
+        <QrCodeIcon size={16} />
+      </Link>
       <a 
         href={`/poll/${poll.id}`} 
         onClick={(e) => e.stopPropagation()}
@@ -176,7 +190,7 @@ function SortableGroupPolls({
       <SortableContext items={polls.map((p) => p.id)} strategy={verticalListSortingStrategy}>
         <ul className="text-sm">
           {polls.map((poll) => (
-            <SortablePollItem key={poll.id} poll={poll} />
+            <SortablePollItem key={poll.id} groupId={groupId} poll={poll} />
           ))}
         </ul>
       </SortableContext>
@@ -226,6 +240,7 @@ export default function PollGroupsDashboardPage() {
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const [mutingId, setMutingId] = useState<string | null>(null);
   
   const utils = trpc.useUtils();
 
@@ -267,6 +282,34 @@ export default function PollGroupsDashboardPage() {
     onSuccess: () => {
       setEditingGroup(null);
       utils.pollGroups.invalidate();
+    },
+  });
+
+  const setGroupMutedMutation = trpc.pollGroups.setMuted.useMutation({
+    onSuccess: (_result, input) => {
+      utils.pollGroups.list.setData(undefined, (old) =>
+        old?.map((group) =>
+          group.id === input.groupId
+            ? {
+                ...group,
+                polls: group.polls.map((poll) => ({
+                  ...poll,
+                  muted: input.muted,
+                })),
+              }
+            : group,
+        ),
+      );
+      toast.success(
+        input.muted
+          ? "Notifications are off for this poll group"
+          : "Notifications are on for this poll group",
+      );
+      setMutingId(null);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setMutingId(null);
     },
   });
 
@@ -632,6 +675,7 @@ export default function PollGroupsDashboardPage() {
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {filteredGroups?.map((group) => {
                 const isGroupClosed = group.polls.length > 0 && group.polls.every((p) => p.status === "closed");
+                const isGroupMuted = group.polls.length > 0 && group.polls.every((p) => p.muted);
                 const isDragDisabled = !!searchFilter.trim();
                 return (
                   <SortableGroupWrapper key={group.id} id={group.id}>
@@ -659,6 +703,38 @@ export default function PollGroupsDashboardPage() {
                               <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                                 {group.polls.length} Polls
                               </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 border p-0"
+                                aria-pressed={isGroupMuted}
+                                aria-label={
+                                  isGroupMuted
+                                    ? "Unmute notifications for this poll group"
+                                    : "Mute notifications for this poll group"
+                                }
+                                title={
+                                  isGroupMuted
+                                    ? "Unmute notifications for this poll group"
+                                    : "Mute notifications for this poll group"
+                                }
+                                disabled={
+                                  group.polls.length === 0 || mutingId === group.id
+                                }
+                                onClick={() => {
+                                  setMutingId(group.id);
+                                  setGroupMutedMutation.mutate({
+                                    groupId: group.id,
+                                    muted: !isGroupMuted,
+                                  });
+                                }}
+                              >
+                                {isGroupMuted ? (
+                                  <BellOffIcon className="h-4 w-4" />
+                                ) : (
+                                  <BellIcon className="h-4 w-4" />
+                                )}
+                              </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="outline" size="sm" className="h-8 w-8 p-0">

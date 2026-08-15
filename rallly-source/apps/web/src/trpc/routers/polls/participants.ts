@@ -10,10 +10,12 @@ import * as z from "zod";
 import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
 import { getNotificationRecipient } from "@/features/notifications/data";
 import { hasPollAdminAccess } from "@/features/poll/data";
+import { addUserAsPollParticipant } from "@/features/poll/mutations";
 import { AppError } from "@/lib/errors/app-error";
 import { track } from "@/lib/posthog";
 import {
   createRateLimitMiddleware,
+  privateProcedure,
   publicProcedure,
   requireUserMiddleware,
   router,
@@ -244,6 +246,55 @@ export const participants = router({
           },
         },
       );
+    }),
+  addManaged: privateProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        name: z
+          .string()
+          .trim()
+          .min(1, "Participant name is required")
+          .max(100),
+        email: z.email(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!(await hasPollAdminAccess(input.pollId, ctx.user.id))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You are not allowed to add participants to this poll",
+        });
+      }
+
+      const participantCount = await prisma.participant.count({
+        where: { pollId: input.pollId, deleted: false },
+      });
+
+      if (participantCount >= MAX_PARTICIPANTS) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `This poll has reached its maximum limit of ${MAX_PARTICIPANTS} participants`,
+          cause: new AppError({
+            code: "POLL_FULL",
+            message: "Poll has reached the maximum number of participants",
+          }),
+        });
+      }
+
+      const result = await addUserAsPollParticipant(input);
+
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            result.reason === "participant_exists"
+              ? "A participant with this email already exists"
+              : "This user cannot be added",
+        });
+      }
+
+      return result;
     }),
   add: publicProcedure
     .use(createRateLimitMiddleware("add_participant", 10, "1 h"))

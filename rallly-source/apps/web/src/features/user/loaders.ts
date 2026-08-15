@@ -3,7 +3,11 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { isInitialAdmin } from "@/features/instance-settings/utils";
-import { getUser, getUserHasNoAccounts } from "@/features/user/data";
+import {
+  getUser,
+  getUserHasNoAccounts,
+  getUserPollResponses,
+} from "@/features/user/data";
 import { updateUserRole } from "@/features/user/mutations";
 import type { UserDTO } from "@/features/user/schema";
 import { getSession, getSessionState } from "@/lib/auth";
@@ -92,6 +96,11 @@ export const requireAdmin = cache(async () => {
   }
 
   return user;
+});
+
+export const loadUserPollResponses = cache(async (userId: string) => {
+  await requireAdmin();
+  return getUserPollResponses(userId);
 });
 
 /**

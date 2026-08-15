@@ -6,6 +6,10 @@ import { TRPCError } from "@trpc/server";
 import { after } from "next/server";
 import * as z from "zod";
 import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
+import {
+  markUserYesForPoll,
+  setPollGroupMuted,
+} from "@/features/poll/mutations";
 import { createToken, decryptToken } from "@/lib/session";
 import { publicProcedure, router, spaceProcedure } from "../trpc";
 import { nanoid } from "@rallly/utils/nanoid";
@@ -42,6 +46,43 @@ async function getGroupEditTokenPayload(token: string | undefined) {
 }
 
 export const pollGroups = router({
+  scanYesVote: spaceProcedure
+    .input(
+      z.object({
+        groupId: z.string(),
+        pollId: z.string(),
+        qrCodeToken: z.uuid(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await markUserYesForPoll({
+        ...input,
+        spaceId: ctx.space.id,
+      });
+
+      if (!result.ok) {
+        switch (result.reason) {
+          case "poll_not_found":
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Poll not found in this group",
+            });
+          case "poll_has_no_options":
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "This poll has no options to vote yes on",
+            });
+          case "invalid_qr_code":
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "This is not a valid user QR code",
+            });
+        }
+      }
+
+      return result;
+    }),
+
   list: spaceProcedure.query(async ({ ctx }) => {
     const [groups, space] = await Promise.all([
       prisma.pollGroup.findMany({
@@ -53,6 +94,7 @@ export const pollGroups = router({
               id: true,
               title: true,
               status: true,
+              muted: true,
               votes: {
                 where: { participant: { deleted: false } },
                 select: { type: true, participantId: true }
@@ -73,6 +115,7 @@ export const pollGroups = router({
         id: poll.id,
         title: poll.title,
         status: poll.status,
+        muted: poll.muted,
         voteCounts: {
           yes: new Set(poll.votes.filter(v => v.type === "yes").map(v => v.participantId)).size,
           no: new Set(poll.votes.filter(v => v.type === "no").map(v => v.participantId)).size,
@@ -88,6 +131,21 @@ export const pollGroups = router({
 
     return sortByOrder(mappedGroups, space?.pollGroupOrder || []);
   }),
+
+  setMuted: spaceProcedure
+    .input(
+      z.object({
+        groupId: z.string(),
+        muted: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return setPollGroupMuted({
+        groupId: input.groupId,
+        spaceId: ctx.space.id,
+        muted: input.muted,
+      });
+    }),
 
   reorderGroups: spaceProcedure
     .input(

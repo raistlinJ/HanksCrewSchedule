@@ -1,31 +1,22 @@
 import { subject } from "@casl/ability";
 import type { Prisma } from "@rallly/database";
 import { prisma } from "@rallly/database";
-import { UsersIcon } from "lucide-react";
 import type { Metadata } from "next";
 import * as z from "zod";
 import {
-  EmptyState,
-  EmptyStateDescription,
-  EmptyStateIcon,
-  EmptyStateTitle,
-} from "@/components/empty-state";
-import { Pagination } from "@/components/pagination";
-import {
   SettingsPage,
+  SettingsPageAction,
   SettingsPageContent,
   SettingsPageDescription,
   SettingsPageHeader,
   SettingsPageTitle,
 } from "@/components/settings-layout";
-import { StackedList } from "@/components/stacked-list";
 import { defineAbilityFor } from "@/features/user/ability";
 import { requireAdmin } from "@/features/user/loaders";
 import { Trans } from "@/i18n/client";
 import { getTranslation } from "@/i18n/server";
-import { UserRow } from "./user-row";
-import { UserSearchInput } from "./user-search-input";
-import { UsersTabbedView } from "./users-tabbed-view";
+import { AddUserDialog } from "./add-user-dialog";
+import { UsersList } from "./users-list";
 
 async function loadData({
   page,
@@ -65,7 +56,7 @@ async function loadData({
     where.role = role;
   }
 
-  const [allUsers, totalUsers] = await Promise.all([
+  const [allUsers, totalUsers, spaces] = await Promise.all([
     prisma.user.findMany({
       select: {
         id: true,
@@ -74,6 +65,8 @@ async function loadData({
         image: true,
         role: true,
         banned: true,
+        createdAt: true,
+        qrCodeToken: true,
       },
       take: pageSize,
       skip: (page - 1) * pageSize,
@@ -84,6 +77,19 @@ async function loadData({
     }),
     prisma.user.count({
       where,
+    }),
+    prisma.space.findMany({
+      select: {
+        id: true,
+        name: true,
+        owner: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -99,6 +105,7 @@ async function loadData({
       canDelete: ability.can("delete", subject("User", u)),
     })),
     totalUsers,
+    spaces,
   };
 }
 
@@ -115,7 +122,7 @@ export default async function AdminPage(props: {
   const searchParams = await props.searchParams;
   const { page, pageSize } = searchParamsSchema.parse(searchParams);
 
-  const { allUsers, totalUsers } = await loadData({
+  const { allUsers, totalUsers, spaces } = await loadData({
     page,
     pageSize,
     q: searchParams.q ? String(searchParams.q) : undefined,
@@ -136,53 +143,18 @@ export default async function AdminPage(props: {
             defaults="Manage users on this instance"
           />
         </SettingsPageDescription>
+        <SettingsPageAction>
+          <AddUserDialog spaces={spaces} />
+        </SettingsPageAction>
       </SettingsPageHeader>
       <SettingsPageContent>
-        <div className="space-y-4">
-          <UserSearchInput />
-          <UsersTabbedView>
-            {allUsers.length > 0 ? (
-              <div className="space-y-4">
-                <StackedList className="text-sm">
-                  {allUsers.map((user) => (
-                    <UserRow
-                      key={user.id}
-                      name={user.name}
-                      email={user.email}
-                      userId={user.id}
-                      image={user.image}
-                      role={user.role}
-                      banned={user.banned}
-                      canChangeRole={user.canChangeRole}
-                      canBan={user.canBan}
-                      canDelete={user.canDelete}
-                    />
-                  ))}
-                </StackedList>
-                <Pagination
-                  currentPage={page}
-                  totalItems={totalItems}
-                  pageSize={pageSize}
-                />
-              </div>
-            ) : (
-              <EmptyState className="py-16">
-                <EmptyStateIcon>
-                  <UsersIcon />
-                </EmptyStateIcon>
-                <EmptyStateTitle>
-                  <Trans i18nKey="noUsers" defaults="No users found" />
-                </EmptyStateTitle>
-                <EmptyStateDescription>
-                  <Trans
-                    i18nKey="noUsersDescription"
-                    defaults="Try adjusting your search"
-                  />
-                </EmptyStateDescription>
-              </EmptyState>
-            )}
-          </UsersTabbedView>
-        </div>
+        <UsersList
+          key={allUsers.map((user) => user.id).join(":")}
+          users={allUsers}
+          currentPage={page}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
       </SettingsPageContent>
     </SettingsPage>
   );

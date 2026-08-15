@@ -15,7 +15,10 @@ import {
 } from "@/components/settings-layout";
 import { getInstanceSettings } from "@/features/instance-settings/data";
 import { Trans } from "@/i18n/client";
-import { InstanceSettingsForm } from "./instance-settings-form";
+import {
+  InstanceSettingsForm,
+  SupportEmailSettingsForm,
+} from "./instance-settings-form";
 
 async function loadData() {
   const instanceSettings = await getInstanceSettings();
@@ -60,6 +63,25 @@ export default async function InstanceSettingsPage() {
             </PageSectionHeader>
             <PageSectionContent>
               <InstanceSettingsForm defaultValue={instanceSettings} />
+            </PageSectionContent>
+          </PageSection>
+          <PageSection variant="card">
+            <PageSectionHeader>
+              <PageSectionTitle>
+                <Trans
+                  i18nKey="emailNotifications"
+                  defaults="Email notifications"
+                />
+              </PageSectionTitle>
+              <PageSectionDescription>
+                <Trans
+                  i18nKey="emailNotificationsDescription"
+                  defaults="Control instance-wide activity emails"
+                />
+              </PageSectionDescription>
+            </PageSectionHeader>
+            <PageSectionContent>
+              <SupportEmailSettingsForm defaultValue={instanceSettings} />
             </PageSectionContent>
           </PageSection>
         </PageSectionGroup>

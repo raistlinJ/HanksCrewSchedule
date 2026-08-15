@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@rallly/database";
+import { getInstanceSettings } from "@/features/instance-settings/data";
 
 import { defaultNotificationPreferences } from "./constants";
 import type { ActivityEventType, NotificationPreferences } from "./schema";
@@ -45,6 +46,11 @@ export async function getNotificationRecipient({
   type: ActivityEventType;
   excludeUserId: string;
 }): Promise<NotificationRecipient | null> {
+  const instanceSettings = await getInstanceSettings();
+  if (!instanceSettings.sendSupportEmails) {
+    return null;
+  }
+
   const poll = await prisma.poll.findUnique({
     where: { id: pollId },
     select: { userId: true, muted: true, deleted: true },

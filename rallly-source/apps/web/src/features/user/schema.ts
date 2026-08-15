@@ -3,6 +3,24 @@ import * as z from "zod";
 
 export const userRoleSchema = z.enum(["admin", "user"]);
 
+const userQrCodeSchema = z.templateLiteral([
+  "rallly-user:v1:",
+  z.string().uuid(),
+]);
+
+export function createUserQrCodeValue(token: string) {
+  return `rallly-user:v1:${token}` as const;
+}
+
+export function parseUserQrCodeValue(value: string) {
+  const parsed = userQrCodeSchema.safeParse(value.trim());
+  if (!parsed.success) {
+    return null;
+  }
+
+  return parsed.data.slice("rallly-user:v1:".length);
+}
+
 export type UserRole = z.infer<typeof userRoleSchema>;
 
 export type UserDTO = {

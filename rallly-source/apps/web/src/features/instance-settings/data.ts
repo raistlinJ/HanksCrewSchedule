@@ -14,6 +14,7 @@ export const getInstanceSettings = unstable_cache(
       select: {
         instanceId: true,
         disableUserRegistration: true,
+        sendSupportEmails: true,
       },
     });
 
@@ -21,6 +22,7 @@ export const getInstanceSettings = unstable_cache(
       instanceId: instanceSettings?.instanceId ?? null,
       disableUserRegistration:
         instanceSettings?.disableUserRegistration ?? false,
+      sendSupportEmails: instanceSettings?.sendSupportEmails ?? true,
     };
   },
   [],

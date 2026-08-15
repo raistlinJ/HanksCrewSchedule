@@ -36,6 +36,10 @@ import useFormPersist from "react-hook-form-persist";
 import { useCopyToClipboard } from "react-use";
 import { PollDetailsForm } from "@/features/poll/components/forms/poll-details-form";
 import PollOptionsForm from "@/features/poll/components/forms/poll-options-form/poll-options-form";
+import {
+  createDefaultTimeOption,
+  roundTimeOptionToSelectableTimes,
+} from "@/features/poll/components/forms/poll-options-form/utils";
 import { PollSettingsForm } from "@/features/poll/components/forms/poll-settings";
 import type { NewEventData } from "@/features/poll/components/forms/types";
 import { useUser } from "@/features/user/client";
@@ -129,6 +133,14 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
   const [createdPollId, setCreatedPollId] = React.useState<string | null>(null);
   const [, copy] = useCopyToClipboard();
   const [didCopy, setDidCopy] = React.useState(false);
+  const defaultTimeOption = React.useMemo(() => createDefaultTimeOption(), []);
+  const defaultDuration = React.useMemo(
+    () =>
+      (new Date(defaultTimeOption.end).getTime() -
+        new Date(defaultTimeOption.start).getTime()) /
+      60_000,
+    [defaultTimeOption],
+  );
 
   const form = useForm<NewEventData>({
     defaultValues: {
@@ -136,19 +148,61 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
       description: "",
       location: "",
       view: "month",
-      options: [],
+      navigationDate: defaultTimeOption.start,
+      options: [defaultTimeOption],
       hideScores: false,
       hideParticipants: false,
       enableComments: false,
-      duration: 60,
+      duration: defaultDuration,
+      timeZone: getBrowserTimeZone(),
       lockTimeZone: false,
       allDay: false,
     },
   });
 
+  const restoreDefaultTimeOption = React.useCallback(
+    (restoredValues: Partial<NewEventData>) => {
+      if (restoredValues.options?.length) {
+        const normalizedOptions = restoredValues.options.map((option) =>
+          option.type === "timeSlot"
+            ? roundTimeOptionToSelectableTimes(option)
+            : option,
+        );
+        const hasChanged = normalizedOptions.some(
+          (option, index) =>
+            JSON.stringify(option) !==
+            JSON.stringify(restoredValues.options?.[index]),
+        );
+
+        if (hasChanged) {
+          form.setValue("options", normalizedOptions);
+          if (
+            normalizedOptions.length === 1 &&
+            normalizedOptions[0]?.type === "timeSlot"
+          ) {
+            form.setValue(
+              "duration",
+              (new Date(normalizedOptions[0].end).getTime() -
+                new Date(normalizedOptions[0].start).getTime()) /
+                60_000,
+            );
+          }
+        }
+        return;
+      }
+
+      form.setValue("navigationDate", defaultTimeOption.start);
+      form.setValue("options", [defaultTimeOption]);
+      form.setValue("duration", defaultDuration);
+      form.setValue("timeZone", getBrowserTimeZone());
+    },
+    [defaultDuration, defaultTimeOption, form],
+  );
+
   const { clear } = useFormPersist("new-poll", {
     watch: form.watch,
     setValue: form.setValue,
+    onDataRestored: restoreDefaultTimeOption,
   });
 
   const makePoll = trpc.polls.make.useMutation();
@@ -190,7 +244,8 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
               disableComments: !formData?.enableComments,
               hideScores: formData?.hideScores,
               requireParticipantEmail: formData?.requireParticipantEmail,
-              requireEmailVerification: formData?.requireEmailVerification ?? true,
+              requireEmailVerification:
+                formData?.requireEmailVerification ?? true,
               options: required(formData?.options).map((option) => ({
                 startDate: option.type === "date" ? option.date : option.start,
                 endDate: option.type === "timeSlot" ? option.end : undefined,

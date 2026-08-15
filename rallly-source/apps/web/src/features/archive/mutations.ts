@@ -36,6 +36,9 @@ export async function restoreInstanceArchive(input: unknown) {
 
       // Restore roots before leaves so every foreign key is valid at insert.
       await tx.user.createMany({
+        // Version-one archives created before QR voting omit qrCodeToken;
+        // the database default assigns those users a new credential. Newer
+        // archives carry it through so already-issued badges remain valid.
         data: data.users as Prisma.UserCreateManyInput[],
       });
       await tx.account.createMany({

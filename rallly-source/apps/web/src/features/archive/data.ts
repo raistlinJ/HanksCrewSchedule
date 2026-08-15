@@ -61,6 +61,9 @@ export async function createInstanceArchive(): Promise<InstanceArchive> {
       return {
         users: users.map((user) => ({
           ...user,
+          // Preserve the QR credential so printed badges remain valid after
+          // restoring the archive.
+          qrCodeToken: user.qrCodeToken,
           // These point to external systems which are intentionally not
           // portable between installations.
           customerId: null,

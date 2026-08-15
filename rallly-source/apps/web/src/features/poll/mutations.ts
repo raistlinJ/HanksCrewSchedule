@@ -24,6 +24,197 @@ export type CreatePollParams = {
   spaceId: AuthorizedSpaceId;
 };
 
+export async function addUserAsPollParticipant({
+  pollId,
+  name,
+  email,
+}: {
+  pollId: string;
+  name: string;
+  email: string;
+}) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const existingParticipant = await prisma.participant.findFirst({
+    where: {
+      pollId,
+      email: normalizedEmail,
+      deleted: false,
+    },
+    select: { id: true },
+  });
+
+  if (existingParticipant) {
+    return { ok: false, reason: "participant_exists" } as const;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.upsert({
+      where: { email: normalizedEmail },
+      create: {
+        name,
+        email: normalizedEmail,
+        emailVerified: false,
+        role: "user",
+      },
+      update: {},
+      select: {
+        id: true,
+        banned: true,
+        deletedAt: true,
+        isAnonymous: true,
+      },
+    });
+
+    if (user.banned || user.deletedAt || user.isAnonymous) {
+      return { ok: false, reason: "user_unavailable" } as const;
+    }
+
+    const participant = await tx.participant.create({
+      data: {
+        pollId,
+        name,
+        email: normalizedEmail,
+        userId: user.id,
+      },
+      select: { id: true },
+    });
+
+    return {
+      ok: true,
+      participantId: participant.id,
+      userId: user.id,
+    } as const;
+  });
+}
+
+export async function markUserYesForPoll({
+  groupId,
+  pollId,
+  qrCodeToken,
+  spaceId,
+}: {
+  groupId: string;
+  pollId: string;
+  qrCodeToken: string;
+  spaceId: AuthorizedSpaceId;
+}) {
+  const [poll, user] = await Promise.all([
+    prisma.poll.findFirst({
+      where: {
+        id: pollId,
+        pollGroupId: groupId,
+        spaceId,
+        deleted: false,
+      },
+      select: { id: true, options: { select: { id: true } } },
+    }),
+    prisma.user.findUnique({
+      where: { qrCodeToken },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        banned: true,
+        deletedAt: true,
+        isAnonymous: true,
+      },
+    }),
+  ]);
+
+  if (!poll) {
+    return { ok: false, reason: "poll_not_found" } as const;
+  }
+
+  if (poll.options.length === 0) {
+    return { ok: false, reason: "poll_has_no_options" } as const;
+  }
+
+  if (!user || user.banned || user.deletedAt || user.isAnonymous) {
+    return { ok: false, reason: "invalid_qr_code" } as const;
+  }
+
+  let participant = await prisma.participant.findFirst({
+    where: { pollId, userId: user.id, deleted: false },
+    select: {
+      id: true,
+      votes: { select: { optionId: true, type: true } },
+    },
+  });
+
+  participant ??= await prisma.participant.findFirst({
+    where: { pollId, email: user.email, deleted: false },
+    select: {
+      id: true,
+      votes: { select: { optionId: true, type: true } },
+    },
+  });
+
+  const votesByOption = new Map(
+    participant?.votes.map((vote) => [vote.optionId, vote.type]),
+  );
+  const alreadyYes = poll.options.every(
+    (option) => votesByOption.get(option.id) === "yes",
+  );
+
+  const participantId = await prisma.$transaction(async (tx) => {
+    const savedParticipant = participant
+      ? await tx.participant.update({
+          where: { id: participant.id },
+          data: {
+            name: user.name,
+            email: user.email,
+            userId: user.id,
+          },
+          select: { id: true },
+        })
+      : await tx.participant.create({
+          data: {
+            name: user.name,
+            email: user.email,
+            userId: user.id,
+            pollId,
+          },
+          select: { id: true },
+        });
+
+    await Promise.all(
+      poll.options.map((option) =>
+        tx.vote.upsert({
+          where: {
+            participantId_optionId: {
+              participantId: savedParticipant.id,
+              optionId: option.id,
+            },
+          },
+          create: {
+            participantId: savedParticipant.id,
+            optionId: option.id,
+            pollId,
+            type: "yes",
+          },
+          update: { type: "yes" },
+        }),
+      ),
+    );
+
+    return savedParticipant.id;
+  });
+
+  return {
+    ok: true,
+    alreadyYes,
+    voter: {
+      id: participantId,
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image ?? undefined,
+    },
+  } as const;
+}
+
 export const createPoll = async ({
   userId,
   title,
@@ -176,6 +367,27 @@ export const setPollMuted = async ({
   }
 
   return { ok: true as const };
+};
+
+export const setPollGroupMuted = async ({
+  groupId,
+  spaceId,
+  muted,
+}: {
+  groupId: string;
+  spaceId: AuthorizedSpaceId;
+  muted: boolean;
+}) => {
+  const { count } = await prisma.poll.updateMany({
+    where: {
+      pollGroupId: groupId,
+      spaceId,
+      deleted: false,
+    },
+    data: { muted },
+  });
+
+  return { ok: true as const, updatedPolls: count };
 };
 
 export const deletePoll = async (

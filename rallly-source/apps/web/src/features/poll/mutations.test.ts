@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthorizedSpaceId } from "@/features/space/types";
-import { closePoll, deleteInactivePolls, setPollMuted } from "./mutations";
+import {
+  closePoll,
+  deleteInactivePolls,
+  setPollGroupMuted,
+  setPollMuted,
+} from "./mutations";
 
 const { mockUpdateMany, mockFindFirst, mockUpdate } = vi.hoisted(() => ({
   mockUpdateMany: vi.fn(),
@@ -235,5 +240,33 @@ describe("setPollMuted", () => {
     });
 
     expect(result).toEqual({ ok: false, reason: "notFound" });
+  });
+});
+
+describe("setPollGroupMuted", () => {
+  const spaceId = "space-1" as AuthorizedSpaceId;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("updates every active poll in the group within the authorized space", async () => {
+    mockUpdateMany.mockResolvedValue({ count: 3 });
+
+    const result = await setPollGroupMuted({
+      groupId: "g1",
+      spaceId,
+      muted: true,
+    });
+
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: {
+        pollGroupId: "g1",
+        spaceId,
+        deleted: false,
+      },
+      data: { muted: true },
+    });
+    expect(result).toEqual({ ok: true, updatedPolls: 3 });
   });
 });

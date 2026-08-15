@@ -12,6 +12,7 @@ import { useDateTimeConfig } from "@/lib/datetime/client";
 import { Duration } from "@/lib/datetime/duration";
 import { formatDateTime } from "@/lib/datetime/format";
 import { dayjs } from "@/lib/dayjs";
+import { SELECTABLE_TIME_INTERVAL_MINUTES } from "../utils";
 
 export interface TimePickerProps {
   value?: Date;
@@ -39,22 +40,25 @@ const TimePicker: React.FunctionComponent<TimePickerProps> = ({
       return [dayjs(value).toISOString()];
     }
     let cursor = after
-      ? dayjs(after).add(15, "minutes")
+      ? dayjs(after).add(SELECTABLE_TIME_INTERVAL_MINUTES, "minutes")
       : dayjs(value).startOf("day");
 
     const res: string[] = [];
 
     if (after) {
-      let cursor = dayjs(after).add(15, "minutes");
+      let cursor = dayjs(after).add(
+        SELECTABLE_TIME_INTERVAL_MINUTES,
+        "minutes",
+      );
       while (cursor.diff(after, "hours") < 24) {
         res.push(cursor.toISOString());
-        cursor = cursor.add(15, "minutes");
+        cursor = cursor.add(SELECTABLE_TIME_INTERVAL_MINUTES, "minutes");
       }
     } else {
       cursor = dayjs(value).startOf("day");
       while (cursor.isSame(value, "day")) {
         res.push(cursor.toISOString());
-        cursor = cursor.add(15, "minutes");
+        cursor = cursor.add(SELECTABLE_TIME_INTERVAL_MINUTES, "minutes");
       }
     }
     return res;

@@ -5,6 +5,45 @@ import { prisma } from "@rallly/database";
 import { effectiveSpaceMemberWhere } from "@/features/space/member/utils";
 import type { AuthorizedSpaceId } from "@/features/space/types";
 
+export function getPollQrVotingData({
+  groupId,
+  pollId,
+  spaceId,
+}: {
+  groupId: string;
+  pollId: string;
+  spaceId: AuthorizedSpaceId;
+}) {
+  return prisma.poll.findFirst({
+    where: {
+      id: pollId,
+      pollGroupId: groupId,
+      spaceId,
+      deleted: false,
+    },
+    select: {
+      id: true,
+      title: true,
+      pollGroup: { select: { id: true, title: true } },
+      options: { select: { id: true } },
+      participants: {
+        where: {
+          deleted: false,
+          votes: { some: { type: "yes" } },
+        },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          updatedAt: true,
+          user: { select: { id: true, image: true } },
+        },
+      },
+    },
+  });
+}
+
 export async function getPollResults({
   pollId,
   spaceId,
@@ -333,9 +372,17 @@ export const getPolls = async ({
       image: participant.user?.image ?? undefined,
     })),
     voteCounts: {
-      yes: new Set(poll.votes.filter((v) => v.type === "yes").map(v => v.participantId)).size,
-      no: new Set(poll.votes.filter((v) => v.type === "no").map(v => v.participantId)).size,
-      ifNeedBe: new Set(poll.votes.filter((v) => v.type === "ifNeedBe").map(v => v.participantId)).size,
+      yes: new Set(
+        poll.votes.filter((v) => v.type === "yes").map((v) => v.participantId),
+      ).size,
+      no: new Set(
+        poll.votes.filter((v) => v.type === "no").map((v) => v.participantId),
+      ).size,
+      ifNeedBe: new Set(
+        poll.votes
+          .filter((v) => v.type === "ifNeedBe")
+          .map((v) => v.participantId),
+      ).size,
     },
   }));
 

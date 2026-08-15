@@ -19,10 +19,13 @@ import { Icon } from "@rallly/ui/icon";
 import {
   BanIcon,
   MoreHorizontal,
+  QrCodeIcon,
   TrashIcon,
   UserCheckIcon,
   UserPenIcon,
+  VoteIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useTransition } from "react";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { StackedListItem } from "@/components/stacked-list";
@@ -32,6 +35,7 @@ import { Trans, useTranslation } from "@/i18n/client";
 import { useSafeAction } from "@/lib/safe-action/client";
 import { BanUserDialog } from "./dialogs/ban-user-dialog";
 import { DeleteUserDialog } from "./dialogs/delete-user-dialog";
+import { UserQrCodeDialog } from "./user-qr-code-dialog";
 
 export function UserRow({
   name,
@@ -40,9 +44,13 @@ export function UserRow({
   image,
   role,
   banned,
+  createdAt,
+  qrCodeToken,
   canChangeRole,
   canBan,
   canDelete,
+  selected,
+  onSelectedChange,
 }: {
   name: string;
   email: string;
@@ -50,9 +58,13 @@ export function UserRow({
   image?: string;
   role: "admin" | "user";
   banned: boolean;
+  createdAt: Date;
+  qrCodeToken: string;
   canChangeRole: boolean;
   canBan: boolean;
   canDelete: boolean;
+  selected: boolean;
+  onSelectedChange: (selected: boolean) => void;
 }) {
   const { t } = useTranslation();
   const changeRole = useSafeAction(changeRoleAction);
@@ -61,6 +73,7 @@ export function UserRow({
   const [isPending, startTransition] = useTransition();
   const deleteDialog = useDialog();
   const banDialog = useDialog();
+  const qrCodeDialog = useDialog();
 
   return (
     <>
@@ -69,12 +82,29 @@ export function UserRow({
           "opacity-50": isPending,
         })}
       >
+        <input
+          type="checkbox"
+          checked={selected}
+          aria-label={t("selectUser", {
+            defaultValue: "Select {name}",
+            name,
+          })}
+          className="size-4 shrink-0 accent-primary"
+          onChange={(event) => onSelectedChange(event.target.checked)}
+        />
         <div>
           <OptimizedAvatarImage src={image} name={name} size="lg" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-semibold">{name}</div>
           <div className="truncate text-muted-foreground">{email}</div>
+          <div className="text-muted-foreground text-xs">
+            <Trans
+              i18nKey="joinedOn"
+              defaults="Joined {date, date, medium}"
+              values={{ date: createdAt }}
+            />
+          </div>
         </div>
         <div className="flex items-center gap-4">
           {banned ? (
@@ -100,6 +130,22 @@ export function UserRow({
               </Icon>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => qrCodeDialog.trigger()}>
+                <QrCodeIcon />
+                <Trans i18nKey="viewQrCode" defaults="View QR code" />
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                render={
+                  <Link href={`/control-panel/users/${userId}/responses`} />
+                }
+              >
+                <VoteIcon />
+                <Trans
+                  i18nKey="viewAllResponses"
+                  defaults="View all responses"
+                />
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger disabled={!canChangeRole}>
                   <Icon>
@@ -174,6 +220,11 @@ export function UserRow({
         {...deleteDialog.dialogProps}
         userId={userId}
         email={email}
+      />
+      <UserQrCodeDialog
+        {...qrCodeDialog.dialogProps}
+        name={name}
+        qrCodeToken={qrCodeToken}
       />
     </>
   );

@@ -3,6 +3,9 @@ model InstanceSettings {
   // Authentication & Security
   disableUserRegistration Boolean @default(false) @map("disable_user_registration")
 
+  // Email notifications
+  sendSupportEmails Boolean @default(true) @map("send_support_emails")
+
   // Anonymous identifier used when the instance checks for updates
   instanceId String @unique @default(dbgenerated("gen_random_uuid()")) @map("instance_id") @db.Uuid
 

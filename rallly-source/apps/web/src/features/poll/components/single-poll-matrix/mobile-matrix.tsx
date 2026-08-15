@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@rallly/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@rallly/ui/card";
 import { Icon } from "@rallly/ui/icon";
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PlusIcon,
+  QrCodeIcon,
+} from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 import { dayjs } from "@/lib/dayjs";
 import { useLocale } from "@/lib/locale/client";
 import VoteIcon from "../vote-icon";
@@ -33,7 +39,10 @@ interface MobilePollMatrixProps {
   participants: Participant[];
   poll: any;
   onVoteChange: (voteId: string | undefined, currentType: string, participantId: string, optionId: string) => void;
-  onAddParticipant: (name: string, email: string) => void;
+  onAddParticipant: (
+    name: string,
+    email: string,
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
   onDeleteParticipant: (participantId: string) => void;
   onEditParticipant: (participantId: string, name: string, email: string) => void;
 }
@@ -185,7 +194,19 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
       {/* Participants List */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Participants</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <span>Participants</span>
+            {poll.groupNavigation ? (
+              <Link
+                href={`/groups/${poll.groupNavigation.groupId}/polls/${poll.id}/scan`}
+                aria-label="Scan user QR code"
+                title="Scan user QR code"
+                className="inline-flex text-muted-foreground transition-colors hover:text-primary"
+              >
+                <QrCodeIcon className="size-4" />
+              </Link>
+            ) : null}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -246,10 +267,28 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
             )}
 
             {(showAddParticipant || participants.length === 0) && (
-              <div className="mt-4 pt-4 border-t space-y-2">
+              <form
+                className="mt-4 space-y-2 border-t pt-4"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  setAddError("");
+                  const result = await onAddParticipant(
+                    newParticipantName,
+                    newParticipantEmail,
+                  );
+                  if (result.ok) {
+                    setNewParticipantName("");
+                    setNewParticipantEmail("");
+                    setShowAddParticipant(false);
+                  } else {
+                    setAddError(result.message);
+                  }
+                }}
+              >
                 <input
                   type="text"
                   placeholder="Participant name"
+                  required
                   className="w-full px-3 py-2 border rounded text-sm bg-background"
                   value={newParticipantName}
                   onChange={(e) => {
@@ -259,7 +298,8 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
                 />
                 <input
                   type="email"
-                  placeholder="Email (optional)"
+                  placeholder="Email"
+                  required
                   className="w-full px-3 py-2 border rounded text-sm bg-background"
                   value={newParticipantEmail}
                   onChange={(e) => {
@@ -270,21 +310,19 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
                 {addError && <div className="text-xs text-red-600">{addError}</div>}
                 <div className="flex gap-2">
                   <Button
+                    type="submit"
                     size="sm"
                     className="flex-1"
-                    onClick={() => {
-                      if (newParticipantName.trim()) {
-                        onAddParticipant(newParticipantName, newParticipantEmail);
-                        setNewParticipantName("");
-                        setNewParticipantEmail("");
-                        setShowAddParticipant(false);
-                      }
-                    }}
+                    disabled={
+                      !newParticipantName.trim() ||
+                      !newParticipantEmail.trim()
+                    }
                   >
                     Add
                   </Button>
                   {participants.length > 0 && (
                     <Button
+                      type="button"
                       size="sm"
                       variant="outline"
                       className="flex-1"
@@ -298,7 +336,7 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
                     </Button>
                   )}
                 </div>
-              </div>
+              </form>
             )}
           </div>
         </CardContent>

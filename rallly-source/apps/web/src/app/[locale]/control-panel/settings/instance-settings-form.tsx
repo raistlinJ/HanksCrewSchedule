@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@rallly/ui/select";
 import { toast } from "@rallly/ui/sonner";
+import { Switch } from "@rallly/ui/switch";
 import { ContainerIcon } from "lucide-react";
 import React from "react";
 import type { InstanceSettings } from "@/features/instance-settings/schema";
@@ -97,6 +98,60 @@ export function InstanceSettingsForm({
           </AlertDescription>
         </Alert>
       )}
+    </div>
+  );
+}
+
+export function SupportEmailSettingsForm({
+  defaultValue,
+}: {
+  defaultValue: InstanceSettings;
+}) {
+  const [sendSupportEmails, setSendSupportEmails] = React.useState(
+    defaultValue.sendSupportEmails,
+  );
+  const updateInstanceSettings = useSafeAction(updateInstanceSettingsAction);
+  const { t } = useTranslation();
+
+  const handleChange = (enabled: boolean) => {
+    const previous = sendSupportEmails;
+    setSendSupportEmails(enabled);
+
+    toast.promise(
+      updateInstanceSettings
+        .executeAsync({ sendSupportEmails: enabled })
+        .then((result) => {
+          if (result?.serverError || result?.validationErrors) {
+            setSendSupportEmails(previous);
+            throw new Error("Failed to update email settings");
+          }
+        }),
+      {
+        loading: t("saving", { defaultValue: "Saving..." }),
+        success: t("saved", { defaultValue: "Saved" }),
+        error: t("unexpectedError", { defaultValue: "Unexpected error" }),
+      },
+    );
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="space-y-1">
+        <Label htmlFor="sendSupportEmails">
+          <Trans i18nKey="sendSupportEmails" defaults="Send support emails" />
+        </Label>
+        <p className="text-muted-foreground text-sm">
+          <Trans
+            i18nKey="sendSupportEmailsDescription"
+            defaults="Send poll response and comment notification emails to poll creators. Authentication and account-security emails are unaffected."
+          />
+        </p>
+      </div>
+      <Switch
+        id="sendSupportEmails"
+        checked={sendSupportEmails}
+        onCheckedChange={handleChange}
+      />
     </div>
   );
 }

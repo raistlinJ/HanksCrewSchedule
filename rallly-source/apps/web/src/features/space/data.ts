@@ -128,6 +128,26 @@ export async function getTotalSeatsForSpace(spaceId: string): Promise<number> {
   }
 }
 
+export async function getSpaceSeatAvailability(spaceIds: string[]) {
+  const spaces = await prisma.space.findMany({
+    where: { id: { in: spaceIds } },
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { members: true } },
+    },
+  });
+
+  return Promise.all(
+    spaces.map(async (space) => ({
+      id: space.id,
+      name: space.name,
+      usedSeats: space._count.members,
+      totalSeats: await getTotalSeatsForSpace(space.id),
+    })),
+  );
+}
+
 export function createSpaceDTO(space: {
   id: string;
   ownerId: string;
