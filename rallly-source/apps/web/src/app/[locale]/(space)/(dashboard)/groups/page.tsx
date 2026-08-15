@@ -23,6 +23,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { BellIcon, BellOffIcon, GripVertical, CheckIcon, XIcon, DownloadIcon, MoreHorizontal, ExternalLink, MailIcon, ChevronDownIcon, LinkIcon, QrCodeIcon } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@rallly/ui/dropdown-menu";
 import { Button } from "@rallly/ui/button";
+import { SidebarTrigger } from "@rallly/ui/sidebar";
 import { shortUrl } from "@rallly/utils/absolute-url";
 import Link from "next/link";
 import { useCopyToClipboard } from "react-use";
@@ -539,11 +540,14 @@ export default function PollGroupsDashboardPage() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Poll Groups</h1>
-          <p className="text-muted-foreground mt-1">
-            Group multiple polls under a single link for non-member voters.
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          <SidebarTrigger className="mt-0.5 shrink-0 md:hidden" />
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold">Poll Groups</h1>
+            <p className="mt-1 text-muted-foreground">
+              Group multiple polls under a single link for non-member voters.
+            </p>
+          </div>
         </div>
 
         <div className="w-full md:flex-1 md:max-w-sm md:mx-4">

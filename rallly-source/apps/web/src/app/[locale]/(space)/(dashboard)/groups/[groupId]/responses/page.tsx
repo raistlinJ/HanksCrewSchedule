@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import Link from "next/link";
 import { ArrowLeftIcon, DownloadIcon } from "lucide-react";
 import { Button } from "@rallly/ui/button";
+import { SidebarTrigger } from "@rallly/ui/sidebar";
 import { MobileLandscapeHint } from "@/components/mobile-landscape-hint";
 import { ResponsesMatrix } from "./matrix";
 
@@ -75,16 +76,19 @@ export default async function PollGroupResponsesPage({
         </Link>
       </div>
 
-      <div className="mb-8 border-b pb-8 flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            {group.title} - Responses
-          </h1>
-          {group.description && (
-            <p className="text-md text-muted-foreground whitespace-pre-wrap">
-              {group.description}
-            </p>
-          )}
+      <div className="mb-8 flex items-start justify-between border-b pb-8">
+        <div className="flex min-w-0 items-start gap-3">
+          <SidebarTrigger className="mt-0.5 shrink-0 md:hidden" />
+          <div className="min-w-0">
+            <h1 className="mb-2 font-bold text-3xl tracking-tight">
+              {group.title} - Responses
+            </h1>
+            {group.description && (
+              <p className="whitespace-pre-wrap text-muted-foreground text-md">
+                {group.description}
+              </p>
+            )}
+          </div>
         </div>
         <a href={`/groups/${group.id}/export/csv`} download>
           <Button variant="outline" className="flex items-center gap-2">
