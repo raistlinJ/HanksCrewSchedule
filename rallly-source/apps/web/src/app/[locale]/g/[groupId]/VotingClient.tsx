@@ -1,10 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { trpc } from "@/trpc/client";
 import { Button } from "@rallly/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@rallly/ui/dialog";
 import { Input } from "@rallly/ui/input";
+import { ChevronRightIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
+import VoteIcon from "@/features/poll/components/vote-icon";
+import { trpc } from "@/trpc/client";
+
+type VoteState = "no" | "ifNeedBe" | "yes";
+
+interface PublicGroupParticipant {
+  name: string | null;
+  votes: Array<{
+    optionId: string;
+    type: VoteState;
+  }>;
+}
 
 export default function VotingClient({ group, userEmail }: { group: any; userEmail: string | null }) {
   const searchParams = useSearchParams();
@@ -12,14 +32,18 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   const editToken = searchParams.get("token");
   const requiresEmailVerification = group.requireEmailVerification ?? false;
 
-  type VoteState = "no" | "ifNeedBe" | "yes";
   const [name, setName] = useState("");
   const [email, setEmail] = useState(userEmail || urlEmail || "");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<Record<string, Record<string, VoteState>>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [viewingParticipants, setViewingParticipants] = useState<{ optionId: string, type: string, names: string[] } | null>(null);
+  const [viewingParticipants, setViewingParticipants] = useState<{
+    optionId: string;
+    type: "yes" | "ifNeedBe";
+    label: string;
+    names: string[];
+  } | null>(null);
   
   const [hasPassedGatekeeper, setHasPassedGatekeeper] = useState(
     requiresEmailVerification || !!(userEmail || urlEmail),
@@ -227,17 +251,32 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                 const pollVotes = selectedOptions[poll.id] || {};
                 const voteState = pollVotes[option.id] || "no";
                 
-                const acceptedParticipants = poll.participants?.filter((p: any) => p.votes.some((v: any) => v.optionId === option.id && v.type === 'yes')) || [];
-                const ifNeedBeParticipants = poll.participants?.filter((p: any) => p.votes.some((v: any) => v.optionId === option.id && v.type === 'ifNeedBe')) || [];
+                const pollParticipants = (poll.participants ??
+                  []) as PublicGroupParticipant[];
+                const acceptedParticipants = pollParticipants.filter(
+                  (participant) =>
+                    participant.votes.some(
+                      (vote) =>
+                        vote.optionId === option.id && vote.type === "yes",
+                    ),
+                );
+                const ifNeedBeParticipants = pollParticipants.filter(
+                  (participant) =>
+                    participant.votes.some(
+                      (vote) =>
+                        vote.optionId === option.id &&
+                        vote.type === "ifNeedBe",
+                    ),
+                );
                 const acceptedCount = acceptedParticipants.length;
                 const ifNeedBeCount = ifNeedBeParticipants.length;
                 
                 return (
-                  <div key={option.id} className="flex items-center gap-2">
+                  <div key={option.id} className="rounded-xl border bg-background p-2 shadow-xs">
                     <button
                       type="button"
                       onClick={() => cycleOption(poll.id, option.id)}
-                      className={`flex-1 flex flex-col items-center justify-center rounded-lg border-2 p-3 transition-all ${
+                      className={`flex min-h-28 w-full flex-col items-center justify-center rounded-lg border-2 p-3 transition-all ${
                         voteState === "yes"
                           ? "border-green-500 bg-green-500/10 text-green-700 dark:text-green-400"
                           : voteState === "ifNeedBe"
@@ -265,23 +304,86 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                       </span>
                     </button>
                     {(acceptedCount > 0 || ifNeedBeCount > 0) && (
-                      <div className="text-[10px] leading-tight font-mono text-muted-foreground w-1/3">
-                        {acceptedCount > 0 && (
-                          <div 
-                            className="cursor-pointer hover:text-foreground hover:underline"
-                            onClick={() => setViewingParticipants({ optionId: option.id, type: "YES", names: acceptedParticipants.map((p: any) => p.name || "Anonymous") })}
-                          >
-                            {acceptedCount} replied YES
-                          </div>
-                        )}
-                        {ifNeedBeCount > 0 && (
-                          <div 
-                            className="cursor-pointer hover:text-foreground hover:underline mt-1"
-                            onClick={() => setViewingParticipants({ optionId: option.id, type: "IF NEEDED", names: ifNeedBeParticipants.map((p: any) => p.name || "Anonymous") })}
-                          >
-                            {ifNeedBeCount} replied IF NEEDED
-                          </div>
-                        )}
+                      <div className="pt-3">
+                        <p className="mb-2 px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                          Other responses
+                        </p>
+                        <div className="grid grid-cols-1 gap-2">
+                          {acceptedCount > 0 && (
+                            <button
+                              type="button"
+                              className="flex min-h-14 items-center gap-3 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-left transition-colors hover:bg-green-500/15"
+                              onClick={() =>
+                                setViewingParticipants({
+                                  optionId: option.id,
+                                  type: "yes",
+                                  label: "Yes",
+                                  names: acceptedParticipants.map(
+                                    (participant) =>
+                                      participant.name || "Anonymous",
+                                  ),
+                                })
+                              }
+                            >
+                              <VoteIcon type="yes" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-semibold text-green-800 text-sm dark:text-green-200">
+                                  {acceptedCount} Yes
+                                </span>
+                                <span className="block truncate text-muted-foreground text-xs">
+                                  {acceptedParticipants
+                                    .slice(0, 3)
+                                    .map(
+                                      (participant) =>
+                                        participant.name || "Anonymous",
+                                    )
+                                    .join(", ")}
+                                  {acceptedCount > 3
+                                    ? ` +${acceptedCount - 3}`
+                                    : ""}
+                                </span>
+                              </span>
+                              <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                            </button>
+                          )}
+                          {ifNeedBeCount > 0 && (
+                            <button
+                              type="button"
+                              className="flex min-h-14 items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-left transition-colors hover:bg-amber-500/15"
+                              onClick={() =>
+                                setViewingParticipants({
+                                  optionId: option.id,
+                                  type: "ifNeedBe",
+                                  label: "If needed",
+                                  names: ifNeedBeParticipants.map(
+                                    (participant) =>
+                                      participant.name || "Anonymous",
+                                  ),
+                                })
+                              }
+                            >
+                              <VoteIcon type="ifNeedBe" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-semibold text-amber-800 text-sm dark:text-amber-200">
+                                  {ifNeedBeCount} if needed
+                                </span>
+                                <span className="block truncate text-muted-foreground text-xs">
+                                  {ifNeedBeParticipants
+                                    .slice(0, 3)
+                                    .map(
+                                      (participant) =>
+                                        participant.name || "Anonymous",
+                                    )
+                                    .join(", ")}
+                                  {ifNeedBeCount > 3
+                                    ? ` +${ifNeedBeCount - 3}`
+                                    : ""}
+                                </span>
+                              </span>
+                              <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -352,21 +454,44 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
         </Button>
       </div>
       
-      {viewingParticipants && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingParticipants(null)}>
-          <div className="bg-background rounded-xl p-6 shadow-xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg capitalize">{viewingParticipants.type}</h3>
-              <button onClick={() => setViewingParticipants(null)} className="text-muted-foreground hover:text-foreground">&times;</button>
-            </div>
-            <ul className="space-y-2 max-h-60 overflow-y-auto">
-              {viewingParticipants.names.map((n, i) => (
-                <li key={i} className="text-sm font-medium border-b pb-1 last:border-0">{n}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={viewingParticipants !== null}
+        onOpenChange={(open) => {
+          if (!open) setViewingParticipants(null);
+        }}
+      >
+        <DialogContent className="max-h-[min(80vh,36rem)] overflow-hidden p-0">
+          {viewingParticipants ? (
+            <>
+              <DialogHeader className="border-b p-4 pr-12">
+                <DialogTitle className="flex items-center gap-2">
+                  <VoteIcon type={viewingParticipants.type} />
+                  {viewingParticipants.label}
+                </DialogTitle>
+                <DialogDescription>
+                  {viewingParticipants.names.length}{" "}
+                  {viewingParticipants.names.length === 1 ? "person" : "people"}
+                </DialogDescription>
+              </DialogHeader>
+              <ul className="max-h-[60vh] space-y-1 overflow-y-auto p-3">
+                {viewingParticipants.names.map((participantName, index) => (
+                  <li
+                    // Names are not guaranteed to be unique in a poll.
+                    // biome-ignore lint/suspicious/noArrayIndexKey: stable read-only dialog list
+                    key={index}
+                    className="flex min-h-12 items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted"
+                  >
+                    <OptimizedAvatarImage size="sm" name={participantName} />
+                    <span className="min-w-0 truncate font-medium text-sm">
+                      {participantName}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </form>
     </>
   );
