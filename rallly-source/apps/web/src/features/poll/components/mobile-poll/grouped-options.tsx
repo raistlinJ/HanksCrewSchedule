@@ -23,13 +23,13 @@ const GroupedOptions: React.FunctionComponent<GroupedOptionsProps> = ({
 }) => {
   const grouped = groupBy(options, group);
   return (
-    <div className="select-none divide-y">
+    <div className="select-none divide-y-2 divide-border">
       {Object.entries(grouped).map(([day, options]) => {
         return (
-          <div key={day}>
+          <section key={day} className="bg-muted/30">
             <div
               className={cn(
-                "flex border-b bg-muted px-4 py-2 font-medium text-xs uppercase",
+                "flex border-b bg-muted px-4 py-2.5 font-semibold text-foreground text-xs uppercase tracking-wide",
                 groupClassName,
               )}
             >
@@ -40,7 +40,7 @@ const GroupedOptions: React.FunctionComponent<GroupedOptionsProps> = ({
               editable={editable}
               selectedParticipantId={selectedParticipantId}
             />
-          </div>
+          </section>
         );
       })}
     </div>

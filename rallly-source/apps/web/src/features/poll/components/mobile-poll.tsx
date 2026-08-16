@@ -98,7 +98,7 @@ const MobilePoll: React.FunctionComponent = () => {
   ];
 
   return (
-    <Card>
+    <Card className="overflow-hidden border-2 bg-card shadow-md">
       <div className="flex flex-col space-y-2 border-b p-2">
         <div className="flex gap-x-2.5">
           {selectedParticipantId || !isEditing ? (
@@ -176,11 +176,6 @@ const MobilePoll: React.FunctionComponent = () => {
           ) : null}
         </div>
       </div>
-      {isEditing ? (
-        <div className="border-b bg-primary/5 px-4 py-3 text-sm">
-          Choose Yes, If needed, or No for each option.
-        </div>
-      ) : null}
       <GroupedOptions
         selectedParticipantId={selectedParticipantId}
         options={options}

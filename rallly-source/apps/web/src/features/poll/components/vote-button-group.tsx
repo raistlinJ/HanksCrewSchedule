@@ -27,19 +27,19 @@ export function VoteButtonGroup({
       type: "yes" as const,
       label: t("yes", { defaultValue: "Yes" }),
       selected:
-        "border-green-500 bg-green-500/15 text-green-800 dark:text-green-200",
+        "border-green-700 bg-green-600 text-white shadow-sm dark:border-green-400 dark:bg-green-600 dark:text-white",
     },
     {
       type: "ifNeedBe" as const,
       label: t("ifNeedBe", { defaultValue: "If needed" }),
       selected:
-        "border-amber-500 bg-amber-500/15 text-amber-900 dark:text-amber-200",
+        "border-amber-600 bg-amber-400 text-amber-950 shadow-sm dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950",
     },
     {
       type: "no" as const,
       label: t("no", { defaultValue: "No" }),
       selected:
-        "border-rose-500 bg-rose-500/10 text-rose-800 dark:text-rose-200",
+        "border-rose-700 bg-rose-600 text-white shadow-sm dark:border-rose-400 dark:bg-rose-600 dark:text-white",
     },
   ];
 
@@ -57,7 +57,7 @@ export function VoteButtonGroup({
             aria-pressed={value === choice.type}
             disabled={isDisabled}
             className={cn(
-              "flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border bg-background px-2 py-2 font-semibold text-xs shadow-xs transition-colors active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
+              "flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border-2 bg-background px-2 py-2 font-semibold text-xs shadow-xs transition-colors active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
               value === choice.type
                 ? choice.selected
                 : "border-input hover:bg-muted",

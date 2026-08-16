@@ -11,11 +11,10 @@ import {
 import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
+import { AuxiliaryOptionToggle } from "@/features/poll/components/auxiliary-option-toggle";
 import { useParticipants } from "@/features/poll/components/participants-provider";
 import { usePoll } from "@/features/poll/components/poll-context";
-import { VoteButtonGroup } from "@/features/poll/components/vote-button-group";
 import VoteIcon from "@/features/poll/components/vote-icon";
-import { VoteSelector } from "@/features/poll/components/vote-selector";
 import { useVotingForm } from "@/features/poll/components/voting-form";
 
 export function AuxiliarySelectionVoting() {
@@ -62,11 +61,11 @@ export function AuxiliarySelectionVoting() {
             <h3 className="font-semibold">{selection.name}</h3>
             <p className="text-muted-foreground text-xs">
               {selection.minYes > 0 && selection.maxYesSelections !== null
-                ? `Select Yes for ${selection.minYes} to ${selection.maxYesSelections} choices.`
+                ? `Select ${selection.minYes} to ${selection.maxYesSelections} choices.`
                 : selection.minYes > 0
-                  ? `Select Yes for at least ${selection.minYes} choice${selection.minYes === 1 ? "" : "s"}.`
+                  ? `Select at least ${selection.minYes} choice${selection.minYes === 1 ? "" : "s"}.`
                   : selection.maxYesSelections !== null
-                    ? `Select Yes for up to ${selection.maxYesSelections} choice${selection.maxYesSelections === 1 ? "" : "s"}.`
+                    ? `Select up to ${selection.maxYesSelections} choice${selection.maxYesSelections === 1 ? "" : "s"}.`
                     : "These choices are optional."}
             </p>
           </div>
@@ -104,7 +103,7 @@ export function AuxiliarySelectionVoting() {
               (participant) => participant.id === participantId,
             );
             const value = isEditing
-              ? (formVotes[index]?.type ?? "ifNeedBe")
+              ? (formVotes[index]?.type ?? "no")
               : selectedParticipant?.auxiliaryVotes.find(
                   (vote) => vote.auxiliaryOptionId === option.id,
                 )?.type;
@@ -115,11 +114,11 @@ export function AuxiliarySelectionVoting() {
             const yesDisabled =
               (yesIsFull && !participantHasExistingYes) ||
               participantLimitReached;
-            const updateVote = (type: "yes" | "no" | "ifNeedBe") => {
+            const updateVote = (selected: boolean) => {
               const nextVotes = [...formVotes];
               nextVotes[index] = {
                 auxiliaryOptionId: option.id,
-                type,
+                type: selected ? "yes" : "no",
               };
               form.setValue("auxiliaryVotes", nextVotes, {
                 shouldDirty: true,
@@ -165,29 +164,16 @@ export function AuxiliarySelectionVoting() {
                     </span>
                   ) : null}
                   {isEditing ? (
-                    <div className="hidden sm:block">
-                      <VoteSelector
-                        optionLabel={option.label}
-                        value={value ?? "ifNeedBe"}
-                        disabled={!form.identityReady}
-                        yesDisabled={yesDisabled}
-                        onChange={updateVote}
-                      />
-                    </div>
-                  ) : value ? (
-                    <VoteIcon type={value} />
+                    <AuxiliaryOptionToggle
+                      optionLabel={option.label}
+                      selected={value === "yes"}
+                      disabled={!form.identityReady || yesDisabled}
+                      onChange={updateVote}
+                    />
+                  ) : value === "yes" ? (
+                    <VoteIcon type="yes" />
                   ) : null}
                 </div>
-                {isEditing ? (
-                  <VoteButtonGroup
-                    className="mt-3 sm:hidden"
-                    value={value ?? "ifNeedBe"}
-                    optionLabel={option.label}
-                    disabled={!form.identityReady}
-                    yesDisabled={yesDisabled}
-                    onChange={updateVote}
-                  />
-                ) : null}
               </div>
             );
           })}

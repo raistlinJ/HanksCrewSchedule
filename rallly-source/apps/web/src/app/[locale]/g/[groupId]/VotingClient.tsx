@@ -14,6 +14,7 @@ import { ChevronRightIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
+import { AuxiliaryOptionToggle } from "@/features/poll/components/auxiliary-option-toggle";
 import { VoteButtonGroup } from "@/features/poll/components/vote-button-group";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { useUnsubmittedResponseWarning } from "@/features/poll/hooks/unsubmitted-response-warning/utils";
@@ -41,7 +42,7 @@ const createDefaultAuxiliaryVotes = (group: any) =>
       Object.fromEntries(
         (poll.auxiliarySelection?.options ?? []).map((option: any) => [
           option.id,
-          "ifNeedBe" as const,
+          "no" as const,
         ]),
       ),
     ]),
@@ -70,7 +71,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [viewingParticipants, setViewingParticipants] = useState<{
     optionId: string;
-    type: "yes" | "ifNeedBe";
+    type: "yes" | "ifNeedBe" | "no";
     label: string;
     names: string[];
   } | null>(null);
@@ -122,7 +123,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
           for (const v of p.auxiliaryVotes ?? []) {
             newSelectedAuxiliaryOptions[p.pollId] ??= {};
             newSelectedAuxiliaryOptions[p.pollId][v.auxiliaryOptionId] =
-              v.type as VoteState;
+              v.type === "yes" ? "yes" : "no";
             if (v.type === "yes") {
               newSavedYesAuxiliaryOptions[p.pollId][v.auxiliaryOptionId] = true;
             }
@@ -204,7 +205,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
       ).length;
       if (yesCount < poll.auxiliarySelection.minYes) {
         toast.error(
-          `Select Yes for at least ${poll.auxiliarySelection.minYes} ${poll.auxiliarySelection.name} choices in ${poll.title}.`,
+          `Select at least ${poll.auxiliarySelection.minYes} ${poll.auxiliarySelection.name} choices in ${poll.title}.`,
         );
         return;
       }
@@ -213,7 +214,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
         yesCount > poll.auxiliarySelection.maxYesSelections
       ) {
         toast.error(
-          `Select Yes for no more than ${poll.auxiliarySelection.maxYesSelections} ${poll.auxiliarySelection.name} choices in ${poll.title}.`,
+          `Select no more than ${poll.auxiliarySelection.maxYesSelections} ${poll.auxiliarySelection.name} choices in ${poll.title}.`,
         );
         return;
       }
@@ -231,8 +232,8 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
         (option: any) => ({
           auxiliaryOptionId: option.id,
           type: hasPrimaryYes
-            ? (selectedAuxiliaryOptions[poll.id]?.[option.id] ?? "ifNeedBe")
-            : "ifNeedBe",
+            ? (selectedAuxiliaryOptions[poll.id]?.[option.id] ?? "no")
+            : "no",
         }),
       );
       return {
@@ -421,8 +422,17 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                         vote.type === "ifNeedBe",
                     ),
                 );
+                const noParticipants = pollParticipants.filter(
+                  (participant) => {
+                    const savedVote = participant.votes.find(
+                      (vote) => vote.optionId === option.id,
+                    );
+                    return !savedVote || savedVote.type === "no";
+                  },
+                );
                 const acceptedCount = acceptedParticipants.length;
                 const ifNeedBeCount = ifNeedBeParticipants.length;
+                const noCount = noParticipants.length;
                 const maxYes = option.maxYes as number | null | undefined;
                 const yesIsFull = maxYes != null && acceptedCount >= maxYes;
                 
@@ -475,7 +485,9 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                         }))
                       }
                     />
-                    {(acceptedCount > 0 || ifNeedBeCount > 0) && (
+                    {(acceptedCount > 0 ||
+                      ifNeedBeCount > 0 ||
+                      noCount > 0) && (
                       <div className="pt-3">
                         <p className="mb-2 px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
                           Other responses
@@ -555,6 +567,43 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                               <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
                             </button>
                           )}
+                          {noCount > 0 && (
+                            <button
+                              type="button"
+                              className="flex min-h-14 items-center gap-3 rounded-lg border bg-muted/60 px-3 py-2 text-left transition-colors hover:bg-muted"
+                              onClick={() =>
+                                setViewingParticipants({
+                                  optionId: option.id,
+                                  type: "no",
+                                  label: "No",
+                                  names: noParticipants.map(
+                                    (participant) =>
+                                      participant.name || "Anonymous",
+                                  ),
+                                })
+                              }
+                            >
+                              <VoteIcon type="no" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-semibold text-sm">
+                                  {noCount} No
+                                </span>
+                                <span className="block truncate text-muted-foreground text-xs">
+                                  {noParticipants
+                                    .slice(0, 3)
+                                    .map(
+                                      (participant) =>
+                                        participant.name || "Anonymous",
+                                    )
+                                    .join(", ")}
+                                  {noCount > 3
+                                    ? ` and ${noCount - 3} more`
+                                    : ""}
+                                </span>
+                              </span>
+                              <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     )}
@@ -574,11 +623,11 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                   <p className="text-muted-foreground text-xs">
                     {poll.auxiliarySelection.minYes > 0 &&
                     poll.auxiliarySelection.maxYesSelections != null
-                      ? `Select Yes for ${poll.auxiliarySelection.minYes} to ${poll.auxiliarySelection.maxYesSelections}.`
+                      ? `Select ${poll.auxiliarySelection.minYes} to ${poll.auxiliarySelection.maxYesSelections}.`
                       : poll.auxiliarySelection.minYes > 0
-                        ? `Select Yes for at least ${poll.auxiliarySelection.minYes}.`
+                        ? `Select at least ${poll.auxiliarySelection.minYes}.`
                         : poll.auxiliarySelection.maxYesSelections != null
-                          ? `Select Yes for up to ${poll.auxiliarySelection.maxYesSelections}.`
+                          ? `Select up to ${poll.auxiliarySelection.maxYesSelections}.`
                           : "Optional"}
                   </p>
                 </div>
@@ -599,7 +648,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                 {poll.auxiliarySelection.options.map((option: any) => {
                   const voteState =
                     selectedAuxiliaryOptions[poll.id]?.[option.id] ??
-                    "ifNeedBe";
+                    "no";
                   const pollParticipants = (poll.participants ??
                     []) as PublicGroupParticipant[];
                   const yesParticipants = pollParticipants.filter(
@@ -638,26 +687,26 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                             {yesParticipants.length}/{option.maxYes}
                           </span>
                         ) : null}
-                      </div>
-                      <VoteButtonGroup
-                        value={voteState}
+                      <AuxiliaryOptionToggle
                         optionLabel={option.label}
-                        disabled={!identityReady}
-                        yesDisabled={
-                          (yesIsFull &&
+                        selected={voteState === "yes"}
+                        disabled={
+                          !identityReady ||
+                          ((yesIsFull &&
                             !savedYesAuxiliaryOptions[poll.id]?.[option.id]) ||
-                          participantLimitReached
+                            participantLimitReached)
                         }
-                        onChange={(type) =>
+                        onChange={(selected) =>
                           setSelectedAuxiliaryOptions((previous) => ({
                             ...previous,
                             [poll.id]: {
                               ...(previous[poll.id] ?? {}),
-                              [option.id]: type,
+                              [option.id]: selected ? "yes" : "no",
                             },
                           }))
                         }
                       />
+                      </div>
                     {yesParticipants.length > 0 ? (
                       <button
                         type="button"

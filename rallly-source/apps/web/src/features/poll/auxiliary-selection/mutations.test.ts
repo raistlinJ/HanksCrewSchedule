@@ -36,7 +36,7 @@ describe("validateAuxiliaryVotes", () => {
     });
   });
 
-  it("defaults every omitted choice to If needed", async () => {
+  it("defaults every omitted choice to not selected", async () => {
     const { validateAuxiliaryVotes } = await import("./mutations");
 
     await expect(
@@ -46,8 +46,8 @@ describe("validateAuxiliaryVotes", () => {
         votes: [],
       }),
     ).resolves.toEqual([
-      { auxiliaryOptionId: "role-1", type: "ifNeedBe" },
-      { auxiliaryOptionId: "role-2", type: "ifNeedBe" },
+      { auxiliaryOptionId: "role-1", type: "no" },
+      { auxiliaryOptionId: "role-2", type: "no" },
     ]);
   });
 
@@ -151,7 +151,7 @@ describe("validateAuxiliaryVotes", () => {
     );
   });
 
-  it("lets administrative QR voting use the If needed defaults", async () => {
+  it("lets administrative QR voting use the not-selected defaults", async () => {
     findUnique.mockResolvedValue({
       minYes: 1,
       maxYesSelections: null,
@@ -166,6 +166,6 @@ describe("validateAuxiliaryVotes", () => {
         votes: [],
         enforceMinimum: false,
       }),
-    ).resolves.toEqual([{ auxiliaryOptionId: "role-1", type: "ifNeedBe" }]);
+    ).resolves.toEqual([{ auxiliaryOptionId: "role-1", type: "no" }]);
   });
 });

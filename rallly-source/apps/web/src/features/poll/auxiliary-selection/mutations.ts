@@ -44,14 +44,14 @@ export async function validateAuxiliaryVotes({
   );
   const normalizedVotes = selection.options.map((option) => ({
     auxiliaryOptionId: option.id,
-    type: submittedVotes.get(option.id) ?? ("ifNeedBe" as const),
+    type: submittedVotes.get(option.id) ?? ("no" as const),
   }));
 
   const yesVotes = normalizedVotes.filter((vote) => vote.type === "yes");
   if (enforceMinimum && yesVotes.length < selection.minYes) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `Select Yes for at least ${selection.minYes} auxiliary choices.`,
+      message: `Select at least ${selection.minYes} auxiliary choices.`,
       cause: new AppError({
         code: "AUXILIARY_MINIMUM_NOT_MET",
         message: "The auxiliary selection minimum was not met",
@@ -65,7 +65,7 @@ export async function validateAuxiliaryVotes({
   ) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `Select Yes for no more than ${selection.maxYesSelections} auxiliary choices.`,
+      message: `Select no more than ${selection.maxYesSelections} auxiliary choices.`,
       cause: new AppError({
         code: "AUXILIARY_MAXIMUM_EXCEEDED",
         message: "The auxiliary selection maximum was exceeded",
@@ -113,8 +113,7 @@ export async function validateAuxiliaryVotes({
   if (fullOption) {
     throw new TRPCError({
       code: "CONFLICT",
-      message:
-        "Yes is full for one of the auxiliary choices. Choose If needed or No instead.",
+      message: "One of the auxiliary choices is full. Select another choice.",
       cause: new AppError({
         code: "AUXILIARY_OPTION_FULL",
         message: "The auxiliary choice maximum has been reached",

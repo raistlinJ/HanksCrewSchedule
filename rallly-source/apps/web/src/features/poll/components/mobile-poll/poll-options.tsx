@@ -30,7 +30,7 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
     : undefined;
 
   return (
-    <div className="divide-y">
+    <div className="space-y-3 bg-muted/30 p-3">
       {options.map((option) => {
         const score = getScore(option.optionId);
         const index = optionIds.indexOf(option.optionId);

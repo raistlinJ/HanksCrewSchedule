@@ -72,7 +72,7 @@ export const useVotingForm = () => {
         auxiliaryVotes:
           auxiliarySelection?.options.map((option) => ({
             auxiliaryOptionId: option.id,
-            type: "ifNeedBe" as const,
+            type: "no" as const,
           })) ?? [],
       });
     },
@@ -92,10 +92,12 @@ export const useVotingForm = () => {
           auxiliaryVotes:
             auxiliarySelection?.options.map((option) => ({
               auxiliaryOptionId: option.id,
-              type:
-                participant.auxiliaryVotes.find(
-                  (vote) => vote.auxiliaryOptionId === option.id,
-                )?.type ?? "ifNeedBe",
+              type: participant.auxiliaryVotes.some(
+                (vote) =>
+                  vote.auxiliaryOptionId === option.id && vote.type === "yes",
+              )
+                ? "yes"
+                : "no",
             })) ?? [],
         });
       } else {
@@ -114,7 +116,7 @@ export const useVotingForm = () => {
         auxiliaryVotes:
           auxiliarySelection?.options.map((option) => ({
             auxiliaryOptionId: option.id,
-            type: "ifNeedBe" as const,
+            type: "no" as const,
           })) ?? [],
       }),
   };
@@ -209,7 +211,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
       })),
       auxiliaryVotes: auxiliaryOptionIds.map((auxiliaryOptionId) => ({
         auxiliaryOptionId,
-        type: "ifNeedBe" as const,
+        type: "no" as const,
       })),
     },
     resolver: zodResolver(formSchema),
@@ -237,7 +239,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
               auxiliarySelection.minYes
           ) {
             toast.error(
-              `Select Yes for at least ${auxiliarySelection.minYes} ${auxiliarySelection.name} choices.`,
+              `Select at least ${auxiliarySelection.minYes} ${auxiliarySelection.name} choices.`,
             );
             return;
           }
@@ -249,7 +251,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
               auxiliarySelection.maxYesSelections
           ) {
             toast.error(
-              `Select Yes for no more than ${auxiliarySelection.maxYesSelections} ${auxiliarySelection.name} choices.`,
+              `Select no more than ${auxiliarySelection.maxYesSelections} ${auxiliarySelection.name} choices.`,
             );
             return;
           }
@@ -275,7 +277,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
               })),
               auxiliaryVotes: auxiliaryOptionIds.map((auxiliaryOptionId) => ({
                 auxiliaryOptionId,
-                type: "ifNeedBe" as const,
+                type: "no" as const,
               })),
             });
           } else {
@@ -318,7 +320,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
                 })),
                 auxiliaryVotes: auxiliaryOptionIds.map((auxiliaryOptionId) => ({
                   auxiliaryOptionId,
-                  type: "ifNeedBe" as const,
+                  type: "no" as const,
                 })),
               });
             }}

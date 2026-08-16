@@ -160,19 +160,19 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
       if (error.data.appError === "AUXILIARY_OPTION_FULL") {
         return t("newParticipantFormErrorAuxiliaryOptionFull", {
           defaultValue:
-            "Yes just filled up for one of the extra choices. Choose If needed or No and try again.",
+            "One of the extra choices just filled up. Select another choice and try again.",
         });
       }
       if (error.data.appError === "AUXILIARY_MINIMUM_NOT_MET") {
         return t("newParticipantFormErrorAuxiliaryMinimum", {
           defaultValue:
-            "Select Yes for the required number of extra choices and try again.",
+            "Select the required number of extra choices and try again.",
         });
       }
       if (error.data.appError === "AUXILIARY_MAXIMUM_EXCEEDED") {
         return t("newParticipantFormErrorAuxiliaryMaximum", {
           defaultValue:
-            "You selected Yes for too many extra choices. Reduce your selections and try again.",
+            "You selected too many extra choices. Reduce your selections and try again.",
         });
       }
       if (error.data.appError === "POLL_FULL") {

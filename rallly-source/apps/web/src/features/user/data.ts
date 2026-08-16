@@ -351,7 +351,7 @@ export async function getUserResponseExportRows(
             response.poll.auxiliarySelection.maxYesSelections ?? "",
           auxiliaryOption: option.label,
           auxiliaryOptionMaxYes: option.maxYes ?? "",
-          response: auxiliaryVotesByOptionId.get(option.id) ?? "ifNeedBe",
+          response: auxiliaryVotesByOptionId.get(option.id) ?? "no",
         });
       }
     }

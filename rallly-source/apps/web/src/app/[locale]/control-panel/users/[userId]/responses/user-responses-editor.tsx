@@ -19,6 +19,7 @@ import {
   EmptyStateIcon,
   EmptyStateTitle,
 } from "@/components/empty-state";
+import { AuxiliaryOptionToggle } from "@/features/poll/components/auxiliary-option-toggle";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import type { loadUserPollResponses } from "@/features/user/loaders";
 import { Trans, useTranslation } from "@/i18n/client";
@@ -258,7 +259,7 @@ function PollResponse({
               </p>
               <p className="text-muted-foreground text-xs">
                 {response.poll.auxiliarySelection.minYes > 0
-                  ? `At least ${response.poll.auxiliarySelection.minYes} Yes required`
+                  ? `At least ${response.poll.auxiliarySelection.minYes} required`
                   : "Optional"}
                 {response.poll.auxiliarySelection.maxYesSelections !== null
                   ? ` · Maximum ${response.poll.auxiliarySelection.maxYesSelections} per participant`
@@ -276,7 +277,7 @@ function PollResponse({
                     <p className="font-medium text-sm">{option.label}</p>
                     {option.maxYes ? (
                       <p className="text-muted-foreground text-xs">
-                        Maximum {option.maxYes} Yes
+                        Limit: {option.maxYes}
                       </p>
                     ) : null}
                   </div>
@@ -285,8 +286,9 @@ function PollResponse({
                     participantId={response.id}
                     pollId={response.poll.id}
                     auxiliaryOptionId={option.id}
+                    optionLabel={option.label}
                     initialType={
-                      auxiliaryVotesByOptionId.get(option.id) ?? "ifNeedBe"
+                      auxiliaryVotesByOptionId.get(option.id) ?? "no"
                     }
                   />
                 </div>
@@ -304,39 +306,35 @@ function AuxiliaryResponseSelect({
   participantId,
   pollId,
   auxiliaryOptionId,
+  optionLabel,
   initialType,
 }: {
   userId: string;
   participantId: string;
   pollId: string;
   auxiliaryOptionId: string;
+  optionLabel: string;
   initialType: VoteType;
 }) {
   const { t } = useTranslation();
-  const [value, setValue] = useState<VoteType>(initialType);
+  const [selected, setSelected] = useState(initialType === "yes");
   const updateResponse = useSafeAction(updateUserPollAuxiliaryResponseAction, {
-    onError: () => setValue(initialType),
+    onError: () => setSelected(initialType === "yes"),
   });
 
   useEffect(() => {
-    setValue(initialType);
+    setSelected(initialType === "yes");
   }, [initialType]);
 
-  const labels = {
-    yes: t("yes", { defaultValue: "Yes" }),
-    ifNeedBe: t("ifNeedBe", { defaultValue: "If need be" }),
-    no: t("no", { defaultValue: "No" }),
-  };
-
-  const updateValue = (newValue: VoteType) => {
-    setValue(newValue);
+  const updateValue = (newSelected: boolean) => {
+    setSelected(newSelected);
     toast.promise(
       updateResponse.executeAsync({
         userId,
         participantId,
         pollId,
         auxiliaryOptionId,
-        type: newValue,
+        type: newSelected ? "yes" : "no",
       }),
       {
         loading: t("saving", { defaultValue: "Saving..." }),
@@ -347,30 +345,12 @@ function AuxiliaryResponseSelect({
   };
 
   return (
-    <Select
-      items={labels}
-      value={value}
-      onValueChange={(newValue) => {
-        if (newValue) {
-          updateValue(newValue as VoteType);
-        }
-      }}
+    <AuxiliaryOptionToggle
+      optionLabel={optionLabel}
+      selected={selected}
       disabled={updateResponse.isPending}
-    >
-      <SelectTrigger aria-label="Edit auxiliary response" className="w-40">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {(["yes", "ifNeedBe", "no"] as const).map((type) => (
-          <SelectItem key={type} value={type}>
-            <span className="flex items-center gap-2">
-              <VoteIcon type={type} />
-              {labels[type]}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      onChange={updateValue}
+    />
   );
 }
 

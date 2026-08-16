@@ -2,10 +2,15 @@
 import type { VoteType } from "@rallly/database";
 import { cn } from "@rallly/ui";
 import { Button } from "@rallly/ui/button";
-import { Icon } from "@rallly/ui/icon";
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@rallly/ui/dialog";
+import { ChevronRightIcon } from "lucide-react";
 import * as React from "react";
-import { useToggle } from "react-use";
 
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import {
@@ -141,8 +146,7 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
 }) => {
   const showVotes = !!(selectedParticipantId || editable);
   const { participants } = useParticipants();
-  const [isExpanded, toggle] = useToggle(false);
-  const summaryId = React.useId();
+  const [isSummaryOpen, setIsSummaryOpen] = React.useState(false);
   const yesIsFull = maxYes !== null && yesScore >= maxYes;
   const participantHasExistingYes = participants.some(
     (participant) =>
@@ -155,8 +159,8 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
   return (
     <div
       className={cn(
-        "relative space-y-4 bg-background p-4 transition-colors",
-        editable && "active:bg-accent/50",
+        "relative space-y-4 rounded-xl border bg-background p-4 shadow-sm transition-colors",
+        editable && "border-border hover:border-primary/40",
       )}
       data-testid="poll-option"
     >
@@ -168,9 +172,9 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
               size="sm"
               variant="ghost"
               className="relative z-10 min-h-10 rounded-full px-3"
-              onClick={() => toggle()}
-              aria-expanded={isExpanded}
-              aria-controls={summaryId}
+              onClick={() => setIsSummaryOpen(true)}
+              aria-haspopup="dialog"
+              aria-label={`View responses for ${optionLabel}`}
             >
               <span className="flex items-center gap-1 text-green-700 text-xs tabular-nums dark:text-green-300">
                 <VoteIcon type="yes" size="sm" />
@@ -194,9 +198,7 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
                   {yesScore}/{maxYes}
                 </span>
               ) : null}
-              <Icon>
-                {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
-              </Icon>
+              <ChevronRightIcon className="size-4 text-muted-foreground" />
             </Button>
           </IfScoresVisible>
 
@@ -221,13 +223,17 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
           onChange={onChange}
         />
       ) : null}
-      {isExpanded ? (
-        <IfScoresVisible>
-          <div id={summaryId}>
+      <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
+        <DialogContent className="max-h-[min(80vh,36rem)] overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="border-b p-4 pr-12">
+            <DialogTitle>Responses</DialogTitle>
+            <DialogDescription>{optionLabel}</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto p-3">
             <PollOptionVoteSummary optionId={optionId} />
           </div>
-        </IfScoresVisible>
-      ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

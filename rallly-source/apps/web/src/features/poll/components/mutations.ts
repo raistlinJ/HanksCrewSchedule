@@ -18,13 +18,12 @@ export const normalizeVotes = (
 export const normalizeAuxiliaryVotes = (
   optionIds: string[],
   votes: Array<
-    | { auxiliaryOptionId: string; type?: "yes" | "no" | "ifNeedBe" }
-    | undefined
+    { auxiliaryOptionId: string; type?: "yes" | "no" | "ifNeedBe" } | undefined
   >,
 ) => {
   return optionIds.map((auxiliaryOptionId, index) => ({
     auxiliaryOptionId,
-    type: votes[index]?.type ?? ("ifNeedBe" as const),
+    type: votes[index]?.type ?? ("no" as const),
   }));
 };
 
