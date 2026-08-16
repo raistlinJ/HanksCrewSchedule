@@ -246,8 +246,9 @@ const MobilePoll: React.FunctionComponent = () => {
                 variant="primary"
                 size="lg"
                 loading={formState.isSubmitting}
+                disabled={!votingForm.identityReady}
               >
-                {selectedParticipantId ? t("save") : t("continue")}
+                {selectedParticipantId ? t("save") : "Review and submit"}
               </Button>
             </CardFooter>
           </m.div>

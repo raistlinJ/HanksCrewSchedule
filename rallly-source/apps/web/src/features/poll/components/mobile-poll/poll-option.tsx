@@ -29,6 +29,7 @@ export interface PollOptionProps {
   optionId: string;
   optionLabel: string;
   maxYes: number | null;
+  disabled?: boolean;
 }
 
 const PollOptionVoteSummary: React.FunctionComponent<{ optionId: string }> = ({
@@ -136,6 +137,7 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
   yesScore,
   ifNeedBeScore,
   maxYes,
+  disabled = false,
 }) => {
   const showVotes = !!(selectedParticipantId || editable);
   const { participants } = useParticipants();
@@ -180,8 +182,15 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
                   {ifNeedBeScore}
                 </span>
               ) : null}
-              {maxYes !== null && !yesIsFull ? (
-                <span className="rounded-full bg-green-500/10 px-1.5 py-0.5 text-[0.625rem] text-green-800 dark:text-green-200">
+              {maxYes !== null ? (
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[0.625rem]",
+                    yesIsFull
+                      ? "bg-green-600 text-white"
+                      : "bg-green-500/10 text-green-800 dark:text-green-200",
+                  )}
+                >
                   {yesScore}/{maxYes}
                 </span>
               ) : null}
@@ -191,12 +200,6 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
             </Button>
           </IfScoresVisible>
 
-          {yesIsFull ? (
-            <span className="rounded-full bg-green-600 px-2 py-1 font-medium text-white text-xs">
-              Yes full
-            </span>
-          ) : null}
-
           {showVotes ? (
             <div className="flex size-7 items-center justify-center">
               {editable ? (
@@ -204,6 +207,7 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
                   className="after:absolute after:inset-0"
                   optionLabel={optionLabel}
                   value={vote}
+                  disabled={disabled}
                   yesDisabled={yesIsFull && !participantHasExistingYes}
                   onChange={onChange}
                 />

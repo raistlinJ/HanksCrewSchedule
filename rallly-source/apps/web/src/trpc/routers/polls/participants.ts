@@ -389,7 +389,10 @@ export const participants = router({
           const validAuxiliaryVotes = await validateAuxiliaryVotes({
             tx,
             pollId,
-            votes: auxiliaryVotes,
+            votes: validVotes.some(({ type }) => type === "yes")
+              ? auxiliaryVotes
+              : [],
+            enforceMinimum: validVotes.some(({ type }) => type === "yes"),
           });
 
           return tx.participant.create({
@@ -617,7 +620,10 @@ export const participants = router({
           tx,
           pollId,
           participantId,
-          votes: auxiliaryVotes,
+          votes: validVotes.some(({ type }) => type === "yes")
+            ? auxiliaryVotes
+            : [],
+          enforceMinimum: validVotes.some(({ type }) => type === "yes"),
         });
 
         // Delete existing votes

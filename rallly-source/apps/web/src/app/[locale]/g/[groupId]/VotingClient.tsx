@@ -15,6 +15,8 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import VoteIcon from "@/features/poll/components/vote-icon";
+import { useUnsubmittedResponseWarning } from "@/features/poll/hooks/unsubmitted-response-warning/utils";
+import { isVoterIdentityComplete } from "@/features/poll/voter-identity/utils";
 import { trpc } from "@/trpc/client";
 
 type VoteState = "no" | "ifNeedBe" | "yes";
@@ -79,6 +81,8 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   const [gatekeeperError, setGatekeeperError] = useState("");
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isEditingViaLink, setIsEditingViaLink] = useState(false);
+  const identityReady = isVoterIdentityComplete({ name, email });
+  useUnsubmittedResponseWarning(!isSubmitted);
   
   const utils = trpc.useUtils();
 
@@ -188,6 +192,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     optionId: string,
     yesDisabled = false,
   ) => {
+    if (!identityReady) return;
     setSelectedOptions((prev) => {
       const pollVotes = prev[pollId] || {};
       const current = pollVotes[optionId] || "no";
@@ -211,6 +216,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     auxiliaryOptionId: string,
     yesDisabled = false,
   ) => {
+    if (!identityReady) return;
     setSelectedAuxiliaryOptions((previous) => {
       const pollVotes = previous[pollId] ?? {};
       const current = pollVotes[auxiliaryOptionId] ?? "ifNeedBe";
@@ -232,10 +238,14 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) return;
+    if (!identityReady) return;
 
     for (const poll of group.polls) {
       if (!poll.auxiliarySelection) continue;
+      const hasPrimaryYes = Object.values(
+        selectedOptions[poll.id] ?? {},
+      ).some((type) => type === "yes");
+      if (!hasPrimaryYes) continue;
       const yesCount = poll.auxiliarySelection.options.filter(
         (option: any) =>
           selectedAuxiliaryOptions[poll.id]?.[option.id] === "yes",
@@ -259,14 +269,18 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
 
     const votes = group.polls.map((poll: any) => {
       const pollVotes = selectedOptions[poll.id] || {};
+      const hasPrimaryYes = Object.values(pollVotes).some(
+        (type) => type === "yes",
+      );
       const options = Object.entries(pollVotes)
         .filter(([, type]) => type !== "no")
         .map(([optionId, type]) => ({ optionId, type }));
       const auxiliaryOptions = (poll.auxiliarySelection?.options ?? []).map(
         (option: any) => ({
           auxiliaryOptionId: option.id,
-          type:
-            selectedAuxiliaryOptions[poll.id]?.[option.id] ?? "ifNeedBe",
+          type: hasPrimaryYes
+            ? (selectedAuxiliaryOptions[poll.id]?.[option.id] ?? "ifNeedBe")
+            : "ifNeedBe",
         }),
       );
       return {
@@ -346,8 +360,76 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
           {gatekeeperError}
         </p>
       )}
+      <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm sm:p-6">
+        <div>
+          <h3 className="font-bold text-xl">Your details</h3>
+          <p className="mt-1 text-muted-foreground text-sm">
+            Enter your name and email before selecting your responses.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block font-medium text-sm">Name *</label>
+            <input
+              type="text"
+              required
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Your Name"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-medium text-sm">Email *</label>
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              required
+              disabled={isEditingViaLink}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Your Email"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-medium text-sm">
+              Phone Number (Optional)
+            </label>
+            <input
+              type="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Your Phone Number"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-medium text-sm">
+              Note (Optional)
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Add a comment..."
+            />
+          </div>
+        </div>
+        {!identityReady ? (
+          <p className="text-muted-foreground text-sm">
+            Voting will be enabled after both required fields are complete.
+          </p>
+        ) : null}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {group.polls.map((poll: any) => {
+        const hasPrimaryYes = Object.values(
+          selectedOptions[poll.id] ?? {},
+        ).some((type) => type === "yes");
         const auxiliaryYesCount = (
           poll.auxiliarySelection?.options ?? []
         ).filter(
@@ -356,9 +438,9 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
         ).length;
 
         return (
-        <div key={poll.id} className="rounded-xl border bg-card p-6 shadow-sm flex flex-col">
+        <div key={poll.id} className="rounded-xl border bg-card p-4 shadow-sm flex flex-col sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">{poll.title}</h2>
+            <h2 className="font-bold text-xl sm:text-2xl">{poll.title}</h2>
           </div>
 
           
@@ -396,6 +478,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                   <div key={option.id} className="rounded-xl border bg-background p-2 shadow-xs">
                     <button
                       type="button"
+                      disabled={!identityReady}
                       onClick={() =>
                         cycleOption(
                           poll.id,
@@ -403,7 +486,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                           yesIsFull && !savedYesOptions[poll.id]?.[option.id],
                         )
                       }
-                      className={`flex min-h-28 w-full flex-col items-center justify-center rounded-lg border-2 p-3 transition-all ${
+                      className={`flex min-h-28 w-full flex-col items-center justify-center rounded-lg border-2 p-3 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                         voteState === "yes"
                           ? "border-green-500 bg-green-500/10 text-green-700 dark:text-green-400"
                           : voteState === "ifNeedBe"
@@ -437,9 +520,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                               : "bg-green-500/10 text-green-800 dark:text-green-200"
                           }`}
                         >
-                          {yesIsFull
-                            ? `YES FULL (${acceptedCount}/${maxYes})`
-                            : `${acceptedCount}/${maxYes} YES`}
+                          {acceptedCount}/{maxYes}
                         </span>
                       ) : null}
                     </button>
@@ -532,10 +613,10 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
             </div>
           )}
 
-          {poll.auxiliarySelection ? (
+          {poll.auxiliarySelection && hasPrimaryYes ? (
             <section className="mt-5 border-t pt-5">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <h3 className="font-semibold">
                     {poll.auxiliarySelection.name}
                   </h3>
@@ -552,7 +633,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                 </div>
                 {poll.auxiliarySelection.minYes > 0 ||
                 poll.auxiliarySelection.maxYesSelections != null ? (
-                  <span className="rounded-full bg-muted px-2 py-1 font-medium text-xs">
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 font-medium text-xs">
                     {auxiliaryYesCount} selected
                     {poll.auxiliarySelection.minYes > 0
                       ? ` · min ${poll.auxiliarySelection.minYes}`
@@ -588,56 +669,83 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                     voteState !== "yes";
 
                   return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() =>
-                        cycleAuxiliaryOption(
-                          poll.id,
-                          option.id,
-                          (yesIsFull &&
-                            !savedYesAuxiliaryOptions[poll.id]?.[option.id]) ||
-                            participantLimitReached,
-                        )
-                      }
-                      className={`flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left ${
-                        voteState === "yes"
-                          ? "border-green-500 bg-green-500/10"
-                          : voteState === "ifNeedBe"
-                            ? "border-amber-500 bg-amber-500/10"
-                            : "border-border bg-background"
-                      }`}
-                    >
-                      <VoteIcon type={voteState} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-medium text-sm">
-                          {option.label}
+                    <div key={option.id} className="space-y-2">
+                      <button
+                        type="button"
+                        disabled={!identityReady}
+                        onClick={() =>
+                          cycleAuxiliaryOption(
+                            poll.id,
+                            option.id,
+                            (yesIsFull &&
+                              !savedYesAuxiliaryOptions[poll.id]?.[option.id]) ||
+                              participantLimitReached,
+                          )
+                        }
+                        className={`flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
+                          voteState === "yes"
+                            ? "border-green-500 bg-green-500/10"
+                            : voteState === "ifNeedBe"
+                              ? "border-amber-500 bg-amber-500/10"
+                              : "border-border bg-background"
+                        }`}
+                      >
+                        <VoteIcon type={voteState} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium text-sm">
+                            {option.label}
+                          </span>
                         </span>
-                        {yesParticipants.length > 0 ? (
+                        {option.maxYes != null ? (
+                          <span
+                            className={`rounded-full px-2 py-1 font-semibold text-[10px] ${
+                              yesIsFull
+                                ? "bg-green-600 text-white"
+                                : "bg-green-500/10 text-green-800 dark:text-green-200"
+                            }`}
+                          >
+                            {yesParticipants.length}/{option.maxYes}
+                          </span>
+                        ) : null}
+                      </button>
+                    {yesParticipants.length > 0 ? (
+                      <button
+                        type="button"
+                        className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-left transition-colors hover:bg-green-500/15"
+                        onClick={() =>
+                          setViewingParticipants({
+                            optionId: option.id,
+                            type: "yes",
+                            label: `${option.label} · Signed up`,
+                            names: yesParticipants.map(
+                              (participant) =>
+                                participant.name || "Anonymous",
+                            ),
+                          })
+                        }
+                      >
+                        <VoteIcon type="yes" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-semibold text-green-800 text-sm dark:text-green-200">
+                            {yesParticipants.length} signed up
+                          </span>
                           <span className="block truncate text-muted-foreground text-xs">
-                            Yes: {yesParticipants
+                            {yesParticipants
+                              .slice(0, 3)
                               .map(
                                 (participant) =>
                                   participant.name || "Anonymous",
                               )
                               .join(", ")}
+                            {yesParticipants.length > 3
+                              ? ` +${yesParticipants.length - 3}`
+                              : ""}
                           </span>
-                        ) : null}
-                      </span>
-                      {option.maxYes != null ? (
-                        <span
-                          className={`rounded-full px-2 py-1 font-semibold text-[10px] ${
-                            yesIsFull
-                              ? "bg-green-600 text-white"
-                              : "bg-green-500/10 text-green-800 dark:text-green-200"
-                          }`}
-                        >
-                          {yesIsFull
-                            ? `YES FULL (${yesParticipants.length}/${option.maxYes})`
-                            : `${yesParticipants.length}/${option.maxYes} YES`}
                         </span>
-                      ) : null}
-                    </button>
+                        <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                      </button>
+                    ) : null}
+                    </div>
                   );
                 })}
               </div>
@@ -648,59 +756,11 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
       })}
       </div>
 
-      <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
-        <h3 className="text-xl font-bold mb-4">Your Details</h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium mb-1">Name *</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Your Name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Email * (Required to edit later)</label>
-            <input
-              type="email"
-              required
-              disabled={isEditingViaLink}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Your Email"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Phone Number (Optional)</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Your Phone Number"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Note (Optional)</label>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="Add a comment..."
-          />
-        </div>
-      </div>
-
       <div className="flex justify-end pb-12">
         <Button
           type="submit"
           size="lg"
-          disabled={submitVotesMutation.isPending || !name.trim() || !email.trim()}
+          disabled={submitVotesMutation.isPending || !identityReady}
           className="w-full md:w-auto"
         >
           {submitVotesMutation.isPending ? "Submitting..." : "Submit All Responses"}

@@ -26,7 +26,6 @@ import { TRPCClientError } from "@trpc/client";
 import { CircleCheckIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { IfCloudHosted } from "@/components/environment";
@@ -37,8 +36,6 @@ import { MAX_RESPONSE_NOTE_LENGTH } from "@/features/poll/schema";
 import { useUser } from "@/features/user/client";
 import { Trans, useTranslation } from "@/i18n/client";
 import { useDateTimeConfig } from "@/lib/datetime/client";
-import { trpc } from "@/trpc/client";
-import { useVotingForm } from "@/features/poll/components/voting-form";
 
 const requiredEmailSchema = z.object({
   requireEmail: z.literal(true),
@@ -59,6 +56,7 @@ const schema = z.union([requiredEmailSchema, optionalEmailSchema]);
 interface NewParticipantModalProps {
   votes: { optionId: string; type: VoteType }[];
   auxiliaryVotes: { auxiliaryOptionId: string; type: VoteType }[];
+  identity?: { name: string; email: string };
   onSubmit?: (data: { id: string }) => void;
   onCancel?: () => void;
 }
@@ -139,42 +137,18 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
     defaultValues: {
       requireEmail: isEmailRequired,
       note: "",
-      ...(isLoggedIn
-        ? { name: user.name, email: user.email ?? "" }
-        : {
-            name: "",
-            email: "",
-          }),
+      ...(props.identity
+        ? props.identity
+        : isLoggedIn
+          ? { name: user.name, email: user.email ?? "" }
+          : {
+              name: "",
+              email: "",
+            }),
     },
   });
 
   const { setError, formState, handleSubmit, watch } = form;
-  const [showLookup, setShowLookup] = useState(false);
-  const [lookupEmail, setLookupEmail] = useState("");
-  const [lookupError, setLookupError] = useState("");
-  const [isLookingUp, setIsLookingUp] = useState(false);
-  const utils = trpc.useUtils();
-  const votingForm = useVotingForm();
-
-  const handleLookup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLookupError("");
-    setIsLookingUp(true);
-    try {
-      const participant = await utils.polls.getParticipantByEmail.fetch({ pollId: poll.id, email: lookupEmail });
-      if (participant) {
-        votingForm.editParticipantByEmailData(participant);
-      } else {
-        setLookupError("No previous submission found for that email.");
-      }
-    } catch (err: any) {
-      setLookupError(err.message || "An error occurred");
-    } finally {
-      setIsLookingUp(false);
-    }
-  };
-
-
   const getSubmitErrorMessage = (error: unknown) => {
     if (error instanceof TRPCClientError && error.data) {
       if (error.data.appError === "OPTION_FULL") {
@@ -329,49 +303,60 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
           })}
           className="space-y-4"
         >
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("name")}</FormLabel>
-                <FormControl>
-                  <Input
-                    className="w-full"
-                    data-1p-ignore="true"
-                    autoFocus={true}
-                    disabled={formState.isSubmitting}
-                    placeholder={t("namePlaceholder")}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  {t("email")}
-                  {!isEmailRequired
-                    ? ` (${t("optional", { defaultValue: "optional" })})`
-                    : null}
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    className="w-full"
-                    disabled={formState.isSubmitting}
-                    placeholder={t("emailPlaceholder")}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {props.identity ? (
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="font-medium text-sm">{props.identity.name}</p>
+              <p className="truncate text-muted-foreground text-sm">
+                {props.identity.email}
+              </p>
+            </div>
+          ) : (
+            <>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("name")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        data-1p-ignore="true"
+                        autoFocus={true}
+                        disabled={formState.isSubmitting}
+                        placeholder={t("namePlaceholder")}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t("email")}
+                      {!isEmailRequired
+                        ? ` (${t("optional", { defaultValue: "optional" })})`
+                        : null}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        disabled={formState.isSubmitting}
+                        placeholder={t("emailPlaceholder")}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          )}
 
           <div className="flex flex-col gap-2">
             <Label>{t("response", { defaultValue: "Response" })}</Label>

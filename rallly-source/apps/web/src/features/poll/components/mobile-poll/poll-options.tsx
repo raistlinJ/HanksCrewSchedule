@@ -20,7 +20,7 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
   editable,
   selectedParticipantId,
 }) => {
-  const { control } = useVotingForm();
+  const { control, identityReady } = useVotingForm();
   const { getScore, getVote, optionIds } = usePoll();
   const { participants: allParticipants } = useParticipants();
   const selectedParticipant = selectedParticipantId
@@ -69,6 +69,7 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
                       duration={option.duration}
                       maxYes={option.maxYes}
                       editable={editable}
+                      disabled={!identityReady}
                       selectedParticipantId={selectedParticipant?.id}
                     />
                   );
@@ -86,6 +87,7 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
                       month={option.month}
                       maxYes={option.maxYes}
                       editable={editable}
+                      disabled={!identityReady}
                       selectedParticipantId={selectedParticipant?.id}
                     />
                   );

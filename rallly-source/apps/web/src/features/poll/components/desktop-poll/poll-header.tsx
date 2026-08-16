@@ -173,9 +173,7 @@ const PollHeader = () => {
                         : "bg-green-500/10 text-green-800 dark:text-green-200",
                     )}
                   >
-                    {getScore(option.optionId).yes >= option.maxYes
-                      ? "Yes full"
-                      : `${getScore(option.optionId).yes}/${option.maxYes} Yes`}
+                    {getScore(option.optionId).yes}/{option.maxYes}
                   </span>
                 ) : null}
               </div>

@@ -429,15 +429,21 @@ const DesktopPoll: React.FunctionComponent = () => {
                       i18nKey="saveInstruction"
                       defaults="Select your availability and click <b>{action}</b>"
                       values={{
-                        action: mode === "new" ? t("continue") : t("save"),
+                        action:
+                          mode === "new" ? "Review and submit" : t("save"),
                       }}
                       components={{
                         b: <strong className="font-semibold" />,
                       }}
                     />
                   </p>
-                  <Button type="submit" variant="primary" form="voting-form">
-                    <Trans i18nKey="continue" />
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    form="voting-form"
+                    disabled={!votingForm.identityReady}
+                  >
+                    Review and submit
                   </Button>
                 </div>
               ) : null}

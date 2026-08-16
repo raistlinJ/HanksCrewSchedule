@@ -9,8 +9,13 @@ export type UserResponseExportRow = {
   responseKind?: string;
   optionStart: string;
   durationMinutes: number | "";
+  optionMaxYes?: number | "";
+  hasPrimaryYes?: string;
   auxiliarySelection?: string;
+  auxiliaryMinYes?: number | "";
+  auxiliaryMaxYesSelections?: number | "";
   auxiliaryOption?: string;
+  auxiliaryOptionMaxYes?: number | "";
   response: string;
   note: string;
   responseUpdatedAt: string;
@@ -31,10 +36,30 @@ const columns: Array<{
   { label: "Option Start (ISO)", value: (row) => row.optionStart },
   { label: "Duration (minutes)", value: (row) => row.durationMinutes },
   {
+    label: "Option Yes Limit",
+    value: (row) => row.optionMaxYes ?? "",
+  },
+  {
+    label: "Has Primary Yes",
+    value: (row) => row.hasPrimaryYes ?? "",
+  },
+  {
     label: "Auxiliary Selection",
     value: (row) => row.auxiliarySelection ?? "",
   },
+  {
+    label: "Auxiliary Minimum Yes",
+    value: (row) => row.auxiliaryMinYes ?? "",
+  },
+  {
+    label: "Auxiliary Maximum Selections Per Participant",
+    value: (row) => row.auxiliaryMaxYesSelections ?? "",
+  },
   { label: "Auxiliary Choice", value: (row) => row.auxiliaryOption ?? "" },
+  {
+    label: "Auxiliary Choice Yes Limit",
+    value: (row) => row.auxiliaryOptionMaxYes ?? "",
+  },
   { label: "Response", value: (row) => row.response },
   { label: "Note", value: (row) => row.note },
   {

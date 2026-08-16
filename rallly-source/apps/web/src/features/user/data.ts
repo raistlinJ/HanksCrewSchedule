@@ -127,6 +127,7 @@ export async function getUserPollResponses(userId: string) {
               id: true,
               startTime: true,
               duration: true,
+              maxYes: true,
             },
             orderBy: { startTime: "asc" },
           },
@@ -239,14 +240,17 @@ export async function getUserResponseExportRows(
               id: true,
               startTime: true,
               duration: true,
+              maxYes: true,
             },
             orderBy: { startTime: "asc" },
           },
           auxiliarySelection: {
             select: {
               name: true,
+              minYes: true,
+              maxYesSelections: true,
               options: {
-                select: { id: true, label: true },
+                select: { id: true, label: true, maxYes: true },
                 orderBy: { position: "asc" },
               },
             },
@@ -297,6 +301,7 @@ export async function getUserResponseExportRows(
         vote.type,
       ]),
     );
+    const hasPrimaryYes = response.votes.some((vote) => vote.type === "yes");
     const common = {
       userId: user.id,
       userName: user.name,
@@ -309,6 +314,7 @@ export async function getUserResponseExportRows(
       responseUpdatedAt: (
         response.updatedAt ?? response.createdAt
       ).toISOString(),
+      hasPrimaryYes: hasPrimaryYes ? "yes" : "no",
     };
 
     if (response.poll.options.length === 0) {
@@ -325,6 +331,7 @@ export async function getUserResponseExportRows(
           ...common,
           optionStart: option.startTime.toISOString(),
           durationMinutes: option.duration,
+          optionMaxYes: option.maxYes ?? "",
           responseKind: "pollOption",
           response: votesByOptionId.get(option.id) ?? "none",
         });
@@ -339,7 +346,11 @@ export async function getUserResponseExportRows(
           optionStart: "",
           durationMinutes: "",
           auxiliarySelection: response.poll.auxiliarySelection.name,
+          auxiliaryMinYes: response.poll.auxiliarySelection.minYes,
+          auxiliaryMaxYesSelections:
+            response.poll.auxiliarySelection.maxYesSelections ?? "",
           auxiliaryOption: option.label,
+          auxiliaryOptionMaxYes: option.maxYes ?? "",
           response: auxiliaryVotesByOptionId.get(option.id) ?? "ifNeedBe",
         });
       }

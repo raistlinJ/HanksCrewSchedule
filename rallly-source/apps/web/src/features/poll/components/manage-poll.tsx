@@ -27,6 +27,7 @@ import { usePoll } from "@/features/poll/client";
 import { Trans } from "@/i18n/client";
 import { trpc } from "@/trpc/client";
 import { DeletePollDialog } from "./manage-poll/delete-poll-dialog";
+import { PublicPollQrCodeDialog } from "./manage-poll/public-qr-code-dialog";
 import { useCsvExporter } from "./manage-poll/use-csv-exporter";
 
 function OpenCloseToggle() {
@@ -113,6 +114,7 @@ const ManagePoll: React.FunctionComponent<{
 
   const [showDeletePollDialog, setShowDeletePollDialog] = React.useState(false);
   const duplicateDialog = useDialog();
+  const publicQrCodeDialog = useDialog();
   const isFree = useIsFree();
   const { exportToCsv } = useCsvExporter();
 
@@ -136,18 +138,10 @@ const ManagePoll: React.FunctionComponent<{
             <UsersIcon />
             <Trans i18nKey="results" defaults="Results" />
           </DropdownMenuItem>
-          {poll.groupNavigation ? (
-            <DropdownMenuItem
-              render={
-                <Link
-                  href={`/groups/${poll.groupNavigation.groupId}/polls/${poll.id}/scan`}
-                />
-              }
-            >
-              <QrCodeIcon />
-              <Trans i18nKey="scanUserQrCode" defaults="Scan user QR code" />
-            </DropdownMenuItem>
-          ) : null}
+          <DropdownMenuItem onClick={publicQrCodeDialog.trigger}>
+            <QrCodeIcon />
+            Public page QR code
+          </DropdownMenuItem>
           {poll.status === "scheduled" || poll.status === "canceled" ? null : (
             <>
               <DropdownMenuSeparator />
@@ -197,6 +191,11 @@ const ManagePoll: React.FunctionComponent<{
         pollId={poll.id}
         pollTitle={poll.title}
         {...duplicateDialog.dialogProps}
+      />
+      <PublicPollQrCodeDialog
+        pollTitle={poll.title}
+        publicUrl={poll.inviteLink}
+        {...publicQrCodeDialog.dialogProps}
       />
     </>
   );

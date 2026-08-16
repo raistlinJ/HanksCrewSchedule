@@ -219,12 +219,19 @@ function PollResponse({
                 key={option.id}
                 className="flex items-center justify-between gap-4 px-4 py-3"
               >
-                <OptionDate
-                  startTime={option.startTime}
-                  duration={option.duration}
-                  kind={response.poll.kind}
-                  timeZone={response.poll.timeZone}
-                />
+                <div>
+                  <OptionDate
+                    startTime={option.startTime}
+                    duration={option.duration}
+                    kind={response.poll.kind}
+                    timeZone={response.poll.timeZone}
+                  />
+                  {option.maxYes !== null ? (
+                    <p className="text-muted-foreground text-xs">
+                      Limit: {option.maxYes} Yes
+                    </p>
+                  ) : null}
+                </div>
                 <ResponseSelect
                   userId={userId}
                   participantId={response.id}
@@ -256,6 +263,7 @@ function PollResponse({
                 {response.poll.auxiliarySelection.maxYesSelections !== null
                   ? ` · Maximum ${response.poll.auxiliarySelection.maxYesSelections} per participant`
                   : ""}
+                {" · Available when a main option is Yes"}
               </p>
             </div>
             <div className="divide-y">

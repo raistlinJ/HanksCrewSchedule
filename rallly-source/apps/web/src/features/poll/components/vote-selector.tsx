@@ -20,6 +20,7 @@ export interface VoteSelectorProps {
   onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
   className?: string;
   yesDisabled?: boolean;
+  disabled?: boolean;
 }
 
 const orderedVoteTypes: VoteType[] = ["yes", "ifNeedBe", "no"];
@@ -51,6 +52,7 @@ export const VoteSelector = React.forwardRef<
     onKeyDown,
     className,
     yesDisabled = false,
+    disabled = false,
   },
   ref,
 ) {
@@ -73,6 +75,7 @@ export const VoteSelector = React.forwardRef<
     <button
       data-testid="vote-selector"
       type="button"
+      disabled={disabled}
       aria-label={`${optionLabel ? `${optionLabel}, ` : ""}${voteLabel}${
         yesDisabled ? "; Yes is full" : ""
       }`}
@@ -97,6 +100,9 @@ export const VoteSelector = React.forwardRef<
         className,
       )}
       onClick={() => {
+        if (disabled) {
+          return;
+        }
         onChange?.(toggleVote(value, yesDisabled));
       }}
       ref={ref}

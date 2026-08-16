@@ -138,6 +138,7 @@ const ParticipantRowForm = ({
                       option ? getOptionDateTimeLabel(option) : undefined
                     }
                     value={field.value?.type}
+                    disabled={Boolean(isNew && !form.identityReady)}
                     yesDisabled={yesIsFull && !participantHasExistingYes}
                     onChange={(vote) => {
                       field.onChange({ optionId, type: vote });

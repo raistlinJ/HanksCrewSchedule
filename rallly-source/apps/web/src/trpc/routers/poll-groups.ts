@@ -616,7 +616,10 @@ export const pollGroups = router({
             tx,
             pollId: voteItem.pollId,
             participantId: existingParticipant?.id,
-            votes: voteItem.auxiliaryOptions,
+            votes: validVotes.some(({ type }) => type === "yes")
+              ? voteItem.auxiliaryOptions
+              : [],
+            enforceMinimum: validVotes.some(({ type }) => type === "yes"),
           });
 
           let participantId: string;
