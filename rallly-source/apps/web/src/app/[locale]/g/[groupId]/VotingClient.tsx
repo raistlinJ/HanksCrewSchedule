@@ -428,15 +428,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                 
                 return (
                   <div key={option.id} className="rounded-xl border bg-background p-2 shadow-xs">
-                    <div
-                      className={`flex min-h-20 w-full flex-col items-center justify-center rounded-lg border-2 p-3 transition-all ${
-                        voteState === "yes"
-                          ? "border-green-500 bg-green-500/10 text-green-700 dark:text-green-400"
-                          : voteState === "ifNeedBe"
-                          ? "border-yellow-500 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
-                          : "border-border hover:border-gray-400 hover:bg-muted opacity-70"
-                      }`}
-                    >
+                    <div className="flex min-h-16 w-full flex-col items-center justify-center rounded-lg border bg-muted/30 p-3">
                       <span className="font-semibold text-sm">
                         {new Date(option.startTime).toLocaleDateString(undefined, {
                           weekday: 'short',
@@ -452,9 +444,6 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                           })}
                         </span>
                       )}
-                      <span className="mt-2 text-[10px] font-bold uppercase tracking-wider opacity-90">
-                        {voteState === "yes" ? "YES" : voteState === "ifNeedBe" ? "IF NEEDED" : "NO"}
-                      </span>
                       {maxYes != null ? (
                         <span
                           className={`mt-2 rounded-full px-2 py-1 font-semibold text-[10px] ${
@@ -522,7 +511,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                                     )
                                     .join(", ")}
                                   {acceptedCount > 3
-                                    ? ` +${acceptedCount - 3}`
+                                    ? ` and ${acceptedCount - 3} more`
                                     : ""}
                                 </span>
                               </span>
@@ -559,7 +548,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                                     )
                                     .join(", ")}
                                   {ifNeedBeCount > 3
-                                    ? ` +${ifNeedBeCount - 3}`
+                                    ? ` and ${ifNeedBeCount - 3} more`
                                     : ""}
                                 </span>
                               </span>
@@ -632,16 +621,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
 
                   return (
                     <div key={option.id} className="space-y-2">
-                      <div
-                        className={`flex min-h-12 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left ${
-                          voteState === "yes"
-                            ? "border-green-500 bg-green-500/10"
-                            : voteState === "ifNeedBe"
-                              ? "border-amber-500 bg-amber-500/10"
-                              : "border-border bg-background"
-                        }`}
-                      >
-                        <VoteIcon type={voteState} />
+                      <div className="flex min-h-12 w-full items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-left">
                         <span className="min-w-0 flex-1">
                           <span className="block font-medium text-sm">
                             {option.label}
@@ -708,7 +688,7 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                               )
                               .join(", ")}
                             {yesParticipants.length > 3
-                              ? ` +${yesParticipants.length - 3}`
+                              ? ` and ${yesParticipants.length - 3} more`
                               : ""}
                           </span>
                         </span>

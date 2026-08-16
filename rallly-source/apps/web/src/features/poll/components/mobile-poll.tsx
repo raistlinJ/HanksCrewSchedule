@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@rallly/ui/select";
-import { MoreHorizontalIcon, PlusIcon, UsersIcon } from "lucide-react";
+import { MoreHorizontalIcon, UsersIcon } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import type * as React from "react";
@@ -61,6 +61,8 @@ const MobilePoll: React.FunctionComponent = () => {
   const { canEditParticipant, canAddNewParticipant } = usePermissions();
 
   const isEditing = votingForm.watch("mode") !== "view";
+  const showAddResponseButton =
+    !isEditing && !selectedParticipant && canAddNewParticipant;
 
   const { t } = useTranslation();
 
@@ -190,25 +192,29 @@ const MobilePoll: React.FunctionComponent = () => {
                 </Button>
               </ParticipantDropdown>
             </>
-          ) : canAddNewParticipant ? (
-            <Button
-              aria-label={t("addParticipant", {
-                defaultValue: "Add participant",
-              })}
-              size="icon"
-              onClick={() => {
-                votingForm.newParticipant();
-              }}
-            >
-              <PlusIcon />
-            </Button>
           ) : null}
         </div>
+        {showAddResponseButton ? (
+          <Button
+            className="min-h-11 w-full"
+            variant="primary"
+            onClick={() => {
+              votingForm.newParticipant();
+            }}
+          >
+            Add your response
+          </Button>
+        ) : null}
       </div>
       {poll.options[0]?.duration !== 0 && poll.timeZone ? (
         <CardContent className="border-b">
           <TimesShownIn />
         </CardContent>
+      ) : null}
+      {isEditing ? (
+        <div className="border-b bg-primary/5 px-4 py-3 text-sm">
+          Choose Yes, If needed, or No for each option.
+        </div>
       ) : null}
       <GroupedOptions
         selectedParticipantId={selectedParticipantId}
