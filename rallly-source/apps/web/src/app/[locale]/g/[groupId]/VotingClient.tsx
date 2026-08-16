@@ -14,6 +14,7 @@ import { ChevronRightIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
+import { VoteButtonGroup } from "@/features/poll/components/vote-button-group";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { useUnsubmittedResponseWarning } from "@/features/poll/hooks/unsubmitted-response-warning/utils";
 import { isVoterIdentityComplete } from "@/features/poll/voter-identity/utils";
@@ -185,55 +186,6 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
       return;
     }
     await performLookup(gatekeeperEmail);
-  };
-
-  const cycleOption = (
-    pollId: string,
-    optionId: string,
-    yesDisabled = false,
-  ) => {
-    if (!identityReady) return;
-    setSelectedOptions((prev) => {
-      const pollVotes = prev[pollId] || {};
-      const current = pollVotes[optionId] || "no";
-      let nextState: VoteState = "no";
-      if (current === "no") nextState = yesDisabled ? "ifNeedBe" : "yes";
-      else if (current === "yes") nextState = "ifNeedBe";
-      else if (current === "ifNeedBe") nextState = "no";
-
-      return {
-        ...prev,
-        [pollId]: {
-          ...pollVotes,
-          [optionId]: nextState,
-        },
-      };
-    });
-  };
-
-  const cycleAuxiliaryOption = (
-    pollId: string,
-    auxiliaryOptionId: string,
-    yesDisabled = false,
-  ) => {
-    if (!identityReady) return;
-    setSelectedAuxiliaryOptions((previous) => {
-      const pollVotes = previous[pollId] ?? {};
-      const current = pollVotes[auxiliaryOptionId] ?? "ifNeedBe";
-      const nextState =
-        current === "ifNeedBe"
-          ? "no"
-          : current === "no"
-            ? yesDisabled
-              ? "ifNeedBe"
-              : "yes"
-            : "ifNeedBe";
-
-      return {
-        ...previous,
-        [pollId]: { ...pollVotes, [auxiliaryOptionId]: nextState },
-      };
-    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -476,17 +428,8 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                 
                 return (
                   <div key={option.id} className="rounded-xl border bg-background p-2 shadow-xs">
-                    <button
-                      type="button"
-                      disabled={!identityReady}
-                      onClick={() =>
-                        cycleOption(
-                          poll.id,
-                          option.id,
-                          yesIsFull && !savedYesOptions[poll.id]?.[option.id],
-                        )
-                      }
-                      className={`flex min-h-28 w-full flex-col items-center justify-center rounded-lg border-2 p-3 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                    <div
+                      className={`flex min-h-20 w-full flex-col items-center justify-center rounded-lg border-2 p-3 transition-all ${
                         voteState === "yes"
                           ? "border-green-500 bg-green-500/10 text-green-700 dark:text-green-400"
                           : voteState === "ifNeedBe"
@@ -523,7 +466,26 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                           {acceptedCount}/{maxYes}
                         </span>
                       ) : null}
-                    </button>
+                    </div>
+                    <VoteButtonGroup
+                      className="mt-2"
+                      value={voteState}
+                      optionLabel={`${poll.title}, ${new Date(option.startTime).toLocaleString()}`}
+                      disabled={!identityReady}
+                      yesDisabled={
+                        yesIsFull &&
+                        !savedYesOptions[poll.id]?.[option.id]
+                      }
+                      onChange={(type) =>
+                        setSelectedOptions((previous) => ({
+                          ...previous,
+                          [poll.id]: {
+                            ...(previous[poll.id] ?? {}),
+                            [option.id]: type,
+                          },
+                        }))
+                      }
+                    />
                     {(acceptedCount > 0 || ifNeedBeCount > 0) && (
                       <div className="pt-3">
                         <p className="mb-2 px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
@@ -670,19 +632,8 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
 
                   return (
                     <div key={option.id} className="space-y-2">
-                      <button
-                        type="button"
-                        disabled={!identityReady}
-                        onClick={() =>
-                          cycleAuxiliaryOption(
-                            poll.id,
-                            option.id,
-                            (yesIsFull &&
-                              !savedYesAuxiliaryOptions[poll.id]?.[option.id]) ||
-                              participantLimitReached,
-                          )
-                        }
-                        className={`flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
+                      <div
+                        className={`flex min-h-12 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left ${
                           voteState === "yes"
                             ? "border-green-500 bg-green-500/10"
                             : voteState === "ifNeedBe"
@@ -707,7 +658,26 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                             {yesParticipants.length}/{option.maxYes}
                           </span>
                         ) : null}
-                      </button>
+                      </div>
+                      <VoteButtonGroup
+                        value={voteState}
+                        optionLabel={option.label}
+                        disabled={!identityReady}
+                        yesDisabled={
+                          (yesIsFull &&
+                            !savedYesAuxiliaryOptions[poll.id]?.[option.id]) ||
+                          participantLimitReached
+                        }
+                        onChange={(type) =>
+                          setSelectedAuxiliaryOptions((previous) => ({
+                            ...previous,
+                            [poll.id]: {
+                              ...(previous[poll.id] ?? {}),
+                              [option.id]: type,
+                            },
+                          }))
+                        }
+                      />
                     {yesParticipants.length > 0 ? (
                       <button
                         type="button"

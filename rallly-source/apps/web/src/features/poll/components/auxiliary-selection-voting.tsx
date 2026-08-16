@@ -13,6 +13,7 @@ import { useState } from "react";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { useParticipants } from "@/features/poll/components/participants-provider";
 import { usePoll } from "@/features/poll/components/poll-context";
+import { VoteButtonGroup } from "@/features/poll/components/vote-button-group";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { VoteSelector } from "@/features/poll/components/vote-selector";
 import { useVotingForm } from "@/features/poll/components/voting-form";
@@ -111,6 +112,19 @@ export function AuxiliarySelectionVoting() {
               selection.maxYesSelections !== null &&
               selectedYesCount >= selection.maxYesSelections &&
               value !== "yes";
+            const yesDisabled =
+              (yesIsFull && !participantHasExistingYes) ||
+              participantLimitReached;
+            const updateVote = (type: "yes" | "no" | "ifNeedBe") => {
+              const nextVotes = [...formVotes];
+              nextVotes[index] = {
+                auxiliaryOptionId: option.id,
+                type,
+              };
+              form.setValue("auxiliaryVotes", nextVotes, {
+                shouldDirty: true,
+              });
+            };
 
             return (
               <div key={option.id} className="px-3 py-3 sm:px-4">
@@ -151,29 +165,29 @@ export function AuxiliarySelectionVoting() {
                     </span>
                   ) : null}
                   {isEditing ? (
-                    <VoteSelector
-                      optionLabel={option.label}
-                      value={value ?? "ifNeedBe"}
-                      disabled={!form.identityReady}
-                      yesDisabled={
-                        (yesIsFull && !participantHasExistingYes) ||
-                        participantLimitReached
-                      }
-                      onChange={(type) => {
-                        const nextVotes = [...formVotes];
-                        nextVotes[index] = {
-                          auxiliaryOptionId: option.id,
-                          type,
-                        };
-                        form.setValue("auxiliaryVotes", nextVotes, {
-                          shouldDirty: true,
-                        });
-                      }}
-                    />
+                    <div className="hidden sm:block">
+                      <VoteSelector
+                        optionLabel={option.label}
+                        value={value ?? "ifNeedBe"}
+                        disabled={!form.identityReady}
+                        yesDisabled={yesDisabled}
+                        onChange={updateVote}
+                      />
+                    </div>
                   ) : value ? (
                     <VoteIcon type={value} />
                   ) : null}
                 </div>
+                {isEditing ? (
+                  <VoteButtonGroup
+                    className="mt-3 sm:hidden"
+                    value={value ?? "ifNeedBe"}
+                    optionLabel={option.label}
+                    disabled={!form.identityReady}
+                    yesDisabled={yesDisabled}
+                    onChange={updateVote}
+                  />
+                ) : null}
               </div>
             );
           })}

@@ -15,8 +15,8 @@ import {
 import { useTranslation } from "@/i18n/client";
 
 import { IfScoresVisible } from "../visibility";
+import { VoteButtonGroup } from "../vote-button-group";
 import VoteIcon from "../vote-icon";
-import { VoteSelector } from "../vote-selector";
 
 export interface PollOptionProps {
   children?: React.ReactNode;
@@ -200,29 +200,27 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
             </Button>
           </IfScoresVisible>
 
-          {showVotes ? (
+          {showVotes && !editable ? (
             <div className="flex size-7 items-center justify-center">
-              {editable ? (
-                <VoteSelector
-                  className="after:absolute after:inset-0"
-                  optionLabel={optionLabel}
-                  value={vote}
-                  disabled={disabled}
-                  yesDisabled={yesIsFull && !participantHasExistingYes}
-                  onChange={onChange}
-                />
-              ) : (
-                <div
-                  key={vote}
-                  className="flex h-full items-center justify-center"
-                >
-                  <VoteIcon type={vote} />
-                </div>
-              )}
+              <div
+                key={vote}
+                className="flex h-full items-center justify-center"
+              >
+                <VoteIcon type={vote} />
+              </div>
             </div>
           ) : null}
         </div>
       </div>
+      {editable ? (
+        <VoteButtonGroup
+          value={vote}
+          optionLabel={optionLabel}
+          disabled={disabled}
+          yesDisabled={yesIsFull && !participantHasExistingYes}
+          onChange={onChange}
+        />
+      ) : null}
       {isExpanded ? (
         <IfScoresVisible>
           <div id={summaryId}>
