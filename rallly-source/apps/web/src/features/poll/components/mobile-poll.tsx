@@ -1,6 +1,6 @@
 import { Badge } from "@rallly/ui/badge";
 import { Button } from "@rallly/ui/button";
-import { Card, CardContent, CardFooter } from "@rallly/ui/card";
+import { Card, CardFooter } from "@rallly/ui/card";
 import { Icon } from "@rallly/ui/icon";
 import {
   Select,
@@ -15,7 +15,6 @@ import * as m from "motion/react-m";
 import type * as React from "react";
 import smoothscroll from "smoothscroll-polyfill";
 
-import { TimesShownIn } from "@/components/clock";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { usePermissions } from "@/features/poll/client";
 import { AuxiliarySelectionVoting } from "@/features/poll/components/auxiliary-selection-voting";
@@ -25,7 +24,7 @@ import {
 } from "@/features/poll/components/participant";
 import { ParticipantDropdown } from "@/features/poll/components/participant-dropdown";
 import { ParticipantNote } from "@/features/poll/components/participant-note";
-import { useOptions, usePoll } from "@/features/poll/components/poll-context";
+import { useOptions } from "@/features/poll/components/poll-context";
 import { useVisibleParticipants } from "@/features/poll/components/visibility";
 import { useVotingForm } from "@/features/poll/components/voting-form";
 import { YouAvatar } from "@/features/poll/components/you-avatar";
@@ -38,10 +37,6 @@ if (typeof window !== "undefined") {
 }
 
 const MobilePoll: React.FunctionComponent = () => {
-  const pollContext = usePoll();
-
-  const { poll } = pollContext;
-
   const { options } = useOptions();
 
   const session = useUser();
@@ -58,11 +53,9 @@ const MobilePoll: React.FunctionComponent = () => {
       )
     : undefined;
 
-  const { canEditParticipant, canAddNewParticipant } = usePermissions();
+  const { canEditParticipant } = usePermissions();
 
   const isEditing = votingForm.watch("mode") !== "view";
-  const showAddResponseButton =
-    !isEditing && !selectedParticipant && canAddNewParticipant;
 
   const { t } = useTranslation();
 
@@ -144,19 +137,7 @@ const MobilePoll: React.FunctionComponent = () => {
               </Participant>
             </div>
           )}
-          {isEditing ? (
-            <Button
-              onClick={() => {
-                if (votingForm.watch("mode") === "new") {
-                  votingForm.cancel();
-                } else {
-                  votingForm.setValue("mode", "view");
-                }
-              }}
-            >
-              {t("cancel")}
-            </Button>
-          ) : selectedParticipant ? (
+          {!isEditing && selectedParticipant ? (
             <>
               {selectedParticipant.note ? (
                 <ParticipantNote
@@ -194,23 +175,7 @@ const MobilePoll: React.FunctionComponent = () => {
             </>
           ) : null}
         </div>
-        {showAddResponseButton ? (
-          <Button
-            className="min-h-11 w-full"
-            variant="primary"
-            onClick={() => {
-              votingForm.newParticipant();
-            }}
-          >
-            Add your response
-          </Button>
-        ) : null}
       </div>
-      {poll.options[0]?.duration !== 0 && poll.timeZone ? (
-        <CardContent className="border-b">
-          <TimesShownIn />
-        </CardContent>
-      ) : null}
       {isEditing ? (
         <div className="border-b bg-primary/5 px-4 py-3 text-sm">
           Choose Yes, If needed, or No for each option.
