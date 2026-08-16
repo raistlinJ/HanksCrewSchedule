@@ -67,6 +67,7 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
                       startTime={option.startTime}
                       endTime={option.endTime}
                       duration={option.duration}
+                      maxYes={option.maxYes}
                       editable={editable}
                       selectedParticipantId={selectedParticipant?.id}
                     />
@@ -83,6 +84,7 @@ const PollOptions: React.FunctionComponent<PollOptions> = ({
                       dow={option.dow}
                       day={option.day}
                       month={option.month}
+                      maxYes={option.maxYes}
                       editable={editable}
                       selectedParticipantId={selectedParticipant?.id}
                     />

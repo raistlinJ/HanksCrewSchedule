@@ -2,6 +2,8 @@ import "server-only";
 
 import type { TimeFormat, VoteType } from "@rallly/database";
 import { Prisma, prisma } from "@rallly/database";
+import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
+import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
 import { authLib } from "@/lib/auth";
 import { SESSION_TTL_SECONDS } from "@/lib/auth-config";
 import { deleteImageFromS3 } from "@/lib/storage/image-upload";
@@ -199,21 +201,128 @@ export async function updateUserPollResponse({
       where: { participantId, optionId, pollId },
     });
   } else {
-    await prisma.vote.upsert({
+    await prisma.$transaction(async (tx) => {
+      if (type === "yes") {
+        await assertYesCapacity({
+          tx,
+          pollId,
+          participantId,
+          optionIds: [optionId],
+        });
+      }
+      await tx.vote.upsert({
+        where: {
+          participantId_optionId: { participantId, optionId },
+        },
+        create: {
+          participantId,
+          optionId,
+          pollId,
+          type,
+        },
+        update: { type },
+      });
+    });
+  }
+
+  return { ok: true } as const;
+}
+
+export async function updateUserPollAuxiliaryResponse({
+  userId,
+  participantId,
+  pollId,
+  auxiliaryOptionId,
+  type,
+}: {
+  userId: string;
+  participantId: string;
+  pollId: string;
+  auxiliaryOptionId: string;
+  type: VoteType;
+}) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+
+  if (!user) {
+    return { ok: false, reason: "user_not_found" } as const;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const participant = await tx.participant.findFirst({
       where: {
-        participantId_optionId: { participantId, optionId },
+        id: participantId,
+        pollId,
+        deleted: false,
+        poll: {
+          deleted: false,
+          auxiliarySelection: {
+            is: { options: { some: { id: auxiliaryOptionId } } },
+          },
+        },
+        OR: [
+          { userId },
+          {
+            userId: null,
+            email: {
+              equals: user.email,
+              mode: "insensitive",
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        auxiliaryVotes: {
+          where: { pollId },
+          select: { auxiliaryOptionId: true, type: true },
+        },
+      },
+    });
+
+    if (!participant) {
+      return { ok: false, reason: "response_not_found" } as const;
+    }
+
+    const votesByOptionId = new Map(
+      participant.auxiliaryVotes.map((vote) => [
+        vote.auxiliaryOptionId,
+        vote.type,
+      ]),
+    );
+    votesByOptionId.set(auxiliaryOptionId, type);
+
+    await validateAuxiliaryVotes({
+      tx,
+      pollId,
+      participantId,
+      enforceMinimum: false,
+      votes: Array.from(votesByOptionId, ([auxiliaryOptionId, type]) => ({
+        auxiliaryOptionId,
+        type,
+      })),
+    });
+
+    await tx.pollAuxiliaryVote.upsert({
+      where: {
+        participantId_auxiliaryOptionId: {
+          participantId,
+          auxiliaryOptionId,
+        },
       },
       create: {
         participantId,
-        optionId,
+        auxiliaryOptionId,
         pollId,
         type,
       },
       update: { type },
     });
-  }
 
-  return { ok: true } as const;
+    return { ok: true } as const;
+  });
 }
 
 // Sessions are revoked through Better-Auth's internal adapter for the same

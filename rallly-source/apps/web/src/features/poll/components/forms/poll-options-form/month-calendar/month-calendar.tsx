@@ -104,10 +104,20 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
       onChangeDuration(0);
       form.setValue("timeZone", "");
       onChange(
-        datepicker.selection.map((date) => ({
-          type: "date",
-          date: formatDateWithoutTime(date),
-        })),
+        datepicker.selection.map((date) => {
+          const dateString = formatDateWithoutTime(date);
+          const existingOption = options.find((option) =>
+            dayjs(option.type === "date" ? option.date : option.start).isSame(
+              date,
+              "day",
+            ),
+          );
+          return {
+            type: "date",
+            date: dateString,
+            maxYes: existingOption?.maxYes,
+          };
+        }),
       );
       return;
     }
@@ -131,6 +141,7 @@ const MonthCalendar: React.FunctionComponent<DateTimePickerProps> = ({
           end: formatDateWithoutTz(
             dayjs(startDate).add(minutes, "minutes").toDate(),
           ),
+          maxYes: option.maxYes,
         };
       }),
     );

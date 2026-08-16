@@ -185,7 +185,16 @@ const WeekCalendar: React.FunctionComponent<DateTimePickerProps> = ({
       update.occurrence.start,
       update.occurrence.end,
     );
-    const newOption = slotToTimeOption(update.start, update.end);
+    const existingOption = options.find(
+      (option) =>
+        option.type === "timeSlot" &&
+        option.start === oldOption.start &&
+        option.end === oldOption.end,
+    );
+    const newOption = {
+      ...slotToTimeOption(update.start, update.end),
+      maxYes: existingOption?.maxYes,
+    };
 
     const duplicatesAnother = options.some(
       (option) =>

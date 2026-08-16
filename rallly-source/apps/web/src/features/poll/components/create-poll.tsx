@@ -35,6 +35,7 @@ import { useForm, useFormContext } from "react-hook-form";
 import useFormPersist from "react-hook-form-persist";
 import { useCopyToClipboard } from "react-use";
 import { PollDetailsForm } from "@/features/poll/components/forms/poll-details-form";
+import { AuxiliarySelectionForm } from "@/features/poll/components/forms/auxiliary-selection-form";
 import PollOptionsForm from "@/features/poll/components/forms/poll-options-form/poll-options-form";
 import {
   createDefaultTimeOption,
@@ -157,6 +158,15 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
       timeZone: getBrowserTimeZone(),
       lockTimeZone: false,
       allDay: false,
+      auxiliarySelection: {
+        enabled: false,
+        name: "",
+        requireMinimum: false,
+        minYes: 0,
+        limitSelections: false,
+        maxYesSelections: 1,
+        options: [],
+      },
     },
   });
 
@@ -249,7 +259,28 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
               options: required(formData?.options).map((option) => ({
                 startDate: option.type === "date" ? option.date : option.start,
                 endDate: option.type === "timeSlot" ? option.end : undefined,
+                maxYes: option.maxYes ?? null,
               })),
+              auxiliarySelection: formData.auxiliarySelection.enabled
+                ? {
+                    name: required(
+                      formData.auxiliarySelection.name.trim(),
+                    ),
+                    minYes: formData.auxiliarySelection.requireMinimum
+                      ? formData.auxiliarySelection.minYes
+                      : 0,
+                    maxYesSelections:
+                      formData.auxiliarySelection.limitSelections
+                        ? formData.auxiliarySelection.maxYesSelections
+                        : null,
+                    options: formData.auxiliarySelection.options.map(
+                      (option) => ({
+                        label: required(option.label.trim()),
+                        maxYes: option.maxYes,
+                      }),
+                    ),
+                  }
+                : null,
             });
 
             if (res.ok) {
@@ -297,6 +328,8 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
             </Card>
 
             <PollOptionsForm />
+
+            <AuxiliarySelectionForm />
 
             <PollSettingsForm />
           </div>

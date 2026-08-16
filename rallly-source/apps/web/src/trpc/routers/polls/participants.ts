@@ -11,6 +11,8 @@ import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
 import { getNotificationRecipient } from "@/features/notifications/data";
 import { hasPollAdminAccess } from "@/features/poll/data";
 import { addUserAsPollParticipant } from "@/features/poll/mutations";
+import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
+import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
 import { AppError } from "@/lib/errors/app-error";
 import { track } from "@/lib/posthog";
 import {
@@ -34,13 +36,15 @@ const MAX_PARTICIPANTS = 1000;
 function createParticipantFullDTO(
   participant: Participant & { user: { image: string | null } | null } & {
     votes: { optionId: string; type: VoteType }[];
+    auxiliaryVotes: { auxiliaryOptionId: string; type: VoteType }[];
   },
 ) {
-  const { votes, user, ...rest } = participant;
+  const { votes, auxiliaryVotes, user, ...rest } = participant;
   return {
     ...rest,
     image: user?.image ?? null,
     votes,
+    auxiliaryVotes,
     hidden: false,
   };
 }
@@ -149,6 +153,12 @@ export const participants = router({
           votes: {
             select: {
               optionId: true,
+              type: true,
+            },
+          },
+          auxiliaryVotes: {
+            select: {
+              auxiliaryOptionId: true,
               type: true,
             },
           },
@@ -312,12 +322,28 @@ export const participants = router({
             type: z.enum(["yes", "no", "ifNeedBe"]),
           })
           .array(),
+        auxiliaryVotes: z
+          .object({
+            auxiliaryOptionId: z.string(),
+            type: z.enum(["yes", "no", "ifNeedBe"]),
+          })
+          .array()
+          .optional()
+          .default([]),
       }),
     )
     .mutation(
       async ({
         ctx,
-        input: { pollId, votes, name, email, note, timeZone },
+        input: {
+          pollId,
+          votes,
+          auxiliaryVotes,
+          name,
+          email,
+          note,
+          timeZone,
+        },
       }) => {
         const participantCount = await prisma.participant.count({
           where: {
@@ -352,54 +378,86 @@ export const participants = router({
           existingOptionIds.has(optionId),
         );
 
-        const participant = await prisma.participant.create({
-          data: {
-            pollId: pollId,
-            name: name,
-            email,
-            note,
-            timeZone,
-            userId: ctx.user.id,
-            locale: ctx.locale,
-            votes: {
-              createMany: {
-                data: validVotes.map(({ optionId, type }) => ({
-                  pollId,
-                  optionId,
-                  type,
-                })),
+        const participant = await prisma.$transaction(async (tx) => {
+          await assertYesCapacity({
+            tx,
+            pollId,
+            optionIds: validVotes
+              .filter(({ type }) => type === "yes")
+              .map(({ optionId }) => optionId),
+          });
+          const validAuxiliaryVotes = await validateAuxiliaryVotes({
+            tx,
+            pollId,
+            votes: auxiliaryVotes,
+          });
+
+          return tx.participant.create({
+            data: {
+              pollId: pollId,
+              name: name,
+              email,
+              note,
+              timeZone,
+              userId: ctx.user.id,
+              locale: ctx.locale,
+              votes: {
+                createMany: {
+                  data: validVotes.map(({ optionId, type }) => ({
+                    pollId,
+                    optionId,
+                    type,
+                  })),
+                },
+              },
+              auxiliaryVotes: {
+                createMany: {
+                  data: validAuxiliaryVotes.map(
+                    ({ auxiliaryOptionId, type }) => ({
+                      pollId,
+                      auxiliaryOptionId,
+                      type,
+                    }),
+                  ),
+                },
               },
             },
-          },
-          include: {
-            votes: {
-              select: {
-                optionId: true,
-                type: true,
+            include: {
+              votes: {
+                select: {
+                  optionId: true,
+                  type: true,
+                },
               },
-            },
-            user: {
-              select: {
-                image: true,
+              auxiliaryVotes: {
+                select: {
+                  auxiliaryOptionId: true,
+                  type: true,
+                },
               },
-            },
-            poll: {
-              select: {
-                id: true,
-                title: true,
-                space: {
-                  select: {
-                    id: true,
-                    tier: true,
-                    showBranding: true,
-                    hideAttribution: true,
-                    primaryColor: true,
-                    image: true,
+              user: {
+                select: {
+                  image: true,
+                },
+              },
+              poll: {
+                select: {
+                  id: true,
+                  title: true,
+                  space: {
+                    select: {
+                      id: true,
+                      tier: true,
+                      showBranding: true,
+                      hideAttribution: true,
+                      primaryColor: true,
+                      image: true,
+                    },
                   },
                 },
               },
             },
-          },
+          });
         });
 
         const totalResponses = participantCount + 1;
@@ -500,14 +558,23 @@ export const participants = router({
             type: z.enum(["yes", "no", "ifNeedBe"]),
           })
           .array(),
+        auxiliaryVotes: z
+          .object({
+            auxiliaryOptionId: z.string(),
+            type: z.enum(["yes", "no", "ifNeedBe"]),
+          })
+          .array()
+          .optional()
+          .default([]),
         token: z.string().optional(),
       }),
     )
-    .mutation(async ({ input: { participantId, votes, token }, ctx }) => {
+    .mutation(
+      async ({ input: { participantId, votes, auxiliaryVotes, token }, ctx }) => {
       const actor = await resolveActor(token, ctx.user);
 
       // Check if we can bypass auth for unverified emails
-      let existingParticipant = await prisma.participant.findUnique({
+      const existingParticipant = await prisma.participant.findUnique({
         where: { id: participantId },
         include: { poll: { select: { requireEmailVerification: true } } }
       });
@@ -517,22 +584,12 @@ export const participants = router({
       }
 
       if (existingParticipant.poll.requireEmailVerification) {
-        existingParticipant = await canModifyParticipant(
-          participantId,
-          actor.id,
-        ) as any;
+        await canModifyParticipant(participantId, actor.id);
       }
 
       const pollId = existingParticipant.pollId;
 
       const participant = await prisma.$transaction(async (tx) => {
-        // Delete existing votes
-        await tx.vote.deleteMany({
-          where: {
-            participantId,
-          },
-        });
-
         const options = await tx.option.findMany({
           where: {
             pollId,
@@ -548,10 +605,43 @@ export const participants = router({
           existingOptionIds.has(optionId),
         );
 
+        await assertYesCapacity({
+          tx,
+          pollId,
+          participantId,
+          optionIds: validVotes
+            .filter(({ type }) => type === "yes")
+            .map(({ optionId }) => optionId),
+        });
+        const validAuxiliaryVotes = await validateAuxiliaryVotes({
+          tx,
+          pollId,
+          participantId,
+          votes: auxiliaryVotes,
+        });
+
+        // Delete existing votes
+        await tx.vote.deleteMany({
+          where: {
+            participantId,
+          },
+        });
+
         // Create new votes
         await tx.vote.createMany({
           data: validVotes.map(({ optionId, type }) => ({
             optionId,
+            type,
+            pollId,
+            participantId,
+          })),
+        });
+        await tx.pollAuxiliaryVote.deleteMany({
+          where: { participantId },
+        });
+        await tx.pollAuxiliaryVote.createMany({
+          data: validAuxiliaryVotes.map(({ auxiliaryOptionId, type }) => ({
+            auxiliaryOptionId,
             type,
             pollId,
             participantId,
@@ -570,6 +660,12 @@ export const participants = router({
             votes: {
               select: {
                 optionId: true,
+                type: true,
+              },
+            },
+            auxiliaryVotes: {
+              select: {
+                auxiliaryOptionId: true,
                 type: true,
               },
             },
@@ -593,5 +689,6 @@ export const participants = router({
       );
 
       return createParticipantFullDTO(participant);
-    }),
+      },
+    ),
 });

@@ -2,7 +2,7 @@ import { cn } from "@rallly/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@rallly/ui/tooltip";
 import { ClockIcon } from "lucide-react";
 import type * as React from "react";
-import { useOptions } from "@/features/poll/components/poll-context";
+import { useOptions, usePoll } from "@/features/poll/components/poll-context";
 import { ConnectedScoreSummary } from "@/features/poll/components/score-summary";
 import { Trans } from "@/i18n/client";
 
@@ -59,6 +59,7 @@ const scoreRowTop = monthRowHeight + dayRowHeight;
 
 const PollHeader = () => {
   const { options } = useOptions();
+  const { getScore } = usePoll();
 
   const monthGroups: { month: string; year: string; count: number }[] = [];
 
@@ -163,6 +164,20 @@ const PollHeader = () => {
                   </p>
                 )}
                 <ConnectedScoreSummary optionId={option.optionId} />
+                {option.maxYes !== null ? (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 font-medium text-[0.625rem]",
+                      getScore(option.optionId).yes >= option.maxYes
+                        ? "bg-green-600 text-white"
+                        : "bg-green-500/10 text-green-800 dark:text-green-200",
+                    )}
+                  >
+                    {getScore(option.optionId).yes >= option.maxYes
+                      ? "Yes full"
+                      : `${getScore(option.optionId).yes}/${option.maxYes} Yes`}
+                  </span>
+                ) : null}
               </div>
             </th>
           );

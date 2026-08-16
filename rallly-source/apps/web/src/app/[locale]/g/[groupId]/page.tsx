@@ -24,9 +24,12 @@ export default async function PublicPollGroupPage({
             options: {
               orderBy: { startTime: "asc" },
             },
+            auxiliarySelection: {
+              include: { options: { orderBy: { position: "asc" } } },
+            },
             participants: {
               where: { deleted: false },
-              include: { votes: true },
+              include: { votes: true, auxiliaryVotes: true },
             },
           },
         },

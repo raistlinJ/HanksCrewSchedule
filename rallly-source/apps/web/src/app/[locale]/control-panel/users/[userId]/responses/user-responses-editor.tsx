@@ -24,7 +24,10 @@ import type { loadUserPollResponses } from "@/features/user/loaders";
 import { Trans, useTranslation } from "@/i18n/client";
 import { Time, TimeRange } from "@/lib/datetime/time";
 import { useSafeAction } from "@/lib/safe-action/client";
-import { updateUserPollResponseAction } from "../../actions";
+import {
+  updateUserPollAuxiliaryResponseAction,
+  updateUserPollResponseAction,
+} from "../../actions";
 
 type ResponseData = NonNullable<
   Awaited<ReturnType<typeof loadUserPollResponses>>
@@ -181,6 +184,9 @@ function PollResponse({
   const votesByOptionId = new Map(
     response.votes.map((vote) => [vote.optionId, vote.type]),
   );
+  const auxiliaryVotesByOptionId = new Map(
+    response.auxiliaryVotes.map((vote) => [vote.auxiliaryOptionId, vote.type]),
+  );
 
   return (
     <Card>
@@ -237,8 +243,126 @@ function PollResponse({
             />
           </p>
         )}
+        {response.poll.auxiliarySelection ? (
+          <div className="border-t">
+            <div className="bg-muted/40 px-4 py-3">
+              <p className="font-medium text-sm">
+                {response.poll.auxiliarySelection.name}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {response.poll.auxiliarySelection.minYes > 0
+                  ? `At least ${response.poll.auxiliarySelection.minYes} Yes required`
+                  : "Optional"}
+                {response.poll.auxiliarySelection.maxYesSelections !== null
+                  ? ` · Maximum ${response.poll.auxiliarySelection.maxYesSelections} per participant`
+                  : ""}
+              </p>
+            </div>
+            <div className="divide-y">
+              {response.poll.auxiliarySelection.options.map((option) => (
+                <div
+                  key={option.id}
+                  className="flex items-center justify-between gap-4 px-4 py-3"
+                >
+                  <div>
+                    <p className="font-medium text-sm">{option.label}</p>
+                    {option.maxYes ? (
+                      <p className="text-muted-foreground text-xs">
+                        Maximum {option.maxYes} Yes
+                      </p>
+                    ) : null}
+                  </div>
+                  <AuxiliaryResponseSelect
+                    userId={userId}
+                    participantId={response.id}
+                    pollId={response.poll.id}
+                    auxiliaryOptionId={option.id}
+                    initialType={
+                      auxiliaryVotesByOptionId.get(option.id) ?? "ifNeedBe"
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function AuxiliaryResponseSelect({
+  userId,
+  participantId,
+  pollId,
+  auxiliaryOptionId,
+  initialType,
+}: {
+  userId: string;
+  participantId: string;
+  pollId: string;
+  auxiliaryOptionId: string;
+  initialType: VoteType;
+}) {
+  const { t } = useTranslation();
+  const [value, setValue] = useState<VoteType>(initialType);
+  const updateResponse = useSafeAction(updateUserPollAuxiliaryResponseAction, {
+    onError: () => setValue(initialType),
+  });
+
+  useEffect(() => {
+    setValue(initialType);
+  }, [initialType]);
+
+  const labels = {
+    yes: t("yes", { defaultValue: "Yes" }),
+    ifNeedBe: t("ifNeedBe", { defaultValue: "If need be" }),
+    no: t("no", { defaultValue: "No" }),
+  };
+
+  const updateValue = (newValue: VoteType) => {
+    setValue(newValue);
+    toast.promise(
+      updateResponse.executeAsync({
+        userId,
+        participantId,
+        pollId,
+        auxiliaryOptionId,
+        type: newValue,
+      }),
+      {
+        loading: t("saving", { defaultValue: "Saving..." }),
+        success: t("saved", { defaultValue: "Saved" }),
+        error: t("unexpectedError", { defaultValue: "Unexpected error" }),
+      },
+    );
+  };
+
+  return (
+    <Select
+      items={labels}
+      value={value}
+      onValueChange={(newValue) => {
+        if (newValue) {
+          updateValue(newValue as VoteType);
+        }
+      }}
+      disabled={updateResponse.isPending}
+    >
+      <SelectTrigger aria-label="Edit auxiliary response" className="w-40">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {(["yes", "ifNeedBe", "no"] as const).map((type) => (
+          <SelectItem key={type} value={type}>
+            <span className="flex items-center gap-2">
+              <VoteIcon type={type} />
+              {labels[type]}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

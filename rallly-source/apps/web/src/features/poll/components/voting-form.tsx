@@ -1,10 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog, DialogContent } from "@rallly/ui/dialog";
+import { toast } from "@rallly/ui/sonner";
 import React from "react";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
 import * as z from "zod";
 import { usePermissions, usePoll, useRole } from "@/features/poll/client";
 import {
+  normalizeAuxiliaryVotes,
   normalizeVotes,
   useEditToken,
   useUpdateParticipantMutation,
@@ -23,12 +25,20 @@ const formSchema = z.object({
       })
       .optional(),
   ),
+  auxiliaryVotes: z.array(
+    z
+      .object({
+        auxiliaryOptionId: z.string(),
+        type: z.enum(["yes", "no", "ifNeedBe"]).optional(),
+      })
+      .optional(),
+  ),
 });
 
 type VotingFormValues = z.infer<typeof formSchema>;
 
 export const useVotingForm = () => {
-  const { options } = usePoll();
+  const { options, auxiliarySelection } = usePoll();
   const { participants } = useParticipants();
   const form = useFormContext<VotingFormValues>();
 
@@ -41,6 +51,11 @@ export const useVotingForm = () => {
         votes: options.map((option) => ({
           optionId: option.id,
         })),
+        auxiliaryVotes:
+          auxiliarySelection?.options.map((option) => ({
+            auxiliaryOptionId: option.id,
+            type: "ifNeedBe" as const,
+          })) ?? [],
       });
     },
     editParticipantByEmailData: (participant: any) => {
@@ -51,6 +66,15 @@ export const useVotingForm = () => {
           optionId: option.id,
           type: participant.votes.find((vote: any) => vote.optionId === option.id)?.type,
         })),
+        auxiliaryVotes:
+          auxiliarySelection?.options.map((option) => ({
+            auxiliaryOptionId: option.id,
+            type:
+              participant.auxiliaryVotes?.find(
+                (vote: { auxiliaryOptionId: string; type: "yes" | "no" | "ifNeedBe" }) =>
+                  vote.auxiliaryOptionId === option.id,
+              )?.type ?? "ifNeedBe",
+          })) ?? [],
       });
     },
     setEditingParticipantId: (newParticipantId: string) => {
@@ -64,6 +88,14 @@ export const useVotingForm = () => {
             type: participant.votes.find((vote) => vote.optionId === option.id)
               ?.type,
           })),
+          auxiliaryVotes:
+            auxiliarySelection?.options.map((option) => ({
+              auxiliaryOptionId: option.id,
+              type:
+                participant.auxiliaryVotes.find(
+                  (vote) => vote.auxiliaryOptionId === option.id,
+                )?.type ?? "ifNeedBe",
+            })) ?? [],
         });
       } else {
         console.error("Participant not found");
@@ -76,12 +108,17 @@ export const useVotingForm = () => {
         votes: options.map((option) => ({
           optionId: option.id,
         })),
+        auxiliaryVotes:
+          auxiliarySelection?.options.map((option) => ({
+            auxiliaryOptionId: option.id,
+            type: "ifNeedBe" as const,
+          })) ?? [],
       }),
   };
 };
 
 export const VotingForm = ({ children }: React.PropsWithChildren) => {
-  const { id: pollId, options } = usePoll();
+  const { id: pollId, options, auxiliarySelection } = usePoll();
   const updateParticipant = useUpdateParticipantMutation();
   const token = useEditToken();
   const { participants } = useParticipants();
@@ -93,6 +130,8 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
 
   const role = useRole();
   const optionIds = options.map((option) => option.id);
+  const auxiliaryOptionIds =
+    auxiliarySelection?.options.map((option) => option.id) ?? [];
 
   const [isNewParticipantModalOpen, setIsNewParticipantModalOpen] =
     React.useState(false);
@@ -110,6 +149,10 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
       votes: options.map((option) => ({
         optionId: option.id,
       })),
+      auxiliaryVotes: auxiliaryOptionIds.map((auxiliaryOptionId) => ({
+        auxiliaryOptionId,
+        type: "ifNeedBe" as const,
+      })),
     },
     resolver: zodResolver(formSchema),
   });
@@ -119,6 +162,32 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
       <form
         id="voting-form"
         onSubmit={form.handleSubmit(async (data) => {
+          const auxiliaryVotes = normalizeAuxiliaryVotes(
+            auxiliaryOptionIds,
+            data.auxiliaryVotes,
+          );
+          if (
+            auxiliarySelection &&
+            auxiliaryVotes.filter((vote) => vote.type === "yes").length <
+              auxiliarySelection.minYes
+          ) {
+            toast.error(
+              `Select Yes for at least ${auxiliarySelection.minYes} ${auxiliarySelection.name} choices.`,
+            );
+            return;
+          }
+          if (
+            auxiliarySelection?.maxYesSelections !== null &&
+            auxiliarySelection?.maxYesSelections !== undefined &&
+            auxiliaryVotes.filter((vote) => vote.type === "yes").length >
+              auxiliarySelection.maxYesSelections
+          ) {
+            toast.error(
+              `Select Yes for no more than ${auxiliarySelection.maxYesSelections} ${auxiliarySelection.name} choices.`,
+            );
+            return;
+          }
+
           if (data.participantId) {
             // update participant
 
@@ -126,6 +195,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
               participantId: data.participantId,
               pollId,
               votes: normalizeVotes(optionIds, data.votes),
+              auxiliaryVotes,
               token,
             });
 
@@ -135,6 +205,12 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
               votes: options.map((option) => ({
                 optionId: option.id,
               })),
+              auxiliaryVotes: auxiliaryOptionIds.map(
+                (auxiliaryOptionId) => ({
+                  auxiliaryOptionId,
+                  type: "ifNeedBe" as const,
+                }),
+              ),
             });
           } else {
             // new participant
@@ -149,6 +225,10 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
         <DialogContent size="sm">
           <NewParticipantForm
             votes={normalizeVotes(optionIds, form.watch("votes"))}
+            auxiliaryVotes={normalizeAuxiliaryVotes(
+              auxiliaryOptionIds,
+              form.watch("auxiliaryVotes"),
+            )}
             onSubmit={(newParticipant) => {
               form.reset({
                 mode: "view",
@@ -156,6 +236,12 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
                 votes: options.map((option) => ({
                   optionId: option.id,
                 })),
+                auxiliaryVotes: auxiliaryOptionIds.map(
+                  (auxiliaryOptionId) => ({
+                    auxiliaryOptionId,
+                    type: "ifNeedBe" as const,
+                  }),
+                ),
               });
             }}
             onCancel={() => setIsNewParticipantModalOpen(false)}

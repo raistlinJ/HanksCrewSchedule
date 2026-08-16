@@ -7,6 +7,10 @@ const {
   mockParticipantFindFirst,
   mockVoteUpsert,
   mockVoteDeleteMany,
+  mockAuxiliaryVoteUpsert,
+  mockTransaction,
+  mockAssertYesCapacity,
+  mockValidateAuxiliaryVotes,
 } = vi.hoisted(() => ({
   mockUserFindUnique: vi.fn(),
   mockUserFindMany: vi.fn(),
@@ -14,6 +18,10 @@ const {
   mockParticipantFindFirst: vi.fn(),
   mockVoteUpsert: vi.fn(),
   mockVoteDeleteMany: vi.fn(),
+  mockAuxiliaryVoteUpsert: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockAssertYesCapacity: vi.fn(),
+  mockValidateAuxiliaryVotes: vi.fn(),
 }));
 
 vi.mock("@rallly/database", () => ({
@@ -30,7 +38,16 @@ vi.mock("@rallly/database", () => ({
       upsert: mockVoteUpsert,
       deleteMany: mockVoteDeleteMany,
     },
+    $transaction: mockTransaction,
   },
+}));
+
+vi.mock("@/features/poll/yes-capacity/mutations", () => ({
+  assertYesCapacity: mockAssertYesCapacity,
+}));
+
+vi.mock("@/features/poll/auxiliary-selection/mutations", () => ({
+  validateAuxiliaryVotes: mockValidateAuxiliaryVotes,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -67,6 +84,16 @@ describe("user poll responses", () => {
     mockParticipantFindFirst.mockResolvedValue({ id: "participant-1" });
     mockVoteUpsert.mockResolvedValue({});
     mockVoteDeleteMany.mockResolvedValue({ count: 1 });
+    mockAuxiliaryVoteUpsert.mockResolvedValue({});
+    mockValidateAuxiliaryVotes.mockResolvedValue([]);
+    mockTransaction.mockImplementation(
+      async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          participant: { findFirst: mockParticipantFindFirst },
+          vote: { upsert: mockVoteUpsert },
+          pollAuxiliaryVote: { upsert: mockAuxiliaryVoteUpsert },
+        }),
+    );
   });
 
   it("loads linked and legacy email-matched responses", async () => {
@@ -142,6 +169,7 @@ describe("user poll responses", () => {
         createdAt: new Date("2026-08-01T00:00:00Z"),
         updatedAt: new Date("2026-08-02T00:00:00Z"),
         votes: [{ optionId: "option-1", type: "yes" }],
+        auxiliaryVotes: [{ auxiliaryOptionId: "role-1", type: "ifNeedBe" }],
         poll: {
           id: poll.id,
           title: poll.title,
@@ -154,6 +182,10 @@ describe("user poll responses", () => {
               duration: 60,
             },
           ],
+          auxiliarySelection: {
+            name: "Roles",
+            options: [{ id: "role-1", label: "Driver" }],
+          },
         },
       },
     ]);
@@ -166,18 +198,30 @@ describe("user poll responses", () => {
         where: { id: { in: [user.id] }, isAnonymous: false },
       }),
     );
-    expect(rows).toEqual([
-      expect.objectContaining({
-        userId: user.id,
-        userEmail: user.email,
-        pollGroup: "August shifts",
-        pollId: poll.id,
-        optionStart: "2026-08-15T15:00:00.000Z",
-        durationMinutes: 60,
-        response: "yes",
-        note: "Morning only",
-      }),
-    ]);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: user.id,
+          userEmail: user.email,
+          pollGroup: "August shifts",
+          pollId: poll.id,
+          optionStart: "2026-08-15T15:00:00.000Z",
+          durationMinutes: 60,
+          responseKind: "pollOption",
+          response: "yes",
+          note: "Morning only",
+        }),
+        expect.objectContaining({
+          userId: user.id,
+          pollId: poll.id,
+          responseKind: "auxiliary",
+          auxiliarySelection: "Roles",
+          auxiliaryOption: "Driver",
+          response: "ifNeedBe",
+        }),
+      ]),
+    );
+    expect(rows).toHaveLength(2);
   });
 
   it("upserts an edited vote after validating the response belongs to the user", async () => {
@@ -215,6 +259,12 @@ describe("user poll responses", () => {
       },
       update: { type: "yes" },
     });
+    expect(mockAssertYesCapacity).toHaveBeenCalledWith({
+      tx: expect.objectContaining({ vote: { upsert: mockVoteUpsert } }),
+      pollId: poll.id,
+      participantId: "participant-1",
+      optionIds: ["option-1"],
+    });
     expect(result).toEqual({ ok: true });
   });
 
@@ -248,5 +298,49 @@ describe("user poll responses", () => {
 
     expect(rejected).toEqual({ ok: false, reason: "response_not_found" });
     expect(mockVoteUpsert).not.toHaveBeenCalled();
+  });
+
+  it("edits an auxiliary response while enforcing its Yes maximum", async () => {
+    mockParticipantFindFirst.mockResolvedValueOnce({
+      id: "participant-1",
+      auxiliaryVotes: [{ auxiliaryOptionId: "role-1", type: "ifNeedBe" }],
+    });
+    mockValidateAuxiliaryVotes.mockResolvedValueOnce([
+      { auxiliaryOptionId: "role-1", type: "yes" },
+    ]);
+    const { updateUserPollAuxiliaryResponse } = await import("./mutations");
+
+    const result = await updateUserPollAuxiliaryResponse({
+      userId: user.id,
+      participantId: "participant-1",
+      pollId: poll.id,
+      auxiliaryOptionId: "role-1",
+      type: "yes",
+    });
+
+    expect(mockValidateAuxiliaryVotes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pollId: poll.id,
+        participantId: "participant-1",
+        enforceMinimum: false,
+        votes: [{ auxiliaryOptionId: "role-1", type: "yes" }],
+      }),
+    );
+    expect(mockAuxiliaryVoteUpsert).toHaveBeenCalledWith({
+      where: {
+        participantId_auxiliaryOptionId: {
+          participantId: "participant-1",
+          auxiliaryOptionId: "role-1",
+        },
+      },
+      create: {
+        participantId: "participant-1",
+        auxiliaryOptionId: "role-1",
+        pollId: poll.id,
+        type: "yes",
+      },
+      update: { type: "yes" },
+    });
+    expect(result).toEqual({ ok: true });
   });
 });

@@ -10,6 +10,7 @@ import {
   useDialog,
 } from "@rallly/ui/dialog";
 import { FormField, FormMessage } from "@rallly/ui/form";
+import { Input } from "@rallly/ui/input";
 import { Label } from "@rallly/ui/label";
 import { Switch } from "@rallly/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@rallly/ui/tabs";
@@ -20,7 +21,7 @@ import { useFormContext } from "react-hook-form";
 
 import { TimeZoneSelect } from "@/components/time-zone-picker/time-zone-select";
 import { Trans, useTranslation } from "@/i18n/client";
-
+import { useDateTime } from "@/lib/datetime/client";
 import { getBrowserTimeZone } from "@/lib/utils/date-time-utils";
 import type { NewEventData } from "../types";
 import MonthCalendar from "./month-calendar/month-calendar";
@@ -31,6 +32,7 @@ const PollOptionsForm = ({
   disableTimeZoneChange,
 }: React.PropsWithChildren<{ disableTimeZoneChange?: boolean }>) => {
   const { t } = useTranslation();
+  const { formatDateTime } = useDateTime();
   const form = useFormContext<NewEventData>();
 
   const { watch, setValue, formState } = form;
@@ -61,6 +63,25 @@ const PollOptionsForm = ({
   const watchOptions = watch("options", []);
   const watchDuration = watch("duration");
   const watchTimeZone = watch("timeZone");
+
+  const formatOptionLabel = React.useCallback(
+    (option: NewEventData["options"][number]) => {
+      const value =
+        option.type === "date"
+          ? new Date(`${option.date}T12:00:00`)
+          : new Date(option.start);
+      const dateLabel = formatDateTime(value, "weekdayMonthDay", {
+        timeZone: watchTimeZone,
+      });
+
+      return option.type === "timeSlot"
+        ? `${dateLabel}, ${formatDateTime(value, "time", {
+            timeZone: watchTimeZone,
+          })}`
+        : dateLabel;
+    },
+    [formatDateTime, watchTimeZone],
+  );
 
   const dateOrTimeRangeDialog = useDialog();
 
@@ -207,6 +228,77 @@ const PollOptionsForm = ({
                   setValue("duration", duration);
                 }}
               />
+              {field.value.length > 0 ? (
+                <div className="border-t">
+                  <div className="border-b px-3 py-3 sm:px-4">
+                    <div className="font-medium text-sm">
+                      Yes response limits
+                    </div>
+                    <p className="mt-0.5 text-muted-foreground text-xs">
+                      Optionally limit how many people can answer Yes for each
+                      option.
+                    </p>
+                  </div>
+                  <div className="divide-y">
+                    {field.value.map((option, index) => {
+                      const inputId = `option-max-yes-${index}`;
+                      const enabled = option.maxYes != null;
+                      return (
+                        <div
+                          key={`${option.type}-${option.type === "date" ? option.date : option.start}-${index}`}
+                          className="flex min-h-14 items-center gap-3 px-3 py-2 sm:px-4"
+                        >
+                          <div className="min-w-0 flex-1 truncate text-sm">
+                            {formatOptionLabel(option)}
+                          </div>
+                          <Label
+                            htmlFor={inputId}
+                            className="flex shrink-0 items-center gap-2"
+                          >
+                            <Switch
+                              id={inputId}
+                              checked={enabled}
+                              onCheckedChange={(checked) => {
+                                const nextOptions = [...field.value];
+                                nextOptions[index] = {
+                                  ...option,
+                                  maxYes: checked ? (option.maxYes ?? 1) : null,
+                                };
+                                field.onChange(nextOptions);
+                              }}
+                            />
+                            <span className="text-sm">Limit selections</span>
+                          </Label>
+                          {enabled ? (
+                            <Input
+                              aria-label={t("maximumYesResponses", {
+                                defaultValue: "Maximum Yes responses",
+                              })}
+                              className="w-20"
+                              min={1}
+                              max={100000}
+                              step={1}
+                              type="number"
+                              value={option.maxYes ?? 1}
+                              onChange={(event) => {
+                                const parsed = Number(event.target.value);
+                                const nextOptions = [...field.value];
+                                nextOptions[index] = {
+                                  ...option,
+                                  maxYes: Number.isInteger(parsed)
+                                    ? Math.min(Math.max(parsed, 1), 100000)
+                                    : 1,
+                                };
+                                field.onChange(nextOptions);
+                              }}
+                            />
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               {formState.errors.options ? (
                 <div className="border-t p-3 text-center text-destructive">
                   <FormMessage />

@@ -5,7 +5,24 @@ export type GetPollApiResponse = {
   title: string;
   location: string | null;
   description: string | null;
-  options: { id: string; startTime: Date; duration: number }[];
+  options: {
+    id: string;
+    startTime: Date;
+    duration: number;
+    maxYes: number | null;
+  }[];
+  auxiliarySelection: {
+    id: string;
+    name: string;
+    minYes: number;
+    maxYesSelections: number | null;
+    options: {
+      id: string;
+      label: string;
+      maxYes: number | null;
+      position: number;
+    }[];
+  } | null;
   user: {
     id: string;
     name: string;
@@ -13,6 +30,11 @@ export type GetPollApiResponse = {
     banned: boolean;
   } | null;
   timeZone: string | null;
+  hideScores: boolean;
+  hideParticipants: boolean;
+  disableComments: boolean;
+  requireParticipantEmail: boolean;
+  requireEmailVerification: boolean;
   canManage: boolean;
   groupNavigation: {
     groupId: string;

@@ -53,18 +53,20 @@ model Poll {
   requireEmailVerification Boolean           @default(true) @map("require_email_verification")
   muted                    Boolean           @default(false)
 
-  user           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scheduledEvent ScheduledEvent? @relation(fields: [scheduledEventId], references: [id], onDelete: SetNull)
-  options        Option[]
-  participants   Participant[]
-  comments       Comment[]
-  votes          Vote[]
-  invites        PollInvite[]
-  activities     PollActivity[]
-  space          Space?          @relation(fields: [spaceId], references: [id], onDelete: SetNull)
-  spaceId        String?         @map("space_id")
-  pollGroup      PollGroup?      @relation(fields: [pollGroupId], references: [id], onDelete: SetNull)
-  pollGroupId    String?         @map("poll_group_id")
+  user               User?                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduledEvent     ScheduledEvent?         @relation(fields: [scheduledEventId], references: [id], onDelete: SetNull)
+  options            Option[]
+  auxiliarySelection PollAuxiliarySelection?
+  auxiliaryVotes     PollAuxiliaryVote[]
+  participants       Participant[]
+  comments           Comment[]
+  votes              Vote[]
+  invites            PollInvite[]
+  activities         PollActivity[]
+  space              Space?                  @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  spaceId            String?                 @map("space_id")
+  pollGroup          PollGroup?              @relation(fields: [pollGroupId], references: [id], onDelete: SetNull)
+  pollGroupId        String?                 @map("poll_group_id")
 
   @@index([spaceId])
   @@index([pollGroupId])
@@ -88,8 +90,9 @@ model Participant {
   deleted   Boolean   @default(false)
   deletedAt DateTime? @map("deleted_at")
 
-  votes  Vote[]
-  invite PollInvite?
+  votes          Vote[]
+  auxiliaryVotes PollAuxiliaryVote[]
+  invite         PollInvite?
 
   poll Poll  @relation(fields: [pollId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -152,6 +155,7 @@ model Option {
   id        String   @id @default(cuid())
   startTime DateTime @map("start_time") @db.Timestamp(0)
   duration  Int      @default(0) @map("duration_minutes")
+  maxYes    Int?     @map("max_yes")
   pollId    String   @map("poll_id")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -161,6 +165,56 @@ model Option {
 
   @@index([pollId], type: Hash)
   @@map("options")
+}
+
+model PollAuxiliarySelection {
+  id               String   @id @default(cuid())
+  pollId           String   @unique @map("poll_id")
+  name             String
+  minYes           Int      @default(0) @map("min_yes")
+  maxYesSelections Int?     @map("max_yes_selections")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  poll    Poll                  @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  options PollAuxiliaryOption[]
+
+  @@map("poll_auxiliary_selections")
+}
+
+model PollAuxiliaryOption {
+  id                   String   @id @default(cuid())
+  auxiliarySelectionId String   @map("auxiliary_selection_id")
+  label                String
+  position             Int      @default(0)
+  maxYes               Int?     @map("max_yes")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  auxiliarySelection PollAuxiliarySelection @relation(fields: [auxiliarySelectionId], references: [id], onDelete: Cascade)
+  votes              PollAuxiliaryVote[]
+
+  @@index([auxiliarySelectionId])
+  @@map("poll_auxiliary_options")
+}
+
+model PollAuxiliaryVote {
+  id                String    @id @default(cuid())
+  participantId     String    @map("participant_id")
+  auxiliaryOptionId String    @map("auxiliary_option_id")
+  pollId            String    @map("poll_id")
+  type              VoteType  @default(ifNeedBe)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime? @updatedAt @map("updated_at")
+
+  participant     Participant         @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  auxiliaryOption PollAuxiliaryOption @relation(fields: [auxiliaryOptionId], references: [id], onDelete: Cascade)
+  poll            Poll                @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@unique([participantId, auxiliaryOptionId])
+  @@index([pollId], type: Hash)
+  @@index([participantId], type: Hash)
+  @@index([auxiliaryOptionId], type: Hash)
+  @@map("poll_auxiliary_votes")
 }
 
 enum VoteType {
@@ -184,10 +238,10 @@ model Vote {
   option      Option      @relation(fields: [optionId], references: [id], onDelete: Cascade)
   poll        Poll        @relation(fields: [pollId], references: [id], onDelete: Cascade)
 
+  @@unique([participantId, optionId])
   @@index([pollId], type: Hash)
   @@index([participantId], type: Hash)
   @@index([optionId], type: Hash)
-  @@unique([participantId, optionId])
   @@map("votes")
 }
 

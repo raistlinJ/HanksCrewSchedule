@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@rallly/ui/dialog";
 import { Input } from "@rallly/ui/input";
+import { toast } from "@rallly/ui/sonner";
 import { ChevronRightIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -24,7 +25,24 @@ interface PublicGroupParticipant {
     optionId: string;
     type: VoteState;
   }>;
+  auxiliaryVotes: Array<{
+    auxiliaryOptionId: string;
+    type: VoteState;
+  }>;
 }
+
+const createDefaultAuxiliaryVotes = (group: any) =>
+  Object.fromEntries(
+    group.polls.map((poll: any) => [
+      poll.id,
+      Object.fromEntries(
+        (poll.auxiliarySelection?.options ?? []).map((option: any) => [
+          option.id,
+          "ifNeedBe" as const,
+        ]),
+      ),
+    ]),
+  ) as Record<string, Record<string, VoteState>>;
 
 export default function VotingClient({ group, userEmail }: { group: any; userEmail: string | null }) {
   const searchParams = useSearchParams();
@@ -37,6 +55,15 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<Record<string, Record<string, VoteState>>>({});
+  const [selectedAuxiliaryOptions, setSelectedAuxiliaryOptions] = useState<
+    Record<string, Record<string, VoteState>>
+  >(() => createDefaultAuxiliaryVotes(group));
+  const [savedYesOptions, setSavedYesOptions] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
+  const [savedYesAuxiliaryOptions, setSavedYesAuxiliaryOptions] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [viewingParticipants, setViewingParticipants] = useState<{
     optionId: string;
@@ -59,6 +86,9 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     onSuccess: () => {
       setIsSubmitted(true);
     },
+    onError: (error) => {
+      toast.error(error.message);
+    },
   });
 
   const applyParticipants = (participants: any[], fallbackEmail = "") => {
@@ -68,13 +98,35 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
         setNote(participants[0].note || "");
         
         const newSelectedOptions: Record<string, Record<string, VoteState>> = {};
+        const newSelectedAuxiliaryOptions = createDefaultAuxiliaryVotes(group);
+        const newSavedYesOptions: Record<string, Record<string, boolean>> = {};
+        const newSavedYesAuxiliaryOptions: Record<
+          string,
+          Record<string, boolean>
+        > = {};
         for (const p of participants) {
           newSelectedOptions[p.pollId] = {};
+          newSavedYesOptions[p.pollId] = {};
+          newSavedYesAuxiliaryOptions[p.pollId] = {};
           for (const v of p.votes) {
             newSelectedOptions[p.pollId][v.optionId] = v.type as VoteState;
+            if (v.type === "yes") {
+              newSavedYesOptions[p.pollId][v.optionId] = true;
+            }
+          }
+          for (const v of p.auxiliaryVotes ?? []) {
+            newSelectedAuxiliaryOptions[p.pollId] ??= {};
+            newSelectedAuxiliaryOptions[p.pollId][v.auxiliaryOptionId] =
+              v.type as VoteState;
+            if (v.type === "yes") {
+              newSavedYesAuxiliaryOptions[p.pollId][v.auxiliaryOptionId] = true;
+            }
           }
         }
         setSelectedOptions(newSelectedOptions);
+        setSelectedAuxiliaryOptions(newSelectedAuxiliaryOptions);
+        setSavedYesOptions(newSavedYesOptions);
+        setSavedYesAuxiliaryOptions(newSavedYesAuxiliaryOptions);
     } else if (fallbackEmail) {
       setEmail(fallbackEmail);
     }
@@ -131,12 +183,16 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     await performLookup(gatekeeperEmail);
   };
 
-  const cycleOption = (pollId: string, optionId: string) => {
+  const cycleOption = (
+    pollId: string,
+    optionId: string,
+    yesDisabled = false,
+  ) => {
     setSelectedOptions((prev) => {
       const pollVotes = prev[pollId] || {};
       const current = pollVotes[optionId] || "no";
       let nextState: VoteState = "no";
-      if (current === "no") nextState = "yes";
+      if (current === "no") nextState = yesDisabled ? "ifNeedBe" : "yes";
       else if (current === "yes") nextState = "ifNeedBe";
       else if (current === "ifNeedBe") nextState = "no";
 
@@ -150,18 +206,73 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
     });
   };
 
+  const cycleAuxiliaryOption = (
+    pollId: string,
+    auxiliaryOptionId: string,
+    yesDisabled = false,
+  ) => {
+    setSelectedAuxiliaryOptions((previous) => {
+      const pollVotes = previous[pollId] ?? {};
+      const current = pollVotes[auxiliaryOptionId] ?? "ifNeedBe";
+      const nextState =
+        current === "ifNeedBe"
+          ? "no"
+          : current === "no"
+            ? yesDisabled
+              ? "ifNeedBe"
+              : "yes"
+            : "ifNeedBe";
+
+      return {
+        ...previous,
+        [pollId]: { ...pollVotes, [auxiliaryOptionId]: nextState },
+      };
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
+
+    for (const poll of group.polls) {
+      if (!poll.auxiliarySelection) continue;
+      const yesCount = poll.auxiliarySelection.options.filter(
+        (option: any) =>
+          selectedAuxiliaryOptions[poll.id]?.[option.id] === "yes",
+      ).length;
+      if (yesCount < poll.auxiliarySelection.minYes) {
+        toast.error(
+          `Select Yes for at least ${poll.auxiliarySelection.minYes} ${poll.auxiliarySelection.name} choices in ${poll.title}.`,
+        );
+        return;
+      }
+      if (
+        poll.auxiliarySelection.maxYesSelections != null &&
+        yesCount > poll.auxiliarySelection.maxYesSelections
+      ) {
+        toast.error(
+          `Select Yes for no more than ${poll.auxiliarySelection.maxYesSelections} ${poll.auxiliarySelection.name} choices in ${poll.title}.`,
+        );
+        return;
+      }
+    }
 
     const votes = group.polls.map((poll: any) => {
       const pollVotes = selectedOptions[poll.id] || {};
       const options = Object.entries(pollVotes)
         .filter(([, type]) => type !== "no")
         .map(([optionId, type]) => ({ optionId, type }));
+      const auxiliaryOptions = (poll.auxiliarySelection?.options ?? []).map(
+        (option: any) => ({
+          auxiliaryOptionId: option.id,
+          type:
+            selectedAuxiliaryOptions[poll.id]?.[option.id] ?? "ifNeedBe",
+        }),
+      );
       return {
         pollId: poll.id,
         options,
+        auxiliaryOptions,
       };
     });
 
@@ -236,7 +347,15 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
         </p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {group.polls.map((poll: any) => (
+      {group.polls.map((poll: any) => {
+        const auxiliaryYesCount = (
+          poll.auxiliarySelection?.options ?? []
+        ).filter(
+          (option: any) =>
+            selectedAuxiliaryOptions[poll.id]?.[option.id] === "yes",
+        ).length;
+
+        return (
         <div key={poll.id} className="rounded-xl border bg-card p-6 shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold">{poll.title}</h2>
@@ -270,12 +389,20 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                 );
                 const acceptedCount = acceptedParticipants.length;
                 const ifNeedBeCount = ifNeedBeParticipants.length;
+                const maxYes = option.maxYes as number | null | undefined;
+                const yesIsFull = maxYes != null && acceptedCount >= maxYes;
                 
                 return (
                   <div key={option.id} className="rounded-xl border bg-background p-2 shadow-xs">
                     <button
                       type="button"
-                      onClick={() => cycleOption(poll.id, option.id)}
+                      onClick={() =>
+                        cycleOption(
+                          poll.id,
+                          option.id,
+                          yesIsFull && !savedYesOptions[poll.id]?.[option.id],
+                        )
+                      }
                       className={`flex min-h-28 w-full flex-col items-center justify-center rounded-lg border-2 p-3 transition-all ${
                         voteState === "yes"
                           ? "border-green-500 bg-green-500/10 text-green-700 dark:text-green-400"
@@ -302,6 +429,19 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
                       <span className="mt-2 text-[10px] font-bold uppercase tracking-wider opacity-90">
                         {voteState === "yes" ? "YES" : voteState === "ifNeedBe" ? "IF NEEDED" : "NO"}
                       </span>
+                      {maxYes != null ? (
+                        <span
+                          className={`mt-2 rounded-full px-2 py-1 font-semibold text-[10px] ${
+                            yesIsFull
+                              ? "bg-green-600 text-white"
+                              : "bg-green-500/10 text-green-800 dark:text-green-200"
+                          }`}
+                        >
+                          {yesIsFull
+                            ? `YES FULL (${acceptedCount}/${maxYes})`
+                            : `${acceptedCount}/${maxYes} YES`}
+                        </span>
+                      ) : null}
                     </button>
                     {(acceptedCount > 0 || ifNeedBeCount > 0) && (
                       <div className="pt-3">
@@ -391,8 +531,121 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
               })}
             </div>
           )}
+
+          {poll.auxiliarySelection ? (
+            <section className="mt-5 border-t pt-5">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold">
+                    {poll.auxiliarySelection.name}
+                  </h3>
+                  <p className="text-muted-foreground text-xs">
+                    {poll.auxiliarySelection.minYes > 0 &&
+                    poll.auxiliarySelection.maxYesSelections != null
+                      ? `Select Yes for ${poll.auxiliarySelection.minYes} to ${poll.auxiliarySelection.maxYesSelections}.`
+                      : poll.auxiliarySelection.minYes > 0
+                        ? `Select Yes for at least ${poll.auxiliarySelection.minYes}.`
+                        : poll.auxiliarySelection.maxYesSelections != null
+                          ? `Select Yes for up to ${poll.auxiliarySelection.maxYesSelections}.`
+                          : "Optional"}
+                  </p>
+                </div>
+                {poll.auxiliarySelection.minYes > 0 ||
+                poll.auxiliarySelection.maxYesSelections != null ? (
+                  <span className="rounded-full bg-muted px-2 py-1 font-medium text-xs">
+                    {auxiliaryYesCount} selected
+                    {poll.auxiliarySelection.minYes > 0
+                      ? ` · min ${poll.auxiliarySelection.minYes}`
+                      : ""}
+                    {poll.auxiliarySelection.maxYesSelections != null
+                      ? ` · max ${poll.auxiliarySelection.maxYesSelections}`
+                      : ""}
+                  </span>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                {poll.auxiliarySelection.options.map((option: any) => {
+                  const voteState =
+                    selectedAuxiliaryOptions[poll.id]?.[option.id] ??
+                    "ifNeedBe";
+                  const pollParticipants = (poll.participants ??
+                    []) as PublicGroupParticipant[];
+                  const yesParticipants = pollParticipants.filter(
+                    (participant) =>
+                      participant.auxiliaryVotes.some(
+                        (vote) =>
+                          vote.auxiliaryOptionId === option.id &&
+                          vote.type === "yes",
+                      ),
+                  );
+                  const yesIsFull =
+                    option.maxYes != null &&
+                    yesParticipants.length >= option.maxYes;
+                  const participantLimitReached =
+                    poll.auxiliarySelection.maxYesSelections != null &&
+                    auxiliaryYesCount >=
+                      poll.auxiliarySelection.maxYesSelections &&
+                    voteState !== "yes";
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() =>
+                        cycleAuxiliaryOption(
+                          poll.id,
+                          option.id,
+                          (yesIsFull &&
+                            !savedYesAuxiliaryOptions[poll.id]?.[option.id]) ||
+                            participantLimitReached,
+                        )
+                      }
+                      className={`flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left ${
+                        voteState === "yes"
+                          ? "border-green-500 bg-green-500/10"
+                          : voteState === "ifNeedBe"
+                            ? "border-amber-500 bg-amber-500/10"
+                            : "border-border bg-background"
+                      }`}
+                    >
+                      <VoteIcon type={voteState} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-sm">
+                          {option.label}
+                        </span>
+                        {yesParticipants.length > 0 ? (
+                          <span className="block truncate text-muted-foreground text-xs">
+                            Yes: {yesParticipants
+                              .map(
+                                (participant) =>
+                                  participant.name || "Anonymous",
+                              )
+                              .join(", ")}
+                          </span>
+                        ) : null}
+                      </span>
+                      {option.maxYes != null ? (
+                        <span
+                          className={`rounded-full px-2 py-1 font-semibold text-[10px] ${
+                            yesIsFull
+                              ? "bg-green-600 text-white"
+                              : "bg-green-500/10 text-green-800 dark:text-green-200"
+                          }`}
+                        >
+                          {yesIsFull
+                            ? `YES FULL (${yesParticipants.length}/${option.maxYes})`
+                            : `${yesParticipants.length}/${option.maxYes} YES`}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
         </div>
-      ))}
+        );
+      })}
       </div>
 
       <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">

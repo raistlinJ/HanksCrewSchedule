@@ -15,6 +15,19 @@ export const normalizeVotes = (
   }));
 };
 
+export const normalizeAuxiliaryVotes = (
+  optionIds: string[],
+  votes: Array<
+    | { auxiliaryOptionId: string; type?: "yes" | "no" | "ifNeedBe" }
+    | undefined
+  >,
+) => {
+  return optionIds.map((auxiliaryOptionId, index) => ({
+    auxiliaryOptionId,
+    type: votes[index]?.type ?? ("ifNeedBe" as const),
+  }));
+};
+
 export const useEditToken = () => {
   const searchParams = useSearchParams();
   return searchParams.get("token") ?? undefined;
@@ -45,6 +58,9 @@ export const useUpdateParticipantMutation = () => {
           return newParticipants;
         },
       );
+    },
+    onError: (error) => {
+      toast.error(error.message);
     },
   });
 };

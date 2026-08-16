@@ -27,6 +27,7 @@ import {
 } from "@/components/empty-state";
 import { ScrollContainer } from "@/components/scroll-container";
 import { usePermissions, usePoll } from "@/features/poll/client";
+import { AuxiliarySelectionVoting } from "@/features/poll/components/auxiliary-selection-voting";
 import { useParticipants } from "@/features/poll/components/participants-provider";
 import { useVisibleParticipants } from "@/features/poll/components/visibility";
 import { useVotingForm } from "@/features/poll/components/voting-form";
@@ -413,6 +414,7 @@ const DesktopPoll: React.FunctionComponent = () => {
                   </EmptyStateDescription>
                 </EmptyState>
               )}
+              <AuxiliarySelectionVoting />
               {mode === "new" ? (
                 <div className="flex items-center justify-between gap-4 border-t p-3">
                   <Button

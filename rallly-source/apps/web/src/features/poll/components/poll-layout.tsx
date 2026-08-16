@@ -32,46 +32,55 @@ const Layout = ({ children }: React.PropsWithChildren) => {
   const poll = usePoll();
   const pollLink = `/poll/${poll.id}`;
   const pathname = usePathname();
+  const normalizedPathname = pathname.replace(/\/$/, "");
+  const isPollPage = normalizedPathname.endsWith(pollLink);
+  const isEditPage = normalizedPathname.endsWith(`${pollLink}/edit`);
   return (
     <div className="page-bg-gray-100 h-dvh overflow-auto dark:bg-gray-900">
-      <div className="sticky top-0 z-40 border-b bg-gray-100/90 p-3 backdrop-blur-lg sm:flex-row dark:bg-gray-900/90">
-        <div className="flex justify-between">
-          <div className="flex min-w-0 items-center gap-x-2.5">
-            <Breadcrumb className="min-w-0">
-              <BreadcrumbList className="flex-nowrap">
-                <BreadcrumbItem className="shrink-0">
-                  <BreadcrumbLink
-                    className="flex items-center gap-x-2"
-                    render={<Link href="/polls" />}
-                  >
-                    <BarChart2Icon className="size-4" />
-                    <Trans i18nKey="polls" defaults="Polls" />
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="shrink-0" />
-                <BreadcrumbItem className="min-w-0">
-                  {pathname === pollLink ? (
-                    <BreadcrumbPage className="truncate">
-                      {poll.title}
-                    </BreadcrumbPage>
-                  ) : (
+      {!isEditPage ? (
+        <div className="sticky top-0 z-40 border-b bg-gray-100/90 p-3 backdrop-blur-lg sm:flex-row dark:bg-gray-900/90">
+          <div className="flex justify-between">
+            <div className="flex min-w-0 items-center gap-x-2.5">
+              <Breadcrumb className="min-w-0">
+                <BreadcrumbList className="flex-nowrap">
+                  <BreadcrumbItem className="shrink-0">
                     <BreadcrumbLink
-                      className="truncate"
-                      render={<Link href={pollLink} />}
+                      className="flex items-center gap-x-2"
+                      render={<Link href="/polls" />}
                     >
-                      {poll.title}
+                      <BarChart2Icon className="size-4" />
+                      <Trans i18nKey="polls" defaults="Polls" />
                     </BreadcrumbLink>
-                  )}
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-          <div>
-            <AdminControls />
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator className="shrink-0" />
+                  <BreadcrumbItem className="min-w-0">
+                    {isPollPage ? (
+                      <BreadcrumbPage className="truncate">
+                        {poll.title}
+                      </BreadcrumbPage>
+                    ) : (
+                      <BreadcrumbLink
+                        className="truncate"
+                        render={<Link href={pollLink} />}
+                      >
+                        {poll.title}
+                      </BreadcrumbLink>
+                    )}
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+            </div>
+            <div>
+              <AdminControls />
+            </div>
           </div>
         </div>
-      </div>
-      <main id="main-content" tabIndex={-1} className="p-3">
+      ) : null}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={isEditPage ? "p-0" : "p-3"}
+      >
         <div className="mx-auto max-w-4xl space-y-3">{children}</div>
       </main>
     </div>

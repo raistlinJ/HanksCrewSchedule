@@ -13,6 +13,7 @@ import {
 import {
   createUser,
   hardDeleteUser,
+  updateUserPollAuxiliaryResponse,
   updateUserPollResponse,
 } from "@/features/user/mutations";
 import { createUserResponsesCsv } from "@/features/user/utils";
@@ -78,6 +79,30 @@ export const updateUserPollResponseAction = adminActionClient
   )
   .action(async ({ parsedInput }) => {
     const result = await updateUserPollResponse(parsedInput);
+
+    if (!result.ok) {
+      throw new AppError({
+        code: "NOT_FOUND",
+        message: "User poll response not found",
+      });
+    }
+
+    return result;
+  });
+
+export const updateUserPollAuxiliaryResponseAction = adminActionClient
+  .metadata({ actionName: "update_user_poll_auxiliary_response" })
+  .inputSchema(
+    z.object({
+      userId: z.string(),
+      participantId: z.string(),
+      pollId: z.string(),
+      auxiliaryOptionId: z.string(),
+      type: z.enum(["yes", "no", "ifNeedBe"]),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    const result = await updateUserPollAuxiliaryResponse(parsedInput);
 
     if (!result.ok) {
       throw new AppError({

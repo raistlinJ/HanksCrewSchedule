@@ -19,22 +19,39 @@ export interface VoteSelectorProps {
   onBlur?: React.FocusEventHandler<HTMLButtonElement>;
   onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
   className?: string;
+  yesDisabled?: boolean;
 }
 
 const orderedVoteTypes: VoteType[] = ["yes", "ifNeedBe", "no"];
 
-export const toggleVote = (value?: VoteType) => {
-  if (!value) return orderedVoteTypes[0];
-  return orderedVoteTypes[
-    (orderedVoteTypes.indexOf(value) + 1) % orderedVoteTypes.length
-  ];
+export const toggleVote = (value?: VoteType, yesDisabled = false): VoteType => {
+  const availableVoteTypes = yesDisabled
+    ? orderedVoteTypes.filter((type) => type !== "yes")
+    : orderedVoteTypes;
+  if (!value || !availableVoteTypes.includes(value)) {
+    return availableVoteTypes[0] ?? "ifNeedBe";
+  }
+  const currentIndex = availableVoteTypes.indexOf(value);
+  return (
+    availableVoteTypes[(currentIndex + 1) % availableVoteTypes.length] ??
+    "ifNeedBe"
+  );
 };
 
 export const VoteSelector = React.forwardRef<
   HTMLButtonElement,
   VoteSelectorProps
 >(function VoteSelector(
-  { value, optionLabel, onChange, onFocus, onBlur, onKeyDown, className },
+  {
+    value,
+    optionLabel,
+    onChange,
+    onFocus,
+    onBlur,
+    onKeyDown,
+    className,
+    yesDisabled = false,
+  },
   ref,
 ) {
   const { t } = useTranslation();
@@ -56,7 +73,16 @@ export const VoteSelector = React.forwardRef<
     <button
       data-testid="vote-selector"
       type="button"
-      aria-label={optionLabel ? `${optionLabel}, ${voteLabel}` : voteLabel}
+      aria-label={`${optionLabel ? `${optionLabel}, ` : ""}${voteLabel}${
+        yesDisabled ? "; Yes is full" : ""
+      }`}
+      title={
+        yesDisabled
+          ? t("yesResponseLimitReached", {
+              defaultValue: "Yes is full; If needed and No are still available",
+            })
+          : undefined
+      }
       onFocus={onFocus}
       onBlur={onBlur}
       onKeyDown={onKeyDown}
@@ -71,7 +97,7 @@ export const VoteSelector = React.forwardRef<
         className,
       )}
       onClick={() => {
-        onChange?.(value ? toggleVote(value) : orderedVoteTypes[0]);
+        onChange?.(toggleVote(value, yesDisabled));
       }}
       ref={ref}
     >

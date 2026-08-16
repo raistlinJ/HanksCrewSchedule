@@ -3,6 +3,8 @@ import "server-only";
 import type { Prisma } from "@rallly/database";
 import { prisma } from "@rallly/database";
 import { nanoid } from "@rallly/utils/nanoid";
+import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
+import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
 import type { AuthorizedSpaceId } from "@/features/space/types";
 
 export type PollOption = {
@@ -79,6 +81,22 @@ export async function addUserAsPollParticipant({
       },
       select: { id: true },
     });
+    const auxiliaryVotes = await validateAuxiliaryVotes({
+      tx,
+      pollId,
+      votes: [],
+      enforceMinimum: false,
+    });
+    if (auxiliaryVotes.length > 0) {
+      await tx.pollAuxiliaryVote.createMany({
+        data: auxiliaryVotes.map(({ auxiliaryOptionId, type }) => ({
+          participantId: participant.id,
+          auxiliaryOptionId,
+          pollId,
+          type,
+        })),
+      });
+    }
 
     return {
       ok: true,
@@ -159,6 +177,13 @@ export async function markUserYesForPoll({
   );
 
   const participantId = await prisma.$transaction(async (tx) => {
+    await assertYesCapacity({
+      tx,
+      pollId,
+      participantId: participant?.id,
+      optionIds: poll.options.map((option) => option.id),
+    });
+
     const savedParticipant = participant
       ? await tx.participant.update({
           where: { id: participant.id },
@@ -178,6 +203,33 @@ export async function markUserYesForPoll({
           },
           select: { id: true },
         });
+
+    const auxiliaryVotes = await validateAuxiliaryVotes({
+      tx,
+      pollId,
+      votes: [],
+      participantId: savedParticipant.id,
+      enforceMinimum: false,
+    });
+    await Promise.all(
+      auxiliaryVotes.map((vote) =>
+        tx.pollAuxiliaryVote.upsert({
+          where: {
+            participantId_auxiliaryOptionId: {
+              participantId: savedParticipant.id,
+              auxiliaryOptionId: vote.auxiliaryOptionId,
+            },
+          },
+          create: {
+            participantId: savedParticipant.id,
+            auxiliaryOptionId: vote.auxiliaryOptionId,
+            pollId,
+            type: vote.type,
+          },
+          update: {},
+        }),
+      ),
+    );
 
     await Promise.all(
       poll.options.map((option) =>

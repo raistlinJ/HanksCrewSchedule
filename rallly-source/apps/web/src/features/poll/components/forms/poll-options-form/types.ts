@@ -1,12 +1,16 @@
 export type DateOption = {
   type: "date";
   date: string;
+  optionId?: string;
+  maxYes?: number | null;
 };
 
 export type TimeOption = {
   type: "timeSlot";
   start: string;
   end: string;
+  optionId?: string;
+  maxYes?: number | null;
 };
 
 export type DateTimeOption = DateOption | TimeOption;

@@ -3,13 +3,17 @@ import { sendRawEmail } from "@rallly/emails";
 import { sendNewParticipantConfirmationEmail } from "@rallly/emails/templates/new-participant-confirmation";
 import { absoluteUrl } from "@rallly/utils/absolute-url";
 import { TRPCError } from "@trpc/server";
+import { duplicateAuxiliarySelection } from "@/features/poll/auxiliary-selection/utils";
 import { after } from "next/server";
 import * as z from "zod";
 import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
+import { getInstanceSettings } from "@/features/instance-settings/data";
 import {
   markUserYesForPoll,
   setPollGroupMuted,
 } from "@/features/poll/mutations";
+import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
+import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
 import { createToken, decryptToken } from "@/lib/session";
 import { publicProcedure, router, spaceProcedure } from "../trpc";
 import { nanoid } from "@rallly/utils/nanoid";
@@ -46,6 +50,10 @@ async function getGroupEditTokenPayload(token: string | undefined) {
 }
 
 export const pollGroups = router({
+  notificationSettings: spaceProcedure.query(async () => {
+    const settings = await getInstanceSettings();
+    return { sendSupportEmails: settings.sendSupportEmails };
+  }),
   scanYesVote: spaceProcedure
     .input(
       z.object({
@@ -364,9 +372,12 @@ export const pollGroups = router({
               options: {
                 orderBy: { startTime: "asc" },
               },
+              auxiliarySelection: {
+                include: { options: { orderBy: { position: "asc" } } },
+              },
               participants: {
                 where: { deleted: false },
-                include: { votes: true },
+                include: { votes: true, auxiliaryVotes: true },
               },
             },
           },
@@ -419,7 +430,8 @@ export const pollGroups = router({
           deleted: false,
         },
         include: {
-          votes: true
+          votes: true,
+          auxiliaryVotes: true,
         }
       });
 
@@ -463,7 +475,7 @@ export const pollGroups = router({
           email: payload.email,
           deleted: false,
         },
-        include: { votes: true },
+        include: { votes: true, auxiliaryVotes: true },
       });
     }),
 
@@ -484,6 +496,15 @@ export const pollGroups = router({
                 type: z.enum(["yes", "no", "ifNeedBe"]),
               })
             ),
+            auxiliaryOptions: z
+              .array(
+                z.object({
+                  auxiliaryOptionId: z.string(),
+                  type: z.enum(["yes", "no", "ifNeedBe"]),
+                }),
+              )
+              .optional()
+              .default([]),
           }),
         ),
       }),
@@ -534,76 +555,124 @@ export const pollGroups = router({
       const participantLookupEmail = hasValidEditToken
         ? editTokenPayload.email
         : normalizedEmail;
-      let createdParticipant = false;
+      const createdParticipant = await prisma.$transaction(async (tx) => {
+        let didCreateParticipant = false;
 
-      for (const voteItem of votes) {
-        if (!groupPollIds.has(voteItem.pollId)) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "A submitted poll does not belong to this group",
+        for (const voteItem of [...votes].sort((a, b) =>
+          a.pollId.localeCompare(b.pollId),
+        )) {
+          if (!groupPollIds.has(voteItem.pollId)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "A submitted poll does not belong to this group",
+            });
+          }
+
+          const existingParticipant = await tx.participant.findFirst({
+            where: {
+              pollId: voteItem.pollId,
+              deleted: false,
+              OR: [
+                { email: participantLookupEmail },
+                ...(ctx.user ? [{ userId: ctx.user.id }] : []),
+              ],
+            },
           });
-        }
 
-        let existingParticipant = await prisma.participant.findFirst({
-          where: {
+          if (existingParticipant && group.requireEmailVerification) {
+            const isOwner =
+              existingParticipant.userId &&
+              ctx.user &&
+              existingParticipant.userId === ctx.user.id;
+            if (!isOwner && !hasValidEditToken) {
+              throw new TRPCError({
+                code: "FORBIDDEN",
+                message:
+                  "Use the edit link sent to your email to update this response.",
+              });
+            }
+          }
+
+          const pollOptions = await tx.option.findMany({
+            where: { pollId: voteItem.pollId },
+            select: { id: true },
+          });
+          const pollOptionIds = new Set(
+            pollOptions.map((option) => option.id),
+          );
+          const validVotes = voteItem.options.filter(({ optionId }) =>
+            pollOptionIds.has(optionId),
+          );
+
+          await assertYesCapacity({
+            tx,
             pollId: voteItem.pollId,
-            deleted: false,
-            OR: [
-              { email: participantLookupEmail },
-              ...(ctx.user ? [{ userId: ctx.user.id }] : []),
-            ],
-          },
-        });
+            participantId: existingParticipant?.id,
+            optionIds: validVotes
+              .filter(({ type }) => type === "yes")
+              .map(({ optionId }) => optionId),
+          });
+          const validAuxiliaryVotes = await validateAuxiliaryVotes({
+            tx,
+            pollId: voteItem.pollId,
+            participantId: existingParticipant?.id,
+            votes: voteItem.auxiliaryOptions,
+          });
 
-        if (existingParticipant && group.requireEmailVerification) {
-           const isOwner = existingParticipant.userId && ctx.user && existingParticipant.userId === ctx.user.id;
-           if (!isOwner && !hasValidEditToken) {
-             throw new TRPCError({ code: "FORBIDDEN", message: "Use the edit link sent to your email to update this response." });
-           }
+          let participantId: string;
+          if (existingParticipant) {
+            participantId = existingParticipant.id;
+            await tx.participant.update({
+              where: { id: participantId },
+              data: {
+                name,
+                email: normalizedEmail,
+                note: note || null,
+                updatedAt: new Date(),
+              },
+            });
+            await tx.vote.deleteMany({ where: { participantId } });
+            await tx.pollAuxiliaryVote.deleteMany({
+              where: { participantId },
+            });
+          } else {
+            const newParticipant = await tx.participant.create({
+              data: {
+                name,
+                email: normalizedEmail,
+                note: note || null,
+                pollId: voteItem.pollId,
+                userId: ctx.user?.id || null,
+              },
+            });
+            participantId = newParticipant.id;
+            didCreateParticipant = true;
+          }
+
+          if (validVotes.length > 0) {
+            await tx.vote.createMany({
+              data: validVotes.map((vote) => ({
+                participantId,
+                optionId: vote.optionId,
+                pollId: voteItem.pollId,
+                type: vote.type,
+              })),
+            });
+          }
+          if (validAuxiliaryVotes.length > 0) {
+            await tx.pollAuxiliaryVote.createMany({
+              data: validAuxiliaryVotes.map((vote) => ({
+                participantId,
+                auxiliaryOptionId: vote.auxiliaryOptionId,
+                pollId: voteItem.pollId,
+                type: vote.type,
+              })),
+            });
+          }
         }
 
-        let participantId: string;
-
-        if (existingParticipant) {
-          participantId = existingParticipant.id;
-          await prisma.participant.update({
-            where: { id: participantId },
-            data: {
-              name,
-              email: normalizedEmail,
-              note: note || null,
-              updatedAt: new Date(),
-            },
-          });
-
-          await prisma.vote.deleteMany({
-            where: { participantId },
-          });
-        } else {
-          const newParticipant = await prisma.participant.create({
-            data: {
-              name,
-              email: normalizedEmail,
-              note: note || null,
-              pollId: voteItem.pollId,
-              userId: ctx.user?.id || null,
-            },
-          });
-          participantId = newParticipant.id;
-          createdParticipant = true;
-        }
-
-        if (voteItem.options.length > 0) {
-          await prisma.vote.createMany({
-            data: voteItem.options.map((opt) => ({
-              participantId,
-              optionId: opt.optionId,
-              pollId: voteItem.pollId,
-              type: opt.type,
-            })),
-          });
-        }
-      }
+        return didCreateParticipant;
+      });
 
       if (createdParticipant && group.requireEmailVerification) {
         const editToken = await createToken(
@@ -638,6 +707,7 @@ export const pollGroups = router({
           polls: {
             include: {
               options: true,
+              auxiliarySelection: { include: { options: true } },
             },
           },
         },
@@ -702,6 +772,9 @@ export const pollGroups = router({
               status: poll.status,
               spaceId: ctx.space.id,
               pollGroupId: newGroupId,
+              auxiliarySelection: duplicateAuxiliarySelection(
+                poll.auxiliarySelection,
+              ),
             },
           });
 
@@ -713,6 +786,7 @@ export const pollGroups = router({
                 pollId: newPollId,
                 startTime: opt.startTime,
                 duration: opt.duration,
+                maxYes: opt.maxYes,
               })),
             });
           }
@@ -872,38 +946,45 @@ export const pollGroups = router({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Poll not found or access denied" });
       }
 
-      if (input.voteId) {
-        // Vote exists — use explicit type if provided, otherwise cycle
-        const vote = await prisma.vote.findUnique({ where: { id: input.voteId } });
-        if (!vote) {
+      return prisma.$transaction(async (tx) => {
+        const vote = input.voteId
+          ? await tx.vote.findUnique({ where: { id: input.voteId } })
+          : null;
+        if (input.voteId && !vote) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Vote not found" });
         }
-        
+
         let newType = input.type;
         if (!newType) {
-          if (vote.type === "no") newType = "ifNeedBe";
-          else if (vote.type === "ifNeedBe") newType = "yes";
-          else newType = "no";
+          if (vote?.type === "no") newType = "ifNeedBe";
+          else if (vote?.type === "ifNeedBe") newType = "yes";
+          else if (vote?.type === "yes") newType = "no";
+          else newType = "ifNeedBe";
         }
 
-        const updatedVote = await prisma.vote.update({
-          where: { id: input.voteId },
-          data: { type: newType }
-        });
-        return updatedVote;
-      } else {
-        // Vote doesn't exist — use explicit type if provided, otherwise default to ifNeedBe
-        const newType = input.type || "ifNeedBe";
-        const newVote = await prisma.vote.create({
-          data: {
-            participantId: input.participantId,
-            optionId: input.optionId,
+        if (newType === "yes") {
+          await assertYesCapacity({
+            tx,
             pollId: input.pollId,
-            type: newType
-          }
-        });
-        return newVote;
-      }
+            participantId: input.participantId,
+            optionIds: [input.optionId],
+          });
+        }
+
+        return vote
+          ? tx.vote.update({
+              where: { id: vote.id },
+              data: { type: newType },
+            })
+          : tx.vote.create({
+              data: {
+                participantId: input.participantId,
+                optionId: input.optionId,
+                pollId: input.pollId,
+                type: newType,
+              },
+            });
+      });
     }),
   addGroupParticipant: spaceProcedure
     .input(z.object({

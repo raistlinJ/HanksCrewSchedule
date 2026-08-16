@@ -18,6 +18,7 @@ import smoothscroll from "smoothscroll-polyfill";
 import { TimesShownIn } from "@/components/clock";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { usePermissions } from "@/features/poll/client";
+import { AuxiliarySelectionVoting } from "@/features/poll/components/auxiliary-selection-voting";
 import {
   Participant,
   ParticipantName,
@@ -220,6 +221,7 @@ const MobilePoll: React.FunctionComponent = () => {
           return `${option.month} ${option.year}`;
         }}
       />
+      <AuxiliarySelectionVoting />
       <AnimatePresence>
         {isEditing ? (
           <m.div

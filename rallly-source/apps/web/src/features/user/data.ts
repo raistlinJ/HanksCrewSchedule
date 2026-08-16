@@ -102,6 +102,13 @@ export async function getUserPollResponses(userId: string) {
           type: true,
         },
       },
+      auxiliaryVotes: {
+        select: {
+          id: true,
+          auxiliaryOptionId: true,
+          type: true,
+        },
+      },
       poll: {
         select: {
           id: true,
@@ -122,6 +129,21 @@ export async function getUserPollResponses(userId: string) {
               duration: true,
             },
             orderBy: { startTime: "asc" },
+          },
+          auxiliarySelection: {
+            select: {
+              name: true,
+              minYes: true,
+              maxYesSelections: true,
+              options: {
+                select: {
+                  id: true,
+                  label: true,
+                  maxYes: true,
+                },
+                orderBy: { position: "asc" },
+              },
+            },
           },
         },
       },
@@ -200,6 +222,12 @@ export async function getUserResponseExportRows(
           type: true,
         },
       },
+      auxiliaryVotes: {
+        select: {
+          auxiliaryOptionId: true,
+          type: true,
+        },
+      },
       poll: {
         select: {
           id: true,
@@ -213,6 +241,15 @@ export async function getUserResponseExportRows(
               duration: true,
             },
             orderBy: { startTime: "asc" },
+          },
+          auxiliarySelection: {
+            select: {
+              name: true,
+              options: {
+                select: { id: true, label: true },
+                orderBy: { position: "asc" },
+              },
+            },
           },
         },
       },
@@ -254,6 +291,12 @@ export async function getUserResponseExportRows(
     const votesByOptionId = new Map(
       response.votes.map((vote) => [vote.optionId, vote.type]),
     );
+    const auxiliaryVotesByOptionId = new Map(
+      response.auxiliaryVotes.map((vote) => [
+        vote.auxiliaryOptionId,
+        vote.type,
+      ]),
+    );
     const common = {
       userId: user.id,
       userName: user.name,
@@ -273,18 +316,33 @@ export async function getUserResponseExportRows(
         ...common,
         optionStart: "",
         durationMinutes: "",
+        responseKind: "pollOption",
         response: "none",
       });
-      continue;
+    } else {
+      for (const option of response.poll.options) {
+        rows.push({
+          ...common,
+          optionStart: option.startTime.toISOString(),
+          durationMinutes: option.duration,
+          responseKind: "pollOption",
+          response: votesByOptionId.get(option.id) ?? "none",
+        });
+      }
     }
 
-    for (const option of response.poll.options) {
-      rows.push({
-        ...common,
-        optionStart: option.startTime.toISOString(),
-        durationMinutes: option.duration,
-        response: votesByOptionId.get(option.id) ?? "none",
-      });
+    if (response.poll.auxiliarySelection) {
+      for (const option of response.poll.auxiliarySelection.options) {
+        rows.push({
+          ...common,
+          responseKind: "auxiliary",
+          optionStart: "",
+          durationMinutes: "",
+          auxiliarySelection: response.poll.auxiliarySelection.name,
+          auxiliaryOption: option.label,
+          response: auxiliaryVotesByOptionId.get(option.id) ?? "ifNeedBe",
+        });
+      }
     }
   }
 

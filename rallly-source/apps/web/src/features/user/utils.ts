@@ -6,8 +6,11 @@ export type UserResponseExportRow = {
   pollId: string;
   pollTitle: string;
   pollStatus: string;
+  responseKind?: string;
   optionStart: string;
   durationMinutes: number | "";
+  auxiliarySelection?: string;
+  auxiliaryOption?: string;
   response: string;
   note: string;
   responseUpdatedAt: string;
@@ -24,8 +27,14 @@ const columns: Array<{
   { label: "Poll ID", value: (row) => row.pollId },
   { label: "Poll", value: (row) => row.pollTitle },
   { label: "Poll Status", value: (row) => row.pollStatus },
+  { label: "Response Kind", value: (row) => row.responseKind ?? "pollOption" },
   { label: "Option Start (ISO)", value: (row) => row.optionStart },
   { label: "Duration (minutes)", value: (row) => row.durationMinutes },
+  {
+    label: "Auxiliary Selection",
+    value: (row) => row.auxiliarySelection ?? "",
+  },
+  { label: "Auxiliary Choice", value: (row) => row.auxiliaryOption ?? "" },
   { label: "Response", value: (row) => row.response },
   { label: "Note", value: (row) => row.note },
   {

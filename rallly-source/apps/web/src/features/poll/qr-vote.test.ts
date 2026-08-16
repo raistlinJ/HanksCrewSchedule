@@ -9,6 +9,8 @@ const {
   mockParticipantUpdate,
   mockVoteUpsert,
   mockTransaction,
+  mockAssertYesCapacity,
+  mockValidateAuxiliaryVotes,
 } = vi.hoisted(() => ({
   mockPollFindFirst: vi.fn(),
   mockUserFindUnique: vi.fn(),
@@ -17,6 +19,8 @@ const {
   mockParticipantUpdate: vi.fn(),
   mockVoteUpsert: vi.fn(),
   mockTransaction: vi.fn(),
+  mockAssertYesCapacity: vi.fn(),
+  mockValidateAuxiliaryVotes: vi.fn(),
 }));
 
 const transaction = {
@@ -34,6 +38,14 @@ vi.mock("@rallly/database", () => ({
     participant: { findFirst: mockParticipantFindFirst },
     $transaction: mockTransaction,
   },
+}));
+
+vi.mock("@/features/poll/yes-capacity/mutations", () => ({
+  assertYesCapacity: mockAssertYesCapacity,
+}));
+
+vi.mock("@/features/poll/auxiliary-selection/mutations", () => ({
+  validateAuxiliaryVotes: mockValidateAuxiliaryVotes,
 }));
 
 const spaceId = "space-1" as AuthorizedSpaceId;
@@ -60,6 +72,7 @@ describe("markUserYesForPoll", () => {
     mockParticipantCreate.mockResolvedValue({ id: "participant-1" });
     mockParticipantUpdate.mockResolvedValue({ id: "participant-1" });
     mockVoteUpsert.mockResolvedValue({});
+    mockValidateAuxiliaryVotes.mockResolvedValue([]);
     mockTransaction.mockImplementation(
       async (callback: (tx: typeof transaction) => Promise<unknown>) =>
         callback(transaction),
@@ -93,6 +106,12 @@ describe("markUserYesForPoll", () => {
         pollId: poll.id,
       },
       select: { id: true },
+    });
+    expect(mockAssertYesCapacity).toHaveBeenCalledWith({
+      tx: transaction,
+      pollId: poll.id,
+      participantId: undefined,
+      optionIds: ["option-1", "option-2"],
     });
     expect(mockVoteUpsert).toHaveBeenCalledTimes(2);
     expect(mockVoteUpsert).toHaveBeenCalledWith(
@@ -166,5 +185,22 @@ describe("markUserYesForPoll", () => {
 
     expect(result).toEqual({ ok: false, reason: "invalid_qr_code" });
     expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not write votes when every Yes place is taken", async () => {
+    mockAssertYesCapacity.mockRejectedValueOnce(new Error("Yes is full"));
+    const { markUserYesForPoll } = await import("./mutations");
+
+    await expect(
+      markUserYesForPoll({
+        groupId: "group-1",
+        pollId: poll.id,
+        qrCodeToken: "18952f2f-9a61-4d28-a3a3-fc748689c150",
+        spaceId,
+      }),
+    ).rejects.toThrow("Yes is full");
+
+    expect(mockParticipantCreate).not.toHaveBeenCalled();
+    expect(mockVoteUpsert).not.toHaveBeenCalled();
   });
 });

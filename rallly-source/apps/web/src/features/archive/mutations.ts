@@ -16,8 +16,11 @@ export async function restoreInstanceArchive(input: unknown) {
       await tx.pollActivity.deleteMany();
       await tx.pollInvite.deleteMany();
       await tx.comment.deleteMany();
+      await tx.pollAuxiliaryVote.deleteMany();
       await tx.vote.deleteMany();
       await tx.participant.deleteMany();
+      await tx.pollAuxiliaryOption.deleteMany();
+      await tx.pollAuxiliarySelection.deleteMany();
       await tx.option.deleteMany();
       await tx.poll.deleteMany();
       await tx.pollGroup.deleteMany();
@@ -83,11 +86,20 @@ export async function restoreInstanceArchive(input: unknown) {
       await tx.option.createMany({
         data: data.options as Prisma.OptionCreateManyInput[],
       });
+      await tx.pollAuxiliarySelection.createMany({
+        data: data.pollAuxiliarySelections as Prisma.PollAuxiliarySelectionCreateManyInput[],
+      });
+      await tx.pollAuxiliaryOption.createMany({
+        data: data.pollAuxiliaryOptions as Prisma.PollAuxiliaryOptionCreateManyInput[],
+      });
       await tx.participant.createMany({
         data: data.participants as Prisma.ParticipantCreateManyInput[],
       });
       await tx.vote.createMany({
         data: data.votes as Prisma.VoteCreateManyInput[],
+      });
+      await tx.pollAuxiliaryVote.createMany({
+        data: data.pollAuxiliaryVotes as Prisma.PollAuxiliaryVoteCreateManyInput[],
       });
       await tx.comment.createMany({
         data: data.comments as Prisma.CommentCreateManyInput[],

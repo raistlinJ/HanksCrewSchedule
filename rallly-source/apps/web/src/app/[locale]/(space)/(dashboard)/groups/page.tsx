@@ -260,6 +260,10 @@ export default function PollGroupsDashboardPage() {
   const [reminderBody, setReminderBody] = useState("");
 
   const groupsQuery = trpc.pollGroups.list.useQuery();
+  const notificationSettingsQuery =
+    trpc.pollGroups.notificationSettings.useQuery();
+  const notificationsDisabledInControlPanel =
+    notificationSettingsQuery.data?.sendSupportEmails === false;
   const allPollsQuery = trpc.polls.listAll.useQuery();
   const pollsQuery = trpc.polls.infiniteChronological.useInfiniteQuery(
     {},
@@ -713,17 +717,23 @@ export default function PollGroupsDashboardPage() {
                                 className="h-8 w-8 border p-0"
                                 aria-pressed={isGroupMuted}
                                 aria-label={
-                                  isGroupMuted
+                                  notificationsDisabledInControlPanel
+                                    ? "Email notifications are turned off in Control Panel"
+                                    : isGroupMuted
                                     ? "Unmute notifications for this poll group"
                                     : "Mute notifications for this poll group"
                                 }
                                 title={
-                                  isGroupMuted
+                                  notificationsDisabledInControlPanel
+                                    ? "Email notifications are turned off in Control Panel"
+                                    : isGroupMuted
                                     ? "Unmute notifications for this poll group"
                                     : "Mute notifications for this poll group"
                                 }
                                 disabled={
-                                  group.polls.length === 0 || mutingId === group.id
+                                  notificationsDisabledInControlPanel ||
+                                  group.polls.length === 0 ||
+                                  mutingId === group.id
                                 }
                                 onClick={() => {
                                   setMutingId(group.id);
@@ -733,12 +743,18 @@ export default function PollGroupsDashboardPage() {
                                   });
                                 }}
                               >
-                                {isGroupMuted ? (
+                                {notificationsDisabledInControlPanel ||
+                                isGroupMuted ? (
                                   <BellOffIcon className="h-4 w-4" />
                                 ) : (
                                   <BellIcon className="h-4 w-4" />
                                 )}
                               </Button>
+                              {notificationsDisabledInControlPanel ? (
+                                <span className="text-muted-foreground text-xs">
+                                  Notifications off in Control Panel
+                                </span>
+                              ) : null}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="outline" size="sm" className="h-8 w-8 p-0">

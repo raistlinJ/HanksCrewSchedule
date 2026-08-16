@@ -58,6 +58,7 @@ const schema = z.union([requiredEmailSchema, optionalEmailSchema]);
 
 interface NewParticipantModalProps {
   votes: { optionId: string; type: VoteType }[];
+  auxiliaryVotes: { auxiliaryOptionId: string; type: VoteType }[];
   onSubmit?: (data: { id: string }) => void;
   onCancel?: () => void;
 }
@@ -176,6 +177,30 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
 
   const getSubmitErrorMessage = (error: unknown) => {
     if (error instanceof TRPCClientError && error.data) {
+      if (error.data.appError === "OPTION_FULL") {
+        return t("newParticipantFormErrorOptionFull", {
+          defaultValue:
+            "Yes just filled up for one of your selections. Choose If needed or No and try again.",
+        });
+      }
+      if (error.data.appError === "AUXILIARY_OPTION_FULL") {
+        return t("newParticipantFormErrorAuxiliaryOptionFull", {
+          defaultValue:
+            "Yes just filled up for one of the extra choices. Choose If needed or No and try again.",
+        });
+      }
+      if (error.data.appError === "AUXILIARY_MINIMUM_NOT_MET") {
+        return t("newParticipantFormErrorAuxiliaryMinimum", {
+          defaultValue:
+            "Select Yes for the required number of extra choices and try again.",
+        });
+      }
+      if (error.data.appError === "AUXILIARY_MAXIMUM_EXCEEDED") {
+        return t("newParticipantFormErrorAuxiliaryMaximum", {
+          defaultValue:
+            "You selected Yes for too many extra choices. Reduce your selections and try again.",
+        });
+      }
       if (error.data.appError === "POLL_FULL") {
         return t("newParticipantFormErrorPollFull", {
           defaultValue: "This poll is no longer accepting responses.",
@@ -291,6 +316,7 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
               const newParticipant = await addParticipant.mutateAsync({
                 name: data.name,
                 votes: props.votes,
+                auxiliaryVotes: props.auxiliaryVotes,
                 email: data.email,
                 note: data.note,
                 pollId: poll.id,

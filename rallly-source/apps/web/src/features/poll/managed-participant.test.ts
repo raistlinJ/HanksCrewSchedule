@@ -5,11 +5,13 @@ const {
   mockUserUpsert,
   mockParticipantCreate,
   mockTransaction,
+  mockValidateAuxiliaryVotes,
 } = vi.hoisted(() => ({
   mockParticipantFindFirst: vi.fn(),
   mockUserUpsert: vi.fn(),
   mockParticipantCreate: vi.fn(),
   mockTransaction: vi.fn(),
+  mockValidateAuxiliaryVotes: vi.fn(),
 }));
 
 const transaction = {
@@ -24,6 +26,10 @@ vi.mock("@rallly/database", () => ({
   },
 }));
 
+vi.mock("@/features/poll/auxiliary-selection/mutations", () => ({
+  validateAuxiliaryVotes: mockValidateAuxiliaryVotes,
+}));
+
 describe("addUserAsPollParticipant", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,6 +41,7 @@ describe("addUserAsPollParticipant", () => {
       isAnonymous: false,
     });
     mockParticipantCreate.mockResolvedValue({ id: "participant-1" });
+    mockValidateAuxiliaryVotes.mockResolvedValue([]);
     mockTransaction.mockImplementation(
       async (callback: (tx: typeof transaction) => Promise<unknown>) =>
         callback(transaction),

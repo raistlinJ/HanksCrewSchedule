@@ -8,15 +8,13 @@ import {
   DropdownMenuTrigger,
 } from "@rallly/ui/dropdown-menu";
 import {
-  CalendarCheck2Icon,
   ChevronDownIcon,
   CircleStopIcon,
   CopyIcon,
   DownloadIcon,
   PencilIcon,
   PlayIcon,
-  Settings2Icon,
-  TableIcon,
+  QrCodeIcon,
   TrashIcon,
   UsersIcon,
 } from "lucide-react";
@@ -26,7 +24,6 @@ import { DuplicateDialog } from "@/app/[locale]/(optional-space)/poll/[urlId]/du
 import { showPayWall, useIsFree } from "@/features/billing/client";
 import { ProBadge } from "@/features/billing/components/pro-badge";
 import { usePoll } from "@/features/poll/client";
-import { SchedulePollDialog } from "@/features/poll/components/manage-poll/schedule-poll-dialog";
 import { Trans } from "@/i18n/client";
 import { trpc } from "@/trpc/client";
 import { DeletePollDialog } from "./manage-poll/delete-poll-dialog";
@@ -116,7 +113,6 @@ const ManagePoll: React.FunctionComponent<{
 
   const [showDeletePollDialog, setShowDeletePollDialog] = React.useState(false);
   const duplicateDialog = useDialog();
-  const scheduleDialog = useDialog();
   const isFree = useIsFree();
   const { exportToCsv } = useCsvExporter();
 
@@ -132,39 +128,29 @@ const ManagePoll: React.FunctionComponent<{
           <ChevronDownIcon data-icon="inline-end" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            render={<Link href={`/poll/${poll.id}/edit`} />}
-          >
+          <DropdownMenuItem render={<Link href={`/poll/${poll.id}/edit`} />}>
             <PencilIcon />
             <Trans i18nKey="edit" defaults="Edit" />
           </DropdownMenuItem>
-          <DropdownMenuItem
-            render={<Link href={`/poll/${poll.id}/results`} />}
-          >
+          <DropdownMenuItem render={<Link href={`/poll/${poll.id}/results`} />}>
             <UsersIcon />
             <Trans i18nKey="results" defaults="Results" />
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          {poll.groupNavigation ? (
+            <DropdownMenuItem
+              render={
+                <Link
+                  href={`/groups/${poll.groupNavigation.groupId}/polls/${poll.id}/scan`}
+                />
+              }
+            >
+              <QrCodeIcon />
+              <Trans i18nKey="scanUserQrCode" defaults="Scan user QR code" />
+            </DropdownMenuItem>
+          ) : null}
           {poll.status === "scheduled" || poll.status === "canceled" ? null : (
             <>
-              <DropdownMenuItem
-                disabled={!!poll.event}
-                onClick={() => {
-                  if (isFree) {
-                    showPayWall({
-                      from: "manage-poll",
-                      action: "schedule",
-                      pollId: poll.id,
-                    });
-                  } else {
-                    scheduleDialog.trigger();
-                  }
-                }}
-              >
-                <CalendarCheck2Icon />
-                <Trans i18nKey="schedulePoll" defaults="Schedule" />
-                {isFree ? <ProBadge /> : null}
-              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <OpenCloseToggle />
             </>
           )}
@@ -212,7 +198,6 @@ const ManagePoll: React.FunctionComponent<{
         pollTitle={poll.title}
         {...duplicateDialog.dialogProps}
       />
-      <SchedulePollDialog {...scheduleDialog.dialogProps} />
     </>
   );
 };

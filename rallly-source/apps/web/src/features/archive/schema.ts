@@ -19,8 +19,11 @@ export const archiveTableNames = [
   "scheduledEventInvites",
   "polls",
   "options",
+  "pollAuxiliarySelections",
+  "pollAuxiliaryOptions",
   "participants",
   "votes",
+  "pollAuxiliaryVotes",
   "comments",
   "pollInvites",
   "pollActivities",
@@ -29,10 +32,29 @@ export const archiveTableNames = [
 export type ArchiveTableName = (typeof archiveTableNames)[number];
 
 const archiveRecordSchema = z.record(z.string(), z.unknown());
+const backwardCompatibleTables = new Set<ArchiveTableName>([
+  "pollAuxiliarySelections",
+  "pollAuxiliaryOptions",
+  "pollAuxiliaryVotes",
+]);
 
 const archiveDataShape = Object.fromEntries(
-  archiveTableNames.map((table) => [table, z.array(archiveRecordSchema)]),
-) as Record<ArchiveTableName, z.ZodArray<typeof archiveRecordSchema>>;
+  archiveTableNames.map((table) => [
+    table,
+    backwardCompatibleTables.has(table)
+      ? z.array(archiveRecordSchema).default([])
+      : z.array(archiveRecordSchema),
+  ]),
+) as unknown as Record<ArchiveTableName, z.ZodType<Record<string, unknown>[]>>;
+
+const archiveCountsShape = Object.fromEntries(
+  archiveTableNames.map((table) => [
+    table,
+    backwardCompatibleTables.has(table)
+      ? z.number().int().nonnegative().default(0)
+      : z.number().int().nonnegative(),
+  ]),
+) as unknown as Record<ArchiveTableName, z.ZodType<number>>;
 
 export const instanceArchiveSchema = z
   .object({
@@ -40,7 +62,7 @@ export const instanceArchiveSchema = z
     version: z.literal(INSTANCE_ARCHIVE_VERSION),
     exportedAt: z.iso.datetime(),
     applicationVersion: z.string(),
-    counts: z.record(z.enum(archiveTableNames), z.number().int().nonnegative()),
+    counts: z.object(archiveCountsShape).strict(),
     data: z.object(archiveDataShape).strict(),
   })
   .strict()

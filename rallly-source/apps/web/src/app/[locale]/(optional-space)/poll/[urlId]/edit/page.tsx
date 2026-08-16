@@ -9,7 +9,6 @@ import {
 import { BarChart2Icon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { BrandStyle } from "@/features/branding/components/brand-style";
 import { EditPoll } from "@/features/poll/components/edit-poll";
 import { getActiveSpaceForUser } from "@/features/space/data";
@@ -17,8 +16,7 @@ import { Trans } from "@/i18n/client";
 import { getTranslation } from "@/i18n/server";
 import { getSession } from "@/lib/auth";
 
-export default async function Page(props: { params: Promise<{ urlId: string }> }) {
-  const params = await props.params;
+export default async function Page() {
   const session = await getSession();
   const userId =
     session?.user.id && !session.user.isGuest ? session.user.id : null;
@@ -29,7 +27,7 @@ export default async function Page(props: { params: Promise<{ urlId: string }> }
     space?.showBranding && space.primaryColor ? space.primaryColor : null;
 
   return (
-    <div className="page-bg-gray-100 absolute inset-0 h-dvh scroll-pt-16 overflow-auto dark:bg-gray-900">
+    <div className="page-bg-gray-100 fixed inset-0 z-50 h-dvh scroll-pt-16 overflow-auto dark:bg-gray-900">
       {primaryColor ? <BrandStyle primaryColor={primaryColor} /> : null}
       <EditPoll
         nav={

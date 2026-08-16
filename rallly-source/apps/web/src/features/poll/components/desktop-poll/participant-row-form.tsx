@@ -10,6 +10,7 @@ import {
   Participant,
   ParticipantName,
 } from "@/features/poll/components/participant";
+import { useParticipants } from "@/features/poll/components/participants-provider";
 import { useOptions, usePoll } from "@/features/poll/components/poll-context";
 import { useVotingForm } from "@/features/poll/components/voting-form";
 import { YouAvatar } from "@/features/poll/components/you-avatar";
@@ -34,9 +35,11 @@ const ParticipantRowForm = ({
 }: ParticipantRowFormProps) => {
   const { t } = useTranslation();
 
-  const { optionIds } = usePoll();
+  const { optionIds, getScore } = usePoll();
   const { options } = useOptions();
+  const { participants } = useParticipants();
   const form = useVotingForm();
+  const selectedParticipantId = form.watch("participantId");
 
   React.useEffect(() => {
     function cancel(e: KeyboardEvent) {
@@ -107,6 +110,18 @@ const ParticipantRowForm = ({
       </td>
       {optionIds.map((optionId, i) => {
         const option = options[i];
+        const yesIsFull =
+          option?.maxYes !== null &&
+          option?.maxYes !== undefined &&
+          getScore(optionId).yes >= option.maxYes;
+        const participantHasExistingYes = participants.some(
+          (participant) =>
+            participant.id === selectedParticipantId &&
+            participant.votes.some(
+              (savedVote) =>
+                savedVote.optionId === optionId && savedVote.type === "yes",
+            ),
+        );
         return (
           <td
             key={optionId}
@@ -123,6 +138,7 @@ const ParticipantRowForm = ({
                       option ? getOptionDateTimeLabel(option) : undefined
                     }
                     value={field.value?.type}
+                    yesDisabled={yesIsFull && !participantHasExistingYes}
                     onChange={(vote) => {
                       field.onChange({ optionId, type: vote });
                     }}

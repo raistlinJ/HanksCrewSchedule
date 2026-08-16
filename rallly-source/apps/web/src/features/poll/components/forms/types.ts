@@ -24,9 +24,27 @@ export type PollSettingsFormData = {
   enableComments: boolean;
 };
 
+export type AuxiliarySelectionOptionFormData = {
+  optionId?: string;
+  label: string;
+  maxYes: number | null;
+};
+
+export type AuxiliarySelectionFormData = {
+  enabled: boolean;
+  name: string;
+  requireMinimum: boolean;
+  minYes: number;
+  limitSelections: boolean;
+  maxYesSelections: number;
+  options: AuxiliarySelectionOptionFormData[];
+};
+
 export type NewEventData = PollDetailsData &
   PollOptionsData &
-  PollSettingsFormData;
+  PollSettingsFormData & {
+    auxiliarySelection: AuxiliarySelectionFormData;
+  };
 
 // biome-ignore lint/suspicious/noExplicitAny: Fix this later
 export interface PollFormProps<T extends Record<string, any>> {

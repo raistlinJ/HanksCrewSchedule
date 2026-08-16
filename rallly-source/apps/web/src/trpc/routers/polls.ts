@@ -5,6 +5,7 @@ import { sendNewPollEmail } from "@rallly/emails/templates/new-poll";
 import { absoluteUrl, shortUrl } from "@rallly/utils/absolute-url";
 import { nanoid } from "@rallly/utils/nanoid";
 import { TRPCError } from "@trpc/server";
+import { duplicateAuxiliarySelection } from "@/features/poll/auxiliary-selection/utils";
 import { after } from "next/server";
 import * as z from "zod";
 import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
@@ -15,6 +16,7 @@ import {
   hasPollAdminAccess,
 } from "@/features/poll/data";
 import { MAX_POLL_DESCRIPTION_LENGTH } from "@/features/poll/schema";
+import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
 import { formatEventDateTime } from "@/features/scheduled-event/utils";
 import { getActiveSpaceForUser } from "@/features/space/data";
 import { isSelfHosted } from "@/lib/constants";
@@ -37,6 +39,44 @@ import { getScheduledEventTimes } from "./polls/scheduled-event-times";
 import { timeZoneInput } from "./polls/schema";
 
 const collapseNewlines = (s: string) => s.replace(/\n{3,}/g, "\n\n");
+
+const auxiliarySelectionInput = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    minYes: z.number().int().nonnegative().max(1000),
+    maxYesSelections: z.number().int().positive().max(1000).nullable(),
+    options: z
+      .object({
+        optionId: z.string().optional(),
+        label: z.string().trim().min(1).max(100),
+        maxYes: z.number().int().positive().max(100000).nullable(),
+      })
+      .array()
+      .min(1)
+      .max(1000),
+  })
+  .refine((selection) => selection.minYes <= selection.options.length, {
+    message: "The required number cannot exceed the number of choices",
+    path: ["minYes"],
+  })
+  .refine(
+    (selection) =>
+      selection.maxYesSelections === null ||
+      selection.maxYesSelections <= selection.options.length,
+    {
+      message: "The selection limit cannot exceed the number of choices",
+      path: ["maxYesSelections"],
+    },
+  )
+  .refine(
+    (selection) =>
+      selection.maxYesSelections === null ||
+      selection.minYes <= selection.maxYesSelections,
+    {
+      message: "The selection limit cannot be lower than the required number",
+      path: ["maxYesSelections"],
+    },
+  );
 
 // Mirrors the auto-close-polls house-keeping task: an option ends at
 // start + duration, with all-day options (duration 0) treated as 24h.
@@ -232,9 +272,11 @@ export const polls = router({
           .object({
             startDate: z.string(),
             endDate: z.string().optional(),
+            maxYes: z.number().int().positive().max(100000).nullable().optional(),
           })
           .array()
           .min(1),
+        auxiliarySelection: auxiliarySelectionInput.nullable().optional(),
       }),
     )
     .use(requireUserMiddleware)
@@ -307,6 +349,7 @@ export const polls = router({
         duration: option.endDate
           ? dayjs(option.endDate).diff(dayjs(option.startDate), "minute")
           : 0,
+        maxYes: option.maxYes ?? null,
       }));
 
       const kind = isTimePoll ? "time" : "date";
@@ -332,6 +375,27 @@ export const polls = router({
               data: optionsData,
             },
           },
+          auxiliarySelection: input.auxiliarySelection
+            ? {
+                create: {
+                  name: input.auxiliarySelection.name,
+                  minYes: input.auxiliarySelection.minYes,
+                  maxYesSelections:
+                    input.auxiliarySelection.maxYesSelections,
+                  options: {
+                    createMany: {
+                      data: input.auxiliarySelection.options.map(
+                        (option, position) => ({
+                          label: option.label,
+                          maxYes: option.maxYes,
+                          position,
+                        }),
+                      ),
+                    },
+                  },
+                },
+              }
+            : undefined,
           hideParticipants: input.hideParticipants,
           disableComments: input.disableComments,
           hideScores: input.hideScores,
@@ -428,11 +492,25 @@ export const polls = router({
           .transform(collapseNewlines)
           .optional(),
         optionsToDelete: z.string().array().optional(),
-        optionsToAdd: z.string().array().optional(),
+        optionsToAdd: z
+          .object({
+            value: z.string(),
+            maxYes: z.number().int().positive().max(100000).nullable(),
+          })
+          .array()
+          .optional(),
+        optionsToUpdate: z
+          .object({
+            optionId: z.string(),
+            maxYes: z.number().int().positive().max(100000).nullable(),
+          })
+          .array()
+          .optional(),
         hideParticipants: z.boolean().optional(),
         disableComments: z.boolean().optional(),
         hideScores: z.boolean().optional(),
         requireParticipantEmail: z.boolean().optional(),
+        auxiliarySelection: auxiliarySelectionInput.nullable().optional(),
       }),
     )
     .use(requireUserMiddleware)
@@ -486,8 +564,8 @@ export const polls = router({
 
       await prisma.$transaction(async (tx) => {
         const newOptions =
-          input.optionsToAdd?.map((optionValue) => {
-            const [start, end] = optionValue.split("/");
+          input.optionsToAdd?.map(({ value, maxYes }) => {
+            const [start, end] = value.split("/");
 
             if (end) {
               return {
@@ -495,12 +573,14 @@ export const polls = router({
                   ? dayjs(start).tz(input.timeZone, true).toDate()
                   : dayjs(start).utc(true).toDate(),
                 duration: dayjs(end).diff(dayjs(start), "minute"),
+                maxYes,
                 pollId,
               };
             } else {
               return {
                 startTime: dayjs(start).utc(true).toDate(),
                 duration: 0,
+                maxYes,
                 pollId,
               };
             }
@@ -532,6 +612,106 @@ export const polls = router({
           await tx.option.createMany({
             data: newOptions,
           });
+        }
+
+        if (input.optionsToUpdate?.length) {
+          await Promise.all(
+            input.optionsToUpdate.map(({ optionId, maxYes }) =>
+              tx.option.updateMany({
+                where: { id: optionId, pollId },
+                data: { maxYes },
+              }),
+            ),
+          );
+        }
+
+        if (input.auxiliarySelection !== undefined) {
+          if (input.auxiliarySelection === null) {
+            await tx.pollAuxiliarySelection.deleteMany({ where: { pollId } });
+          } else {
+            const submittedSelection = input.auxiliarySelection;
+            const existingSelection =
+              await tx.pollAuxiliarySelection.findUnique({
+                where: { pollId },
+                select: {
+                  id: true,
+                  options: { select: { id: true } },
+                },
+              });
+
+            if (!existingSelection) {
+              await tx.pollAuxiliarySelection.create({
+                data: {
+                  pollId,
+                  name: submittedSelection.name,
+                  minYes: submittedSelection.minYes,
+                  maxYesSelections: submittedSelection.maxYesSelections,
+                  options: {
+                    createMany: {
+                      data: submittedSelection.options.map(
+                        (option, position) => ({
+                          label: option.label,
+                          maxYes: option.maxYes,
+                          position,
+                        }),
+                      ),
+                    },
+                  },
+                },
+              });
+            } else {
+              const existingOptionIds = new Set(
+                existingSelection.options.map((option) => option.id),
+              );
+              const retainedOptionIds = submittedSelection.options.flatMap(
+                (option) =>
+                  option.optionId && existingOptionIds.has(option.optionId)
+                    ? [option.optionId]
+                    : [],
+              );
+
+              await tx.pollAuxiliarySelection.update({
+                where: { id: existingSelection.id },
+                data: {
+                  name: submittedSelection.name,
+                  minYes: submittedSelection.minYes,
+                  maxYesSelections: submittedSelection.maxYesSelections,
+                },
+              });
+              await tx.pollAuxiliaryOption.deleteMany({
+                where: {
+                  auxiliarySelectionId: existingSelection.id,
+                  id: { notIn: retainedOptionIds },
+                },
+              });
+
+              await Promise.all(
+                submittedSelection.options.map((option, position) => {
+                  if (
+                    option.optionId &&
+                    existingOptionIds.has(option.optionId)
+                  ) {
+                    return tx.pollAuxiliaryOption.update({
+                      where: { id: option.optionId },
+                      data: {
+                        label: option.label,
+                        maxYes: option.maxYes,
+                        position,
+                      },
+                    });
+                  }
+                  return tx.pollAuxiliaryOption.create({
+                    data: {
+                      auxiliarySelectionId: existingSelection.id,
+                      label: option.label,
+                      maxYes: option.maxYes,
+                      position,
+                    },
+                  });
+                }),
+              );
+            }
+          }
         }
 
         const remainingOptions = await tx.option.count({ where: { pollId } });
@@ -583,7 +763,6 @@ export const polls = router({
           disableComments: true,
           requireParticipantEmail: true,
           requireEmailVerification: true,
-          requireEmailVerification: true,
           hideParticipants: true,
           hideScores: true,
           timeZone: true,
@@ -630,9 +809,11 @@ export const polls = router({
         input.description !== undefined;
       const hasOptionsUpdate =
         (input.optionsToDelete && input.optionsToDelete.length > 0) ||
-        (input.optionsToAdd && input.optionsToAdd.length > 0);
+        (input.optionsToAdd && input.optionsToAdd.length > 0) ||
+        (input.optionsToUpdate && input.optionsToUpdate.length > 0);
       const hasSettingsUpdate =
         input.timeZone !== undefined ||
+        input.auxiliarySelection !== undefined ||
         input.hideParticipants !== undefined ||
         input.disableComments !== undefined ||
         input.hideScores !== undefined ||
@@ -742,40 +923,46 @@ export const polls = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Poll not found" });
       }
 
-      // Find existing vote for this participant and option
-      const vote = await prisma.vote.findFirst({
-        where: {
-          participantId: input.participantId,
-          optionId: input.optionId
-        }
-      });
-      
-      if (vote) {
+      return prisma.$transaction(async (tx) => {
+        const vote = await tx.vote.findFirst({
+          where: {
+            participantId: input.participantId,
+            optionId: input.optionId,
+          },
+        });
+
         let newType = input.type;
         if (!newType) {
           newType = "yes";
-          if (vote.type === "no") newType = "ifNeedBe";
-          else if (vote.type === "ifNeedBe") newType = "yes";
-          else if (vote.type === "yes") newType = "no";
+          if (vote?.type === "no") newType = "ifNeedBe";
+          else if (vote?.type === "ifNeedBe") newType = "yes";
+          else if (vote?.type === "yes") newType = "no";
+          else newType = "ifNeedBe";
         }
 
-        const updatedVote = await prisma.vote.update({
-          where: { id: vote.id },
-          data: { type: newType }
-        });
-        return updatedVote;
-      } else {
-        const newType = input.type || "ifNeedBe";
-        const newVote = await prisma.vote.create({
-          data: {
-            participantId: input.participantId,
-            optionId: input.optionId,
+        if (newType === "yes") {
+          await assertYesCapacity({
+            tx,
             pollId: input.pollId,
-            type: newType
-          }
-        });
-        return newVote;
-      }
+            participantId: input.participantId,
+            optionIds: [input.optionId],
+          });
+        }
+
+        return vote
+          ? tx.vote.update({
+              where: { id: vote.id },
+              data: { type: newType },
+            })
+          : tx.vote.create({
+              data: {
+                participantId: input.participantId,
+                optionId: input.optionId,
+                pollId: input.pollId,
+                type: newType,
+              },
+            });
+      });
     }),
 
   updateOption: publicProcedure
@@ -786,7 +973,9 @@ export const polls = router({
       duration: z.number().min(0)
     }))
     .mutation(async ({ ctx, input }) => {
-      const hasAccess = await hasPollAdminAccess(input.pollId, ctx.user?.id);
+      const hasAccess = ctx.user
+        ? await hasPollAdminAccess(input.pollId, ctx.user.id)
+        : false;
       if (!hasAccess) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Not allowed to edit options" });
       }
@@ -831,8 +1020,9 @@ export const polls = router({
           deleted: false,
         },
         include: {
-          votes: true
-        }
+          votes: true,
+          auxiliaryVotes: true,
+        },
       });
 
       return participant;
@@ -865,9 +1055,27 @@ export const polls = router({
               id: true,
               startTime: true,
               duration: true,
+              maxYes: true,
             },
             orderBy: {
               startTime: "asc",
+            },
+          },
+          auxiliarySelection: {
+            select: {
+              id: true,
+              name: true,
+              minYes: true,
+              maxYesSelections: true,
+              options: {
+                orderBy: { position: "asc" },
+                select: {
+                  id: true,
+                  label: true,
+                  maxYes: true,
+                  position: true,
+                },
+              },
             },
           },
           user: {
@@ -1505,6 +1713,18 @@ export const polls = router({
             select: {
               startTime: true,
               duration: true,
+              maxYes: true,
+            },
+          },
+          auxiliarySelection: {
+            select: {
+              name: true,
+              minYes: true,
+              maxYesSelections: true,
+              options: {
+                orderBy: { position: "asc" },
+                select: { label: true, maxYes: true, position: true },
+              },
             },
           },
         },
@@ -1535,6 +1755,9 @@ export const polls = router({
           options: {
             create: poll.options,
           },
+          auxiliarySelection: duplicateAuxiliarySelection(
+            poll.auxiliarySelection,
+          ),
         },
       });
 

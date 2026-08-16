@@ -11,9 +11,10 @@ import {
 import { Form } from "@rallly/ui/form";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import React from "react";
+import type React from "react";
 import { useForm } from "react-hook-form";
 import { useModalContext } from "@/components/modal/modal-provider";
+import { AuxiliarySelectionForm } from "@/features/poll/components/forms/auxiliary-selection-form";
 import { PollDetailsForm } from "@/features/poll/components/forms/poll-details-form";
 import PollOptionsForm from "@/features/poll/components/forms/poll-options-form/poll-options-form";
 import { PollSettingsForm } from "@/features/poll/components/forms/poll-settings";
@@ -60,7 +61,8 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
   const hasVotes = participants.some(
     (participant) => participant.votes.length > 0,
   );
-  const { mutate: updatePollMutation, isPending: isUpdating } = useUpdatePollMutation();
+  const { mutate: updatePollMutation, isPending: isUpdating } =
+    useUpdatePollMutation();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useTranslation();
@@ -98,15 +100,19 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
         return option.duration > 0
           ? {
               type: "timeSlot" as const,
+              optionId: option.id,
               start: start.format("YYYY-MM-DDTHH:mm:ss"),
               duration: option.duration,
+              maxYes: option.maxYes,
               end: start
                 .add(option.duration, "minute")
                 .format("YYYY-MM-DDTHH:mm:ss"),
             }
           : {
               type: "date" as const,
+              optionId: option.id,
               date: start.format("YYYY-MM-DD"),
+              maxYes: option.maxYes,
             };
       }),
       timeZone: poll.timeZone ?? "",
@@ -120,6 +126,31 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
       hideParticipants: poll.hideParticipants ?? false,
       enableComments: !poll.disableComments,
       requireParticipantEmail: poll.requireParticipantEmail ?? false,
+      auxiliarySelection: poll.auxiliarySelection
+        ? {
+            enabled: true,
+            name: poll.auxiliarySelection.name,
+            requireMinimum: poll.auxiliarySelection.minYes > 0,
+            minYes: poll.auxiliarySelection.minYes,
+            limitSelections:
+              poll.auxiliarySelection.maxYesSelections !== null,
+            maxYesSelections:
+              poll.auxiliarySelection.maxYesSelections ?? 1,
+            options: poll.auxiliarySelection.options.map((option) => ({
+              optionId: option.id,
+              label: option.label,
+              maxYes: option.maxYes,
+            })),
+          }
+        : {
+            enabled: false,
+            name: "",
+            requireMinimum: false,
+            minYes: 0,
+            limitSelections: false,
+            maxYesSelections: 1,
+            options: [],
+          },
     },
   });
 
@@ -129,7 +160,10 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
         <div className="flex items-center justify-between gap-x-4">
           <div className="flex min-w-0 flex-1 items-center">{nav}</div>
           <div className="flex shrink-0 items-center gap-x-4">
-            <Link href={returnTo} className={buttonVariants({ variant: "ghost" })}>
+            <Link
+              href={returnTo}
+              className={buttonVariants({ variant: "ghost" })}
+            >
               <Trans i18nKey="cancel" defaults="Cancel" />
             </Link>
             <Button
@@ -157,7 +191,11 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
                 ? data.timeZone || getBrowserTimeZone()
                 : null;
 
-            const encodedOptions = data.options.map(encodeDateOption);
+            const submittedOptions = data.options.map((option) => ({
+              value: encodeDateOption(option),
+              maxYes: option.maxYes ?? null,
+            }));
+            const encodedOptions = submittedOptions.map(({ value }) => value);
             const frameChanged = submittedTimeZone !== poll.timeZone;
 
             const optionsToDelete = frameChanged
@@ -170,14 +208,25 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
                 );
 
             const optionsToAdd = frameChanged
-              ? encodedOptions
-              : encodedOptions.filter(
-                  (encodedOption) =>
+              ? submittedOptions
+              : submittedOptions.filter(
+                  ({ value }) =>
                     !poll.options.find(
-                      (o) =>
-                        convertOptionToString(o, poll.timeZone) === encodedOption,
+                      (o) => convertOptionToString(o, poll.timeZone) === value,
                     ),
                 );
+
+            const optionsToUpdate = frameChanged
+              ? []
+              : submittedOptions.flatMap(({ value, maxYes }) => {
+                  const existingOption = poll.options.find(
+                    (option) =>
+                      convertOptionToString(option, poll.timeZone) === value,
+                  );
+                  return existingOption
+                    ? [{ optionId: existingOption.id, maxYes }]
+                    : [];
+                });
 
             const payload = {
               pollId: poll.id,
@@ -191,6 +240,24 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
               requireParticipantEmail: data.requireParticipantEmail,
               optionsToDelete: optionsToDelete.map(({ id }) => id),
               optionsToAdd,
+              optionsToUpdate,
+              auxiliarySelection: data.auxiliarySelection.enabled
+                ? {
+                    name: required(data.auxiliarySelection.name.trim()),
+                    minYes: data.auxiliarySelection.requireMinimum
+                      ? data.auxiliarySelection.minYes
+                      : 0,
+                    maxYesSelections:
+                      data.auxiliarySelection.limitSelections
+                        ? data.auxiliarySelection.maxYesSelections
+                        : null,
+                    options: data.auxiliarySelection.options.map((option) => ({
+                      optionId: option.optionId,
+                      label: required(option.label.trim()),
+                      maxYes: option.maxYes,
+                    })),
+                  }
+                : null,
             };
 
             const onOk = () => {
@@ -205,8 +272,8 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
 
             const optionsToDeleteThatHaveVotes = optionsToDelete.filter(
               (option) =>
-                filterParticipantsByVote(participants, option.id, "yes").length >
-                0,
+                filterParticipantsByVote(participants, option.id, "yes")
+                  .length > 0,
             );
 
             if (optionsToDeleteThatHaveVotes.length > 0) {
@@ -250,6 +317,8 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
             </Card>
 
             <PollOptionsForm disableTimeZoneChange={hasVotes} />
+
+            <AuxiliarySelectionForm />
 
             <PollSettingsForm />
           </div>

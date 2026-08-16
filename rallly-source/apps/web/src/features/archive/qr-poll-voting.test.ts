@@ -30,8 +30,11 @@ const { mockTransaction, tx } = vi.hoisted(() => {
       scheduledEventInvite: model(),
       poll: model(),
       option: model(),
+      pollAuxiliarySelection: model(),
+      pollAuxiliaryOption: model(),
       participant: model(),
       vote: model(),
+      pollAuxiliaryVote: model(),
       comment: model(),
       pollInvite: model(),
       pollActivity: model(),
@@ -72,6 +75,27 @@ const archivedVote = {
   optionId: "option-1",
   type: "yes",
 };
+const archivedAuxiliarySelection = {
+  id: "auxiliary-selection-1",
+  pollId: archivedParticipant.pollId,
+  name: "Roles",
+  minYes: 1,
+  maxYesSelections: 1,
+};
+const archivedAuxiliaryOption = {
+  id: "auxiliary-option-1",
+  auxiliarySelectionId: archivedAuxiliarySelection.id,
+  label: "Driver",
+  position: 0,
+  maxYes: 2,
+};
+const archivedAuxiliaryVote = {
+  id: "auxiliary-vote-1",
+  participantId: archivedParticipant.id,
+  pollId: archivedParticipant.pollId,
+  auxiliaryOptionId: archivedAuxiliaryOption.id,
+  type: "ifNeedBe",
+};
 
 function createArchive() {
   const data = Object.fromEntries(
@@ -83,9 +107,12 @@ function createArchive() {
   data.users = [{ ...archivedUser }];
   data.pollGroups = [{ id: "group-1" }];
   data.polls = [{ id: "poll-1", pollGroupId: "group-1" }];
-  data.options = [{ id: "option-1", pollId: "poll-1" }];
+  data.options = [{ id: "option-1", pollId: "poll-1", maxYes: 8 }];
+  data.pollAuxiliarySelections = [{ ...archivedAuxiliarySelection }];
+  data.pollAuxiliaryOptions = [{ ...archivedAuxiliaryOption }];
   data.participants = [{ ...archivedParticipant }];
   data.votes = [{ ...archivedVote }];
+  data.pollAuxiliaryVotes = [{ ...archivedAuxiliaryVote }];
 
   return {
     format: INSTANCE_ARCHIVE_FORMAT,
@@ -120,10 +147,17 @@ describe("QR poll voting archive support", () => {
       { id: "poll-1", pollGroupId: "group-1" },
     ]);
     tx.option.findMany.mockResolvedValue([
-      { id: "option-1", pollId: "poll-1" },
+      { id: "option-1", pollId: "poll-1", maxYes: 8 },
+    ]);
+    tx.pollAuxiliarySelection.findMany.mockResolvedValue([
+      archivedAuxiliarySelection,
+    ]);
+    tx.pollAuxiliaryOption.findMany.mockResolvedValue([
+      archivedAuxiliaryOption,
     ]);
     tx.participant.findMany.mockResolvedValue([archivedParticipant]);
     tx.vote.findMany.mockResolvedValue([archivedVote]);
+    tx.pollAuxiliaryVote.findMany.mockResolvedValue([archivedAuxiliaryVote]);
     const { createInstanceArchive } = await import("./data");
 
     const archive = await createInstanceArchive();
@@ -140,6 +174,23 @@ describe("QR poll voting archive support", () => {
       participantId: archivedParticipant.id,
       optionId: "option-1",
       type: "yes",
+    });
+    expect(archive.data.options[0]).toMatchObject({
+      id: "option-1",
+      maxYes: 8,
+    });
+    expect(archive.data.pollAuxiliarySelections[0]).toMatchObject({
+      name: "Roles",
+      minYes: 1,
+      maxYesSelections: 1,
+    });
+    expect(archive.data.pollAuxiliaryOptions[0]).toMatchObject({
+      label: "Driver",
+      maxYes: 2,
+    });
+    expect(archive.data.pollAuxiliaryVotes[0]).toMatchObject({
+      auxiliaryOptionId: archivedAuxiliaryOption.id,
+      type: "ifNeedBe",
     });
   });
 
@@ -168,17 +219,96 @@ describe("QR poll voting archive support", () => {
         }),
       ],
     });
+    expect(tx.option.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ id: "option-1", maxYes: 8 })],
+    });
+    expect(tx.pollAuxiliarySelection.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          id: archivedAuxiliarySelection.id,
+          pollId: "poll-1",
+          name: "Roles",
+          minYes: 1,
+          maxYesSelections: 1,
+        }),
+      ],
+    });
+    expect(tx.pollAuxiliaryOption.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          id: archivedAuxiliaryOption.id,
+          auxiliarySelectionId: archivedAuxiliarySelection.id,
+          label: "Driver",
+          position: 0,
+          maxYes: 2,
+        }),
+      ],
+    });
+    expect(tx.pollAuxiliaryVote.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          auxiliaryOptionId: archivedAuxiliaryOption.id,
+          participantId: archivedParticipant.id,
+          pollId: "poll-1",
+          type: "ifNeedBe",
+        }),
+      ],
+    });
   });
 
   it("keeps version-one archives from before QR badges restoreable", async () => {
     const archive = createArchive();
     Reflect.deleteProperty(archive.data.users[0], "qrCodeToken");
+    Reflect.deleteProperty(archive.data.options[0], "maxYes");
     const { restoreInstanceArchive } = await import("./mutations");
 
     await restoreInstanceArchive(archive);
 
     expect(tx.user.createMany).toHaveBeenCalledWith({
       data: [expect.not.objectContaining({ qrCodeToken: expect.anything() })],
+    });
+    expect(tx.option.createMany).toHaveBeenCalledWith({
+      data: [expect.not.objectContaining({ maxYes: expect.anything() })],
+    });
+  });
+
+  it("keeps version-one archives from before auxiliary selections restoreable", async () => {
+    const archive = createArchive();
+    for (const table of [
+      "pollAuxiliarySelections",
+      "pollAuxiliaryOptions",
+      "pollAuxiliaryVotes",
+    ] as const) {
+      Reflect.deleteProperty(archive.data, table);
+      Reflect.deleteProperty(archive.counts, table);
+    }
+    const { restoreInstanceArchive } = await import("./mutations");
+
+    await restoreInstanceArchive(archive);
+
+    expect(tx.pollAuxiliarySelection.createMany).toHaveBeenCalledWith({
+      data: [],
+    });
+    expect(tx.pollAuxiliaryOption.createMany).toHaveBeenCalledWith({
+      data: [],
+    });
+    expect(tx.pollAuxiliaryVote.createMany).toHaveBeenCalledWith({ data: [] });
+  });
+
+  it("restores auxiliary selections archived before per-participant limits", async () => {
+    const archive = createArchive();
+    Reflect.deleteProperty(
+      archive.data.pollAuxiliarySelections[0],
+      "maxYesSelections",
+    );
+    const { restoreInstanceArchive } = await import("./mutations");
+
+    await restoreInstanceArchive(archive);
+
+    expect(tx.pollAuxiliarySelection.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.not.objectContaining({ maxYesSelections: expect.anything() }),
+      ],
     });
   });
 });

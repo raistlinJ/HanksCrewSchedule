@@ -28,6 +28,7 @@ export interface PollOptionProps {
   selectedParticipantId?: string;
   optionId: string;
   optionLabel: string;
+  maxYes: number | null;
 }
 
 const PollOptionVoteSummary: React.FunctionComponent<{ optionId: string }> = ({
@@ -134,10 +135,21 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
   optionLabel,
   yesScore,
   ifNeedBeScore,
+  maxYes,
 }) => {
   const showVotes = !!(selectedParticipantId || editable);
+  const { participants } = useParticipants();
   const [isExpanded, toggle] = useToggle(false);
   const summaryId = React.useId();
+  const yesIsFull = maxYes !== null && yesScore >= maxYes;
+  const participantHasExistingYes = participants.some(
+    (participant) =>
+      participant.id === selectedParticipantId &&
+      participant.votes.some(
+        (savedVote) =>
+          savedVote.optionId === optionId && savedVote.type === "yes",
+      ),
+  );
   return (
     <div
       className={cn(
@@ -168,11 +180,22 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
                   {ifNeedBeScore}
                 </span>
               ) : null}
+              {maxYes !== null && !yesIsFull ? (
+                <span className="rounded-full bg-green-500/10 px-1.5 py-0.5 text-[0.625rem] text-green-800 dark:text-green-200">
+                  {yesScore}/{maxYes}
+                </span>
+              ) : null}
               <Icon>
                 {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
               </Icon>
             </Button>
           </IfScoresVisible>
+
+          {yesIsFull ? (
+            <span className="rounded-full bg-green-600 px-2 py-1 font-medium text-white text-xs">
+              Yes full
+            </span>
+          ) : null}
 
           {showVotes ? (
             <div className="flex size-7 items-center justify-center">
@@ -181,6 +204,7 @@ const PollOption: React.FunctionComponent<PollOptionProps> = ({
                   className="after:absolute after:inset-0"
                   optionLabel={optionLabel}
                   value={vote}
+                  yesDisabled={yesIsFull && !participantHasExistingYes}
                   onChange={onChange}
                 />
               ) : (
