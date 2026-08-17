@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@rallly/ui/card";
 import { Form } from "@rallly/ui/form";
+import { SidebarTrigger } from "@rallly/ui/sidebar";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type React from "react";
@@ -24,6 +25,7 @@ import {
   useParticipants,
 } from "@/features/poll/components/participants-provider";
 import { usePoll } from "@/features/poll/components/poll-context";
+import { useUser } from "@/features/user/client";
 import { Trans, useTranslation } from "@/i18n/client";
 import { dayjs } from "@/lib/dayjs";
 import {
@@ -57,6 +59,8 @@ const convertOptionToString = (
 
 export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
   const { poll } = usePoll();
+  const { user } = useUser();
+  const isLoggedIn = !!user && !user.isGuest;
   const { participants } = useParticipants();
   const hasVotes = participants.some(
     (participant) => participant.votes.length > 0,
@@ -126,6 +130,7 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
       hideParticipants: poll.hideParticipants ?? false,
       enableComments: !poll.disableComments,
       requireParticipantEmail: poll.requireParticipantEmail ?? false,
+      requireEmailVerification: poll.requireEmailVerification ?? true,
       auxiliarySelection: poll.auxiliarySelection
         ? {
             enabled: true,
@@ -158,7 +163,10 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
     <Form {...form}>
       <header className="sticky top-0 z-20 bg-gray-100/90 p-3 backdrop-blur-md xl:bg-transparent xl:backdrop-blur-none dark:bg-gray-900/90 dark:xl:bg-transparent">
         <div className="flex items-center justify-between gap-x-4">
-          <div className="flex min-w-0 flex-1 items-center">{nav}</div>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {isLoggedIn ? <SidebarTrigger className="md:hidden" /> : null}
+            {nav}
+          </div>
           <div className="flex shrink-0 items-center gap-x-4">
             <Link
               href={returnTo}
@@ -238,6 +246,7 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
               disableComments: !data.enableComments,
               hideScores: data.hideScores,
               requireParticipantEmail: data.requireParticipantEmail,
+              requireEmailVerification: data.requireEmailVerification,
               optionsToDelete: optionsToDelete.map(({ id }) => id),
               optionsToAdd,
               optionsToUpdate,
@@ -320,7 +329,9 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
 
             <AuxiliarySelectionForm />
 
-            <PollSettingsForm />
+            <PollSettingsForm
+              emailSettingsDisabled={!!poll.groupNavigation}
+            />
           </div>
         </form>
       </main>

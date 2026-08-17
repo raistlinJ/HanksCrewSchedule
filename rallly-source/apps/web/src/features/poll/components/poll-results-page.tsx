@@ -56,7 +56,7 @@ export function PollResultsPage() {
                   <Trans i18nKey="email" defaults="Email" />
                 </th>
                 <th className="px-4 py-3 font-medium">
-                  <Trans i18nKey="joinedOn" defaults="Joined On" />
+                  Joined
                 </th>
                 <th className="px-4 py-3 font-medium">
                   <Trans i18nKey="yesVotes" defaults="Yes Votes" />

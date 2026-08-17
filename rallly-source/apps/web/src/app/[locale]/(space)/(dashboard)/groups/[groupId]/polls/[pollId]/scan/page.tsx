@@ -10,9 +10,9 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@/components/page-layout";
+import { PollQrVoteScanner } from "@/features/poll/components/poll-qr-vote-scanner";
 import { loadPollForQrVoting } from "@/features/poll/loaders";
 import { Trans } from "@/i18n/client";
-import { PollQrVoteScanner } from "./poll-qr-vote-scanner";
 
 export default async function PollQrVotingPage({
   params,

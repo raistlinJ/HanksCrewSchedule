@@ -319,16 +319,18 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
               <th className="p-3 border-b font-semibold min-w-[120px] w-32 sm:w-48 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">
                 <div className="flex items-center gap-2">
                   <span>Participant</span>
-                  {poll.groupNavigation ? (
-                    <Link
-                      href={`/groups/${poll.groupNavigation.groupId}/polls/${poll.id}/scan`}
-                      aria-label="Scan user QR code"
-                      title="Scan user QR code"
-                      className="inline-flex text-muted-foreground transition-colors hover:text-primary"
-                    >
-                      <QrCodeIcon className="size-4" />
-                    </Link>
-                  ) : null}
+                  <Link
+                    href={
+                      poll.groupNavigation
+                        ? `/groups/${poll.groupNavigation.groupId}/polls/${poll.id}/scan`
+                        : `/poll/${poll.id}/scan`
+                    }
+                    aria-label="Scan user QR code"
+                    title="Scan user QR code"
+                    className="inline-flex text-muted-foreground transition-colors hover:text-primary"
+                  >
+                    <QrCodeIcon className="size-4" />
+                  </Link>
                 </div>
               </th>
               {allOptions.map((opt: any) => (

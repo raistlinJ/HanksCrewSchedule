@@ -7,6 +7,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@rallly/ui/breadcrumb";
+import { SidebarTrigger } from "@rallly/ui/sidebar";
 import { BarChart2Icon } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
@@ -16,6 +17,7 @@ import { InviteDialog } from "@/features/poll/components/invite-dialog";
 import ManagePoll from "@/features/poll/components/manage-poll";
 import { NotificationToggle } from "@/features/poll/components/notification-toggle";
 import { LegacyPollContextProvider } from "@/features/poll/components/poll-context-provider";
+import { useUser } from "@/features/user/client";
 import { Trans } from "@/i18n/client";
 
 const AdminControls = () => {
@@ -30,6 +32,8 @@ const AdminControls = () => {
 
 const Layout = ({ children }: React.PropsWithChildren) => {
   const poll = usePoll();
+  const { user } = useUser();
+  const isLoggedIn = !!user && !user.isGuest;
   const pollLink = `/poll/${poll.id}`;
   const pathname = usePathname();
   const normalizedPathname = pathname.replace(/\/$/, "");
@@ -41,6 +45,7 @@ const Layout = ({ children }: React.PropsWithChildren) => {
         <div className="sticky top-0 z-40 border-b bg-gray-100/90 p-3 backdrop-blur-lg sm:flex-row dark:bg-gray-900/90">
           <div className="flex justify-between">
             <div className="flex min-w-0 items-center gap-x-2.5">
+              {isLoggedIn ? <SidebarTrigger className="md:hidden" /> : null}
               <Breadcrumb className="min-w-0">
                 <BreadcrumbList className="flex-nowrap">
                   <BreadcrumbItem className="shrink-0">

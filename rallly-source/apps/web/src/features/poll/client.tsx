@@ -1,10 +1,16 @@
 "use client";
 import { useParams, usePathname } from "next/navigation";
-import React from "react";
 
 import { useParticipants } from "@/features/poll/components/participants-provider";
+import {
+  PermissionProvider,
+  usePollEmailAccess,
+} from "@/features/poll/email-access/client";
+import { canAccessParticipantByEmail } from "@/features/poll/email-access/utils";
 import { useUser } from "@/features/user/client";
 import { trpc } from "@/trpc/client";
+
+export { PermissionProvider, usePollEmailAccess };
 
 export const usePoll = () => {
   const params = useParams<{ urlId: string }>();
@@ -20,29 +26,9 @@ export const useRole = () => {
   return pathname?.includes("/poll") ? "admin" : "participant";
 };
 
-const PermissionsContext = React.createContext<{
-  impersonatedUserId: string | null;
-}>({
-  impersonatedUserId: null,
-});
-
-export const PermissionProvider = ({
-  children,
-  impersonatedUserId,
-}: {
-  children: React.ReactNode;
-  impersonatedUserId: string | null;
-}) => {
-  return (
-    <PermissionsContext.Provider value={{ impersonatedUserId }}>
-      {children}
-    </PermissionsContext.Provider>
-  );
-};
-
 export const usePermissions = () => {
   const poll = usePoll();
-  const context = React.useContext(PermissionsContext);
+  const context = usePollEmailAccess();
   const { user } = useUser();
   const role = useRole();
   const { participants } = useParticipants();
@@ -70,7 +56,12 @@ export const usePermissions = () => {
       if (
         participant.userId === user?.id ||
         (context.impersonatedUserId &&
-          participant.userId === context.impersonatedUserId)
+          participant.userId === context.impersonatedUserId) ||
+        canAccessParticipantByEmail({
+          requireEmailVerification: poll.requireEmailVerification,
+          participantEmail: participant.email,
+          accessEmail: context.emailAccess,
+        })
       ) {
         return true;
       }

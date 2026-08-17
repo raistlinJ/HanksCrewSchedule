@@ -38,7 +38,7 @@ export function PollQrVoteScanner({
   pollTitle,
   initialVoters,
 }: {
-  groupId: string;
+  groupId?: string;
   pollId: string;
   pollTitle: string;
   initialVoters: Voter[];
@@ -50,7 +50,10 @@ export function PollQrVoteScanner({
   const [voters, setVoters] = useState(initialVoters);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
-  const { mutateAsync: markYes } = trpc.pollGroups.scanYesVote.useMutation();
+  const { mutateAsync: markGroupYes } =
+    trpc.pollGroups.scanYesVote.useMutation();
+  const { mutateAsync: markStandaloneYes } =
+    trpc.polls.scanYesVote.useMutation();
 
   const resumeCamera = useCallback(() => {
     window.setTimeout(() => {
@@ -77,7 +80,9 @@ export function PollQrVoteScanner({
       }
 
       try {
-        const result = await markYes({ groupId, pollId, qrCodeToken });
+        const result = groupId
+          ? await markGroupYes({ groupId, pollId, qrCodeToken })
+          : await markStandaloneYes({ pollId, qrCodeToken });
         setVoters((current) => [
           result.voter,
           ...current.filter(
@@ -100,7 +105,7 @@ export function PollQrVoteScanner({
         resumeCamera();
       }
     },
-    [groupId, markYes, pollId, pollTitle, resumeCamera],
+    [groupId, markGroupYes, markStandaloneYes, pollId, pollTitle, resumeCamera],
   );
 
   useEffect(() => {
@@ -178,10 +183,14 @@ export function PollQrVoteScanner({
             <Trans i18nKey="scanUserQrCode" defaults="Scan user QR code" />
           </CardTitle>
           <CardDescription>
-            <Trans
-              i18nKey="scanUserQrCodeDescription"
-              defaults="Scan a person's assigned QR code to mark every option in this poll yes. Other polls in the group are not changed."
-            />
+            {groupId ? (
+              <Trans
+                i18nKey="scanUserQrCodeDescription"
+                defaults="Scan a person's assigned QR code to mark every option in this poll yes. Other polls in the group are not changed."
+              />
+            ) : (
+              "Scan a person's assigned QR code to add them and mark every option in this poll yes."
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 border-t">

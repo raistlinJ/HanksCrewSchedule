@@ -27,7 +27,10 @@ import { ProBadge } from "@/features/billing/components/pro-badge";
 import type { PollSettingsFormData } from "@/features/poll/components/forms/types";
 import { Trans } from "@/i18n/client";
 
-export const PollSettingsForm = ({ children }: React.PropsWithChildren) => {
+export const PollSettingsForm = ({
+  children,
+  emailSettingsDisabled = false,
+}: React.PropsWithChildren<{ emailSettingsDisabled?: boolean }>) => {
   const form = useFormContext<PollSettingsFormData>();
   const isFree = useIsFree();
 
@@ -65,6 +68,7 @@ export const PollSettingsForm = ({ children }: React.PropsWithChildren) => {
                 </FieldContent>
                 <Switch
                   id="require-participant-email"
+                  disabled={emailSettingsDisabled}
                   checked={!!field.value}
                   onCheckedChange={(checked) => {
                     if (checked && isFree) {
@@ -104,6 +108,7 @@ export const PollSettingsForm = ({ children }: React.PropsWithChildren) => {
                 </FieldContent>
                 <Switch
                   id="require-email-verification"
+                  disabled={emailSettingsDisabled}
                   checked={!!field.value}
                   onCheckedChange={field.onChange}
                 />

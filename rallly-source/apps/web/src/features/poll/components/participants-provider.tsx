@@ -1,6 +1,7 @@
 import type { VoteType } from "@rallly/database";
 import { useParams, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { usePollEmailAccess } from "@/features/poll/email-access/client";
 import { useTranslation } from "@/i18n/client";
 import { trpc } from "@/trpc/client";
 
@@ -18,9 +19,11 @@ export const useParticipants = () => {
   const { t } = useTranslation();
   const urlId = useParams<{ urlId: string }>().urlId;
   const token = useSearchParams().get("token") ?? undefined;
+  const { emailAccess } = usePollEmailAccess();
   const [rawParticipants] = trpc.polls.participants.list.useSuspenseQuery({
     pollId: urlId,
     token,
+    accessEmail: emailAccess ?? undefined,
   });
 
   const participants = React.useMemo(() => {

@@ -112,17 +112,17 @@ export async function markUserYesForPoll({
   qrCodeToken,
   spaceId,
 }: {
-  groupId: string;
+  groupId?: string;
   pollId: string;
   qrCodeToken: string;
-  spaceId: AuthorizedSpaceId;
+  spaceId?: AuthorizedSpaceId;
 }) {
   const [poll, user] = await Promise.all([
     prisma.poll.findFirst({
       where: {
         id: pollId,
-        pollGroupId: groupId,
-        spaceId,
+        ...(groupId ? { pollGroupId: groupId } : {}),
+        ...(spaceId ? { spaceId } : {}),
         deleted: false,
       },
       select: { id: true, options: { select: { id: true } } },

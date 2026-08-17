@@ -196,16 +196,18 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <span>Participants</span>
-            {poll.groupNavigation ? (
-              <Link
-                href={`/groups/${poll.groupNavigation.groupId}/polls/${poll.id}/scan`}
-                aria-label="Scan user QR code"
-                title="Scan user QR code"
-                className="inline-flex text-muted-foreground transition-colors hover:text-primary"
-              >
-                <QrCodeIcon className="size-4" />
-              </Link>
-            ) : null}
+            <Link
+              href={
+                poll.groupNavigation
+                  ? `/groups/${poll.groupNavigation.groupId}/polls/${poll.id}/scan`
+                  : `/poll/${poll.id}/scan`
+              }
+              aria-label="Scan user QR code"
+              title="Scan user QR code"
+              className="inline-flex text-muted-foreground transition-colors hover:text-primary"
+            >
+              <QrCodeIcon className="size-4" />
+            </Link>
           </CardTitle>
         </CardHeader>
         <CardContent>

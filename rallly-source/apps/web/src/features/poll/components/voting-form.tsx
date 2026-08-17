@@ -7,7 +7,12 @@ import { toast } from "@rallly/ui/sonner";
 import React from "react";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
 import * as z from "zod";
-import { usePermissions, usePoll, useRole } from "@/features/poll/client";
+import {
+  usePermissions,
+  usePoll,
+  usePollEmailAccess,
+  useRole,
+} from "@/features/poll/client";
 import {
   normalizeAuxiliaryVotes,
   normalizeVotes,
@@ -16,6 +21,7 @@ import {
 } from "@/features/poll/components/mutations";
 import { NewParticipantForm } from "@/features/poll/components/new-participant-modal";
 import { useParticipants } from "@/features/poll/components/participants-provider";
+import { normalizePollAccessEmail } from "@/features/poll/email-access/utils";
 import { useUnsubmittedResponseWarning } from "@/features/poll/hooks/unsubmitted-response-warning/utils";
 import { isVoterIdentityComplete } from "@/features/poll/voter-identity/utils";
 import { useUser } from "@/features/user/client";
@@ -180,6 +186,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
   const token = useEditToken();
   const { participants } = useParticipants();
   const { user } = useUser();
+  const { emailAccess, setEmailAccess } = usePollEmailAccess();
 
   const { canAddNewParticipant, canEditParticipant } = usePermissions();
   const userAlreadyVoted = participants.some((participant) =>
@@ -205,7 +212,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
           ? participants.find((p) => canEditParticipant(p.id))?.id
           : undefined,
       name: user && !user.isGuest ? user.name : "",
-      email: user && !user.isGuest ? (user.email ?? "") : "",
+      email: user && !user.isGuest ? (user.email ?? "") : (emailAccess ?? ""),
       votes: options.map((option) => ({
         optionId: option.id,
       })),
@@ -265,6 +272,7 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
               votes,
               auxiliaryVotes,
               token,
+              accessEmail: emailAccess ?? undefined,
             });
 
             form.reset({
@@ -310,6 +318,11 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
               form.watch("auxiliaryVotes"),
             )}
             onSubmit={(newParticipant) => {
+              if (emailAccess) {
+                setEmailAccess(
+                  normalizePollAccessEmail(form.getValues("email")),
+                );
+              }
               form.reset({
                 mode: "view",
                 participantId: newParticipant.id,

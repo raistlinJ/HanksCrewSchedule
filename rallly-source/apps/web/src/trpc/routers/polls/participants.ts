@@ -10,6 +10,7 @@ import * as z from "zod";
 import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
 import { getNotificationRecipient } from "@/features/notifications/data";
 import { hasPollAdminAccess } from "@/features/poll/data";
+import { canAccessParticipantByEmail } from "@/features/poll/email-access/utils";
 import { addUserAsPollParticipant } from "@/features/poll/mutations";
 import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
 import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
@@ -25,7 +26,7 @@ import {
 import { responseNoteInput } from "./schema";
 import {
   createParticipantEditToken,
-  resolveActor,
+  tryResolveActor,
   tryResolveUserId,
 } from "./utils";
 
@@ -49,10 +50,26 @@ function createParticipantFullDTO(
   };
 }
 
-async function canModifyParticipant(participantId: string, userId: string) {
+async function authorizeParticipantModification({
+  participantId,
+  token,
+  ctxUser,
+  accessEmail,
+}: {
+  participantId: string;
+  token?: string;
+  ctxUser?: { id: string; isGuest: boolean };
+  accessEmail?: string;
+}) {
   const participant = await prisma.participant.findUnique({
     where: { id: participantId },
-    select: { id: true, pollId: true, userId: true },
+    select: {
+      id: true,
+      pollId: true,
+      userId: true,
+      email: true,
+      poll: { select: { requireEmailVerification: true } },
+    },
   });
 
   if (!participant) {
@@ -62,16 +79,35 @@ async function canModifyParticipant(participantId: string, userId: string) {
     });
   }
 
-  const isOwner = participant.userId === userId;
+  const emailAuthorized = canAccessParticipantByEmail({
+    requireEmailVerification: participant.poll.requireEmailVerification,
+    participantEmail: participant.email,
+    accessEmail: accessEmail ?? null,
+  });
+  const actor = await tryResolveActor(token, ctxUser);
+  const isOwner = !!actor && participant.userId === actor.id;
 
-  if (!isOwner && !(await hasPollAdminAccess(participant.pollId, userId))) {
+  if (
+    !emailAuthorized &&
+    !isOwner &&
+    !(actor && (await hasPollAdminAccess(participant.pollId, actor.id)))
+  ) {
     throw new TRPCError({
-      code: "FORBIDDEN",
+      code: actor ? "FORBIDDEN" : "UNAUTHORIZED",
       message: "You are not allowed to modify this participant",
     });
   }
 
-  return participant;
+  return {
+    participant,
+    emailAuthorized,
+    actor:
+      actor ??
+      ({
+        id: participant.userId ?? participant.id,
+        isGuest: true,
+      } as const),
+  };
 }
 
 async function sendNewResponseNotificationEmail({
@@ -128,13 +164,15 @@ export const participants = router({
       z.object({
         pollId: z.string(),
         token: z.string().optional(),
+        accessEmail: z.email().optional(),
       }),
     )
-    .query(async ({ ctx, input: { pollId, token } }) => {
+    .query(async ({ ctx, input: { pollId, token, accessEmail } }) => {
       const poll = await prisma.poll.findUnique({
         where: { id: pollId },
         select: {
           hideParticipants: true,
+          requireEmailVerification: true,
           deleted: true,
         },
       });
@@ -185,6 +223,12 @@ export const participants = router({
       // Fall back to the edit token so a guest can still see their own
       // response when opening the email link in a fresh browser.
       const viewerId = isAdmin ? null : await tryResolveUserId(token, ctx.user);
+      const canViewParticipantByEmail = (participantEmail: string | null) =>
+        canAccessParticipantByEmail({
+          requireEmailVerification: poll.requireEmailVerification,
+          participantEmail,
+          accessEmail: accessEmail ?? null,
+        });
 
       // Response notes are visible to the host and their author only: strip
       // them from every other payload rather than hiding them in the UI.
@@ -192,7 +236,8 @@ export const participants = router({
         const dto = createParticipantFullDTO(participant);
         if (
           isAdmin ||
-          (participant.userId && participant.userId === viewerId)
+          (participant.userId && participant.userId === viewerId) ||
+          canViewParticipantByEmail(participant.email)
         ) {
           return dto;
         }
@@ -204,7 +249,10 @@ export const participants = router({
       if (poll.hideParticipants) {
         if (!isAdmin) {
           return participants.map((participant) => {
-            if (viewerId && participant.userId === viewerId) {
+            if (
+              (viewerId && participant.userId === viewerId) ||
+              canViewParticipantByEmail(participant.email)
+            ) {
               return participant;
             }
 
@@ -227,36 +275,42 @@ export const participants = router({
       z.object({
         participantId: z.string(),
         token: z.string().optional(),
+        accessEmail: z.email().optional(),
       }),
     )
-    .mutation(async ({ input: { participantId, token }, ctx }) => {
-      const actor = await resolveActor(token, ctx.user);
+    .mutation(
+      async ({ input: { participantId, token, accessEmail }, ctx }) => {
+        const { actor, participant } = await authorizeParticipantModification({
+          participantId,
+          token,
+          ctxUser: ctx.user,
+          accessEmail,
+        });
 
-      const participant = await canModifyParticipant(participantId, actor.id);
-
-      await prisma.participant.update({
-        where: {
-          id: participantId,
-        },
-        data: {
-          deleted: true,
-          deletedAt: new Date(),
-        },
-      });
-
-      track(
-        { ...actor, anonymousDistinctId: ctx.anonymousDistinctId },
-        {
-          event: "poll_response_delete",
-          properties: {
-            participant_id: participant.id,
+        await prisma.participant.update({
+          where: {
+            id: participantId,
           },
-          groups: {
-            poll: participant.pollId,
+          data: {
+            deleted: true,
+            deletedAt: new Date(),
           },
-        },
-      );
-    }),
+        });
+
+        track(
+          { ...actor, anonymousDistinctId: ctx.anonymousDistinctId },
+          {
+            event: "poll_response_delete",
+            properties: {
+              participant_id: participant.id,
+            },
+            groups: {
+              poll: participant.pollId,
+            },
+          },
+        );
+      },
+    ),
   addManaged: privateProcedure
     .input(
       z.object({
@@ -399,7 +453,7 @@ export const participants = router({
             data: {
               pollId: pollId,
               name: name,
-              email,
+              email: email?.toLowerCase(),
               note,
               timeZone,
               userId: ctx.user.id,
@@ -530,12 +584,24 @@ export const participants = router({
         newName: z.string().min(1, "Participant name is required").max(100),
         newEmail: z.string().email().optional().or(z.literal('')),
         token: z.string().optional(),
+        accessEmail: z.email().optional(),
       }),
     )
-    .mutation(async ({ input: { participantId, newName, newEmail, token }, ctx }) => {
-      const { id: userId } = await resolveActor(token, ctx.user);
+    .mutation(async ({ input, ctx }) => {
+      const { participantId, newName, newEmail, token, accessEmail } = input;
+      const { emailAuthorized } = await authorizeParticipantModification({
+        participantId,
+        token,
+        ctxUser: ctx.user,
+        accessEmail,
+      });
 
-      await canModifyParticipant(participantId, userId);
+      if (emailAuthorized && !newEmail) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "An email address is required",
+        });
+      }
       
       const emailStr = newEmail ? newEmail.toLowerCase() : null;
 
@@ -570,25 +636,19 @@ export const participants = router({
           .optional()
           .default([]),
         token: z.string().optional(),
+        accessEmail: z.email().optional(),
       }),
     )
     .mutation(
-      async ({ input: { participantId, votes, auxiliaryVotes, token }, ctx }) => {
-      const actor = await resolveActor(token, ctx.user);
-
-      // Check if we can bypass auth for unverified emails
-      const existingParticipant = await prisma.participant.findUnique({
-        where: { id: participantId },
-        include: { poll: { select: { requireEmailVerification: true } } }
-      });
-
-      if (!existingParticipant) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Participant not found" });
-      }
-
-      if (existingParticipant.poll.requireEmailVerification) {
-        await canModifyParticipant(participantId, actor.id);
-      }
+      async ({ input, ctx }) => {
+      const { participantId, votes, auxiliaryVotes, token, accessEmail } = input;
+      const { actor, participant: existingParticipant } =
+        await authorizeParticipantModification({
+          participantId,
+          token,
+          ctxUser: ctx.user,
+          accessEmail,
+        });
 
       const pollId = existingParticipant.pollId;
 

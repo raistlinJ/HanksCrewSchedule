@@ -1,6 +1,7 @@
 import { toast } from "@rallly/ui/sonner";
 import { useSearchParams } from "next/navigation";
 import { usePoll } from "@/features/poll/components/poll-context";
+import { usePollEmailAccess } from "@/features/poll/email-access/client";
 import { useTranslation } from "@/i18n/client";
 import { trpc } from "@/trpc/client";
 import type { ParticipantForm } from "./types";
@@ -39,10 +40,15 @@ export const useAddParticipantMutation = () => {
 export const useUpdateParticipantMutation = () => {
   const queryClient = trpc.useUtils();
   const token = useEditToken();
+  const { emailAccess } = usePollEmailAccess();
   return trpc.polls.participants.update.useMutation({
     onSuccess: (participant) => {
       queryClient.polls.participants.list.setData(
-        { pollId: participant.pollId, token },
+        {
+          pollId: participant.pollId,
+          token,
+          accessEmail: emailAccess ?? undefined,
+        },
         (existingParticipants = []) => {
           const newParticipants = [...existingParticipants];
 
@@ -68,10 +74,11 @@ export const useDeleteParticipantMutation = () => {
   const queryClient = trpc.useUtils();
   const { poll } = usePoll();
   const token = useEditToken();
+  const { emailAccess } = usePollEmailAccess();
   return trpc.polls.participants.delete.useMutation({
     onMutate: ({ participantId }) => {
       queryClient.polls.participants.list.setData(
-        { pollId: poll.id, token },
+        { pollId: poll.id, token, accessEmail: emailAccess ?? undefined },
         (existingParticipants = []) => {
           return existingParticipants.filter(({ id }) => id !== participantId);
         },

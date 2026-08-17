@@ -15,6 +15,7 @@ import {
   getPolls,
   hasPollAdminAccess,
 } from "@/features/poll/data";
+import { markUserYesForPoll } from "@/features/poll/mutations";
 import { MAX_POLL_DESCRIPTION_LENGTH } from "@/features/poll/schema";
 import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
 import { formatEventDateTime } from "@/features/scheduled-event/utils";
@@ -88,6 +89,45 @@ const optionEndsInFuture = (option: { startTime: Date; duration: number }) =>
 export const polls = router({
   participants,
   comments,
+  scanYesVote: privateProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        qrCodeToken: z.uuid(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!(await hasPollAdminAccess(input.pollId, ctx.user.id))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You are not allowed to add participants to this poll",
+        });
+      }
+
+      const result = await markUserYesForPoll(input);
+
+      if (!result.ok) {
+        switch (result.reason) {
+          case "poll_not_found":
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Poll not found",
+            });
+          case "poll_has_no_options":
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "This poll has no options to vote yes on",
+            });
+          case "invalid_qr_code":
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "This is not a valid user QR code",
+            });
+        }
+      }
+
+      return result;
+    }),
   bulkAction: spaceProcedure
     .input(
       z.object({
@@ -510,6 +550,7 @@ export const polls = router({
         disableComments: z.boolean().optional(),
         hideScores: z.boolean().optional(),
         requireParticipantEmail: z.boolean().optional(),
+        requireEmailVerification: z.boolean().optional(),
         auxiliarySelection: auxiliarySelectionInput.nullable().optional(),
       }),
     )
@@ -563,6 +604,19 @@ export const polls = router({
       }
 
       await prisma.$transaction(async (tx) => {
+        const pollEmailPolicy = await tx.poll.findUnique({
+          where: { id: pollId },
+          select: {
+            pollGroup: { select: { requireEmailVerification: true } },
+          },
+        });
+        const groupEmailPolicy =
+          pollEmailPolicy?.pollGroup?.requireEmailVerification;
+        const effectiveRequireParticipantEmail =
+          groupEmailPolicy ?? input.requireParticipantEmail;
+        const effectiveRequireEmailVerification =
+          groupEmailPolicy ?? input.requireEmailVerification;
+
         const newOptions =
           input.optionsToAdd?.map(({ value, maxYes }) => {
             const [start, end] = value.split("/");
@@ -743,7 +797,8 @@ export const polls = router({
             hideScores: input.hideScores,
             hideParticipants: input.hideParticipants,
             disableComments: input.disableComments,
-            requireParticipantEmail: input.requireParticipantEmail,
+            requireParticipantEmail: effectiveRequireParticipantEmail,
+            requireEmailVerification: effectiveRequireEmailVerification,
             kind,
             ...(reopen ? { status: "open" as const, closedReason: null } : {}),
           },
@@ -817,7 +872,8 @@ export const polls = router({
         input.hideParticipants !== undefined ||
         input.disableComments !== undefined ||
         input.hideScores !== undefined ||
-        input.requireParticipantEmail !== undefined;
+        input.requireParticipantEmail !== undefined ||
+        input.requireEmailVerification !== undefined;
 
       if (hasDetailsUpdate) {
         track(
@@ -1016,7 +1072,7 @@ export const polls = router({
       const participant = await prisma.participant.findFirst({
         where: {
           pollId: pollId,
-          email: email,
+          email: { equals: email, mode: "insensitive" },
           deleted: false,
         },
         include: {

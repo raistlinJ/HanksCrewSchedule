@@ -26,6 +26,7 @@ import {
   InputGroupInput,
 } from "@rallly/ui/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@rallly/ui/popover";
+import { SidebarTrigger } from "@rallly/ui/sidebar";
 import { toast } from "@rallly/ui/sonner";
 import { shortUrl } from "@rallly/utils/absolute-url";
 import { CheckIcon, CopyIcon } from "lucide-react";
@@ -221,7 +222,10 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
     <Form {...form}>
       <header className="sticky top-0 z-20 bg-gray-100/90 p-3 backdrop-blur-md xl:bg-transparent xl:backdrop-blur-none dark:bg-gray-900/90 dark:xl:bg-transparent">
         <div className="flex items-center justify-between gap-x-4">
-          <div className="flex min-w-0 flex-1 items-center">{nav}</div>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {isLoggedIn ? <SidebarTrigger className="md:hidden" /> : null}
+            {nav}
+          </div>
           <div className="flex shrink-0 items-center gap-x-4">
             {!isLoggedIn ? <GuestModeBadge /> : null}
             <CreatePollActions createdPollId={createdPollId} />

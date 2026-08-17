@@ -7,6 +7,7 @@ import { HanksThemeLogo } from "@/components/hanks-theme-logo";
 import { usePoll } from "@/features/poll/client";
 import { CommentsSheet } from "@/features/poll/components/comments-sheet";
 import { EventCard } from "@/features/poll/components/event-card";
+import { PollEmailGate } from "@/features/poll/components/poll-email-gate";
 import { PollFooter } from "@/features/poll/components/poll-footer";
 import { ResponsiveResults } from "@/features/poll/components/responsive-results";
 import { VotingForm } from "@/features/poll/components/voting-form";
@@ -59,13 +60,15 @@ export function InvitePage() {
         </div>
         <GoToApp />
         <EventCard />
-        <VotingForm>
-          <ResponsiveResults />
-        </VotingForm>
+        <PollEmailGate>
+          <VotingForm>
+            <ResponsiveResults />
+          </VotingForm>
+          <div className="fixed right-4 bottom-4 z-40 lg:right-6 lg:bottom-6">
+            <CommentsSheet className="rounded-full shadow-lg" />
+          </div>
+        </PollEmailGate>
         <PollFooter />
-        <div className="fixed right-4 bottom-4 z-40 lg:right-6 lg:bottom-6">
-          <CommentsSheet className="rounded-full shadow-lg" />
-        </div>
         <div className="h-12 lg:hidden" />
       </main>
     </div>

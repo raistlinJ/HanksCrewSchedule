@@ -260,33 +260,16 @@ export const pollGroups = router({
         },
       });
 
-      // Assign newly selected polls to group and cascade email settings if changed
-      const emailSettingsChanged = newRequireEmail !== existingGroup.requireEmailVerification;
-      
-      const newlyAddedPolls = pollIds.filter(id => !existingOrder.includes(id));
-      const existingPollsRetained = pollIds.filter(id => existingOrder.includes(id));
-
-      if (newlyAddedPolls.length > 0) {
+      // The group is authoritative for every selected poll. Updating all of
+      // them also repairs any child poll whose settings have drifted.
+      if (pollIds.length > 0) {
         await prisma.poll.updateMany({
           where: {
-            id: { in: newlyAddedPolls },
+            id: { in: pollIds },
             spaceId: ctx.space.id,
           },
           data: {
             pollGroupId: groupId,
-            requireParticipantEmail: newRequireEmail,
-            requireEmailVerification: newRequireEmail,
-          },
-        });
-      }
-
-      if (emailSettingsChanged && existingPollsRetained.length > 0) {
-        await prisma.poll.updateMany({
-          where: {
-            id: { in: existingPollsRetained },
-            spaceId: ctx.space.id,
-          },
-          data: {
             requireParticipantEmail: newRequireEmail,
             requireEmailVerification: newRequireEmail,
           },
@@ -768,8 +751,8 @@ export const pollGroups = router({
               hideParticipants: poll.hideParticipants,
               hideScores: poll.hideScores,
               disableComments: poll.disableComments,
-              requireParticipantEmail: poll.requireParticipantEmail,
-              requireEmailVerification: poll.requireEmailVerification,
+              requireParticipantEmail: group.requireEmailVerification,
+              requireEmailVerification: group.requireEmailVerification,
               muted: poll.muted,
               deadline: poll.deadline,
               status: poll.status,

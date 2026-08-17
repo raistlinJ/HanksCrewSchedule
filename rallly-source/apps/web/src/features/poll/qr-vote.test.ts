@@ -123,6 +123,31 @@ describe("markUserYesForPoll", () => {
     expect(result).toMatchObject({ ok: true, alreadyYes: false });
   });
 
+  it("supports QR voting on a standalone poll", async () => {
+    const { markUserYesForPoll } = await import("./mutations");
+
+    const result = await markUserYesForPoll({
+      pollId: poll.id,
+      qrCodeToken: "18952f2f-9a61-4d28-a3a3-fc748689c150",
+    });
+
+    expect(mockPollFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: poll.id,
+          deleted: false,
+        },
+      }),
+    );
+    expect(mockParticipantCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ pollId: poll.id }),
+      }),
+    );
+    expect(mockVoteUpsert).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ ok: true, alreadyYes: false });
+  });
+
   it("updates an existing participant and replaces non-yes votes", async () => {
     mockParticipantFindFirst.mockResolvedValueOnce({
       id: "participant-1",

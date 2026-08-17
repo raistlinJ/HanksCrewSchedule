@@ -22,15 +22,15 @@ export function getPollQrVotingData({
   pollId,
   spaceId,
 }: {
-  groupId: string;
+  groupId?: string;
   pollId: string;
-  spaceId: AuthorizedSpaceId;
+  spaceId?: AuthorizedSpaceId;
 }) {
   return prisma.poll.findFirst({
     where: {
       id: pollId,
-      pollGroupId: groupId,
-      spaceId,
+      ...(groupId ? { pollGroupId: groupId } : {}),
+      ...(spaceId ? { spaceId } : {}),
       deleted: false,
     },
     select: {

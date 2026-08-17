@@ -6,8 +6,10 @@ import {
   getPollQrVotingData,
   getPollStatusCounts,
   getPublicPollMetadata,
+  hasPollAdminAccess,
 } from "@/features/poll/data";
 import { getActiveSpace } from "@/features/space/loaders";
+import { requireUser } from "@/features/user/loaders";
 
 export const loadPollStatusCounts = cache(async () => {
   const space = await getActiveSpace();
@@ -39,6 +41,26 @@ export async function loadPollForQrVoting({
   });
 
   if (!poll || !poll.pollGroup) {
+    notFound();
+  }
+
+  return poll;
+}
+
+export async function loadManagedPollForQrVoting({
+  pollId,
+}: {
+  pollId: string;
+}) {
+  const user = await requireUser();
+
+  if (!(await hasPollAdminAccess(pollId, user.id))) {
+    notFound();
+  }
+
+  const poll = await getPollQrVotingData({ pollId });
+
+  if (!poll) {
     notFound();
   }
 

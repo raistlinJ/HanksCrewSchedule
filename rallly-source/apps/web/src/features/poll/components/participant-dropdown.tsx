@@ -37,6 +37,8 @@ import {
   useDeleteParticipantMutation,
   useEditToken,
 } from "@/features/poll/components/mutations";
+import { usePollEmailAccess } from "@/features/poll/email-access/client";
+import { normalizePollAccessEmail } from "@/features/poll/email-access/utils";
 import { Trans, useTranslation } from "@/i18n/client";
 import { useFormValidation } from "@/lib/utils/form-validation";
 import { trpc } from "@/trpc/client";
@@ -139,6 +141,7 @@ const DeleteParticipantModal = ({
 }) => {
   const deleteParticipant = useDeleteParticipantMutation();
   const token = useEditToken();
+  const { emailAccess } = usePollEmailAccess();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -172,6 +175,7 @@ const DeleteParticipantModal = ({
               deleteParticipant.mutate({
                 participantId,
                 token,
+                accessEmail: emailAccess ?? undefined,
               });
               onDelete?.();
               onOpenChange(false);
@@ -187,7 +191,7 @@ const DeleteParticipantModal = ({
 
 type ChangeInfoForm = {
   name: string;
-  email: string;
+  email?: string;
 };
 
 const changeInfoSchema = z.object({
@@ -203,6 +207,7 @@ const ChangeInfoModal = (props: {
   onOpenChange: (open: boolean) => void;
 }) => {
   const token = useEditToken();
+  const { emailAccess, setEmailAccess } = usePollEmailAccess();
   const changeInfo = trpc.polls.participants.rename.useMutation();
   const form = useForm({
     defaultValues: {
@@ -231,11 +236,23 @@ const ChangeInfoModal = (props: {
           newName: name,
           newEmail: email,
           token,
+          accessEmail: emailAccess ?? undefined,
         });
+        if (emailAccess && email) {
+          setEmailAccess(normalizePollAccessEmail(email));
+        }
       }
       onOpenChange(false);
     },
-    [changeInfo, formState.isDirty, participantId, token, onOpenChange],
+    [
+      changeInfo,
+      formState.isDirty,
+      participantId,
+      token,
+      emailAccess,
+      setEmailAccess,
+      onOpenChange,
+    ],
   );
 
   const { requiredString } = useFormValidation();
@@ -255,7 +272,11 @@ const ChangeInfoModal = (props: {
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form id={formName} onSubmit={handleSubmit(handler)} className="space-y-4">
+          <form
+            id={formName}
+            onSubmit={handleSubmit(handler)}
+            className="space-y-4"
+          >
             <FormField
               control={control}
               name="name"
@@ -281,7 +302,9 @@ const ChangeInfoModal = (props: {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("email", { defaultValue: "Email (optional)" })}</FormLabel>
+                  <FormLabel>
+                    {t("email", { defaultValue: "Email (optional)" })}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       type="email"
