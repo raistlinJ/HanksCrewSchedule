@@ -23,6 +23,12 @@ export function parseUserQrCodeValue(value: string) {
 
 export type UserRole = z.infer<typeof userRoleSchema>;
 
+export type UserCleanupCandidate = {
+  id: string;
+  name: string;
+  email: string;
+};
+
 export type UserDTO = {
   id: string;
   name: string;

@@ -7,6 +7,7 @@ import {
 import { getSpaceSeatAvailability } from "@/features/space/data";
 import {
   getUserByEmail,
+  getUserCleanupCandidates,
   getUserDeletionDetails,
   getUserResponseExportRows,
 } from "@/features/user/data";
@@ -181,5 +182,41 @@ export const exportUserResponsesAction = adminActionClient
     return {
       csv: createUserResponsesCsv(rows),
       fileName: `user-responses-${new Date().toISOString().slice(0, 10)}.csv`,
+    };
+  });
+
+export const findUserCleanupCandidatesAction = adminActionClient
+  .metadata({ actionName: "find_user_cleanup_candidates" })
+  .inputSchema(z.object({}))
+  .action(async ({ ctx }) => {
+    return getUserCleanupCandidates({ excludeUserId: ctx.user.id });
+  });
+
+export const removeUserCleanupCandidatesAction = adminActionClient
+  .metadata({ actionName: "remove_user_cleanup_candidates" })
+  .inputSchema(
+    z.object({
+      userIds: z.array(z.string()).min(1).max(250),
+    }),
+  )
+  .action(async ({ ctx, parsedInput }) => {
+    // Re-run every safety check at confirmation time. A user who joined a
+    // poll, space, or subscription after the initial scan is skipped.
+    const { users } = await getUserCleanupCandidates({
+      excludeUserId: ctx.user.id,
+      userIds: Array.from(new Set(parsedInput.userIds)),
+      limit: 250,
+    });
+
+    let removed = 0;
+    for (const user of users) {
+      await deletePostHogPerson({ distinctId: user.id });
+      await hardDeleteUser({ userId: user.id });
+      removed += 1;
+    }
+
+    return {
+      removed,
+      skipped: new Set(parsedInput.userIds).size - removed,
     };
   });

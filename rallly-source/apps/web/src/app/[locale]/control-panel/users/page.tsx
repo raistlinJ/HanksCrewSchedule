@@ -16,6 +16,7 @@ import { requireAdmin } from "@/features/user/loaders";
 import { Trans } from "@/i18n/client";
 import { getTranslation } from "@/i18n/server";
 import { AddUserDialog } from "./add-user-dialog";
+import { CleanupUsersDialog } from "./cleanup-users-dialog";
 import { UsersList } from "./users-list";
 
 async function loadData({
@@ -144,6 +145,7 @@ export default async function AdminPage(props: {
           />
         </SettingsPageDescription>
         <SettingsPageAction>
+          <CleanupUsersDialog />
           <AddUserDialog spaces={spaces} />
         </SettingsPageAction>
       </SettingsPageHeader>

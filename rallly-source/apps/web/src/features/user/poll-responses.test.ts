@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockUserFindUnique,
   mockUserFindMany,
+  mockUserDelete,
   mockParticipantFindMany,
   mockParticipantFindFirst,
   mockVoteUpsert,
@@ -14,6 +15,7 @@ const {
 } = vi.hoisted(() => ({
   mockUserFindUnique: vi.fn(),
   mockUserFindMany: vi.fn(),
+  mockUserDelete: vi.fn(),
   mockParticipantFindMany: vi.fn(),
   mockParticipantFindFirst: vi.fn(),
   mockVoteUpsert: vi.fn(),
@@ -29,6 +31,7 @@ vi.mock("@rallly/database", () => ({
     user: {
       findUnique: mockUserFindUnique,
       findMany: mockUserFindMany,
+      delete: mockUserDelete,
     },
     participant: {
       findMany: mockParticipantFindMany,
@@ -294,6 +297,7 @@ describe("user poll responses", () => {
         pollId: poll.id,
       },
     });
+    expect(mockUserDelete).not.toHaveBeenCalled();
 
     mockParticipantFindFirst.mockResolvedValueOnce(null);
     const rejected = await updateUserPollResponse({

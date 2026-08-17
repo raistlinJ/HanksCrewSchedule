@@ -1,9 +1,50 @@
 import "server-only";
 
-import type { User } from "@rallly/database";
+import type { Prisma, User } from "@rallly/database";
 import { prisma } from "@rallly/database";
-import type { UserDTO } from "@/features/user/schema";
+import type { UserCleanupCandidate, UserDTO } from "@/features/user/schema";
 import type { UserResponseExportRow } from "./utils";
+
+/**
+ * Cleanup is intentionally conservative. Removing one of these users cannot
+ * cascade an owned poll or space, remove a membership, or affect billing.
+ * Soft-deleted participants do not count as current poll participation, while
+ * participants on archived polls do so that restoring a poll remains safe.
+ */
+function getUserCleanupCandidateWhere({
+  userIds,
+  excludeUserId,
+}: {
+  userIds?: string[];
+  excludeUserId?: string;
+} = {}): Prisma.UserWhereInput {
+  return {
+    ...(userIds || excludeUserId
+      ? {
+          id: {
+            ...(userIds ? { in: userIds } : {}),
+            ...(excludeUserId ? { not: excludeUserId } : {}),
+          },
+        }
+      : {}),
+    isAnonymous: false,
+    deletedAt: null,
+    customerId: null,
+    role: "user",
+    participants: { none: { deleted: false } },
+    polls: { none: {} },
+    pollGroups: { none: {} },
+    comments: { none: {} },
+    spaces: { none: {} },
+    memberOf: { none: {} },
+    subscriptions: { none: { active: true } },
+    scheduledEvents: { none: {} },
+    scheduledEventInvites: { none: {} },
+    hostedEventTypes: { none: {} },
+    hostedSheets: { none: {} },
+    spaceMemberInvites: { none: {} },
+  };
+}
 
 export const createUserDTO = (user: User): UserDTO => ({
   id: user.id,
@@ -38,6 +79,73 @@ export function getUserByEmail(email: string) {
     where: { email },
     select: { id: true },
   });
+}
+
+/**
+ * Find regular users who have no current poll participation and own no data
+ * that account deletion could cascade. Legacy participants linked only by
+ * email also count as participation.
+ */
+export async function getUserCleanupCandidates({
+  excludeUserId,
+  limit = 250,
+  userIds,
+}: {
+  excludeUserId?: string;
+  limit?: number;
+  userIds?: string[];
+} = {}): Promise<{ users: UserCleanupCandidate[]; hasMore: boolean }> {
+  if (userIds?.length === 0) {
+    return { users: [], hasMore: false };
+  }
+
+  const users: UserCleanupCandidate[] = [];
+  const batchSize = Math.min(Math.max(limit + 1, 50), 250);
+  let cursor: string | undefined;
+  let reachedEnd = false;
+
+  while (users.length <= limit && !reachedEnd) {
+    const batch = await prisma.user.findMany({
+      where: getUserCleanupCandidateWhere({ userIds, excludeUserId }),
+      select: { id: true, name: true, email: true },
+      orderBy: { id: "asc" },
+      take: batchSize,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    if (batch.length === 0) {
+      break;
+    }
+
+    cursor = batch.at(-1)?.id;
+    reachedEnd = batch.length < batchSize;
+
+    const legacyParticipants = await prisma.participant.findMany({
+      where: {
+        deleted: false,
+        userId: null,
+        email: { in: batch.map((user) => user.email) },
+      },
+      select: { email: true },
+      distinct: ["email"],
+    });
+    const participantEmails = new Set(
+      legacyParticipants.flatMap((participant) =>
+        participant.email ? [participant.email.toLowerCase()] : [],
+      ),
+    );
+
+    users.push(
+      ...batch.filter(
+        (user) => !participantEmails.has(user.email.toLowerCase()),
+      ),
+    );
+  }
+
+  return {
+    users: users.slice(0, limit),
+    hasMore: users.length > limit,
+  };
 }
 
 export function getUserProfile(userId: string) {
