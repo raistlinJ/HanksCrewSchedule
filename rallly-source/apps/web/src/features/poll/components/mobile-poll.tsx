@@ -187,7 +187,7 @@ const MobilePoll: React.FunctionComponent = () => {
           return `${option.month} ${option.year}`;
         }}
       />
-      <AuxiliarySelectionVoting />
+      <AuxiliarySelectionVoting showParticipantSelections={false} />
       <AnimatePresence>
         {isEditing ? (
           <m.div

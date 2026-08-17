@@ -9,6 +9,8 @@ import {
   DialogTitle,
 } from "@rallly/ui/dialog";
 import { ChevronRightIcon } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { AuxiliaryOptionToggle } from "@/features/poll/components/auxiliary-option-toggle";
@@ -17,9 +19,14 @@ import { usePoll } from "@/features/poll/components/poll-context";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { useVotingForm } from "@/features/poll/components/voting-form";
 
-export function AuxiliarySelectionVoting() {
+export function AuxiliarySelectionVoting({
+  showParticipantSelections = true,
+}: {
+  showParticipantSelections?: boolean;
+}) {
   const { poll } = usePoll();
   const { participants } = useParticipants();
+  const searchParams = useSearchParams();
   const form = useVotingForm();
   const [viewingParticipants, setViewingParticipants] = useState<{
     label: string;
@@ -52,6 +59,11 @@ export function AuxiliarySelectionVoting() {
   if (!hasPrimaryYes) {
     return null;
   }
+
+  const queryString = searchParams.toString();
+  const selectionsHref = `/invite/${poll.id}/selections${
+    queryString ? `?${queryString}` : ""
+  }`;
 
   return (
     <>
@@ -130,7 +142,7 @@ export function AuxiliarySelectionVoting() {
                 <div className="flex min-h-9 items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm">{option.label}</div>
-                    {yesParticipants.length > 0 ? (
+                    {showParticipantSelections && yesParticipants.length > 0 ? (
                       <button
                         type="button"
                         className="mt-1 flex min-h-11 max-w-full items-center gap-2 rounded-md px-1 text-left text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -150,8 +162,23 @@ export function AuxiliarySelectionVoting() {
                         <ChevronRightIcon className="size-4 shrink-0" />
                       </button>
                     ) : null}
+                    {!showParticipantSelections && yesIsFull ? (
+                      <p className="mt-1 text-muted-foreground text-xs">
+                        {yesParticipants.length === 1
+                          ? "1 other is already selected"
+                          : `${yesParticipants.length} others are already selected`}
+                        {" · "}
+                        <Link
+                          href={`${selectionsHref}#selection-${option.id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          View
+                        </Link>
+                      </p>
+                    ) : null}
                   </div>
-                  {option.maxYes !== null ? (
+                  {option.maxYes !== null &&
+                  (showParticipantSelections || !yesIsFull) ? (
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2 py-1 font-medium text-xs tabular-nums",
@@ -179,45 +206,47 @@ export function AuxiliarySelectionVoting() {
           })}
         </div>
       </section>
-      <Dialog
-        open={viewingParticipants !== null}
-        onOpenChange={(open) => {
-          if (!open) setViewingParticipants(null);
-        }}
-      >
-        <DialogContent className="max-h-[min(80vh,36rem)] overflow-hidden p-0 sm:max-w-md">
-          {viewingParticipants ? (
-            <>
-              <DialogHeader className="border-b p-4 pr-12">
-                <DialogTitle>{viewingParticipants.label}</DialogTitle>
-                <DialogDescription>
-                  {viewingParticipants.participants.length}{" "}
-                  {viewingParticipants.participants.length === 1
-                    ? "person signed up"
-                    : "people signed up"}
-                </DialogDescription>
-              </DialogHeader>
-              <ul className="max-h-[60vh] space-y-1 overflow-y-auto p-3">
-                {viewingParticipants.participants.map((participant) => (
-                  <li
-                    key={participant.id}
-                    className="flex min-h-12 items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted"
-                  >
-                    <OptimizedAvatarImage
-                      size="sm"
-                      name={participant.name}
-                      src={participant.image ?? undefined}
-                    />
-                    <span className="min-w-0 truncate font-medium text-sm">
-                      {participant.name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      {showParticipantSelections ? (
+        <Dialog
+          open={viewingParticipants !== null}
+          onOpenChange={(open) => {
+            if (!open) setViewingParticipants(null);
+          }}
+        >
+          <DialogContent className="max-h-[min(80vh,36rem)] overflow-hidden p-0 sm:max-w-md">
+            {viewingParticipants ? (
+              <>
+                <DialogHeader className="border-b p-4 pr-12">
+                  <DialogTitle>{viewingParticipants.label}</DialogTitle>
+                  <DialogDescription>
+                    {viewingParticipants.participants.length}{" "}
+                    {viewingParticipants.participants.length === 1
+                      ? "person signed up"
+                      : "people signed up"}
+                  </DialogDescription>
+                </DialogHeader>
+                <ul className="max-h-[60vh] space-y-1 overflow-y-auto p-3">
+                  {viewingParticipants.participants.map((participant) => (
+                    <li
+                      key={participant.id}
+                      className="flex min-h-12 items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted"
+                    >
+                      <OptimizedAvatarImage
+                        size="sm"
+                        name={participant.name}
+                        src={participant.image ?? undefined}
+                      />
+                      <span className="min-w-0 truncate font-medium text-sm">
+                        {participant.name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   );
 }

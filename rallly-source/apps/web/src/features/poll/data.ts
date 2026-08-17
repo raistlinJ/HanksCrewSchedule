@@ -5,6 +5,18 @@ import { prisma } from "@rallly/database";
 import { effectiveSpaceMemberWhere } from "@/features/space/member/utils";
 import type { AuthorizedSpaceId } from "@/features/space/types";
 
+export function getPublicPollMetadata(urlId: string) {
+  return prisma.poll.findUnique({
+    where: { id: urlId },
+    select: {
+      id: true,
+      title: true,
+      deleted: true,
+      user: { select: { banned: true } },
+    },
+  });
+}
+
 export function getPollQrVotingData({
   groupId,
   pollId,
