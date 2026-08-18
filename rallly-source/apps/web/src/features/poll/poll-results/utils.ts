@@ -1,0 +1,69 @@
+export type ResultResponse = "yes" | "ifNeedBe" | "no";
+
+const responseRank: Record<ResultResponse, number> = {
+  yes: 0,
+  ifNeedBe: 1,
+  no: 2,
+};
+
+export function getOverallResponse(
+  votes: ReadonlyArray<{ type: ResultResponse }>,
+): ResultResponse {
+  if (votes.some((vote) => vote.type === "yes")) {
+    return "yes";
+  }
+  if (votes.some((vote) => vote.type === "ifNeedBe")) {
+    return "ifNeedBe";
+  }
+  return "no";
+}
+
+export function getLatestVoteDate(
+  votes: ReadonlyArray<{ createdAt: Date; updatedAt: Date | null }>,
+) {
+  return votes.reduce<Date | null>((latest, vote) => {
+    const voteDate = vote.updatedAt ?? vote.createdAt;
+    return !latest || voteDate > latest ? voteDate : latest;
+  }, null);
+}
+
+export function sortParticipantsByResponse<
+  T extends { name: string; votes: ReadonlyArray<{ type: ResultResponse }> },
+>(participants: ReadonlyArray<T>) {
+  return participants
+    .map((participant) => ({
+      participant,
+      response: getOverallResponse(participant.votes),
+    }))
+    .sort(
+      (a, b) =>
+        responseRank[a.response] - responseRank[b.response] ||
+        a.participant.name.localeCompare(b.participant.name),
+    );
+}
+
+export function getResponseTotals(
+  rows: ReadonlyArray<{ response: ResultResponse }>,
+) {
+  return rows.reduce(
+    (totals, row) => {
+      totals[row.response] += 1;
+      return totals;
+    },
+    { yes: 0, ifNeedBe: 0, no: 0 },
+  );
+}
+
+export function isPublicPollResultsPath(pathname: string) {
+  return /\/invite\/[^/]+\/results\/?$/.test(pathname);
+}
+
+export function redactPublicResultParticipants<
+  T extends { email: string | null; note: string | null },
+>(participants: ReadonlyArray<T>) {
+  return participants.map((participant) => ({
+    ...participant,
+    email: null,
+    note: null,
+  }));
+}

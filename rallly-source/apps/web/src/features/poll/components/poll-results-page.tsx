@@ -10,6 +10,11 @@ import { useCopyToClipboard } from "react-use";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { usePoll } from "@/features/poll/client";
 import { useParticipants } from "@/features/poll/components/participants-provider";
+import VoteIcon from "@/features/poll/components/vote-icon";
+import {
+  getResponseTotals,
+  sortParticipantsByResponse,
+} from "@/features/poll/poll-results/utils";
 import { Trans } from "@/i18n/client";
 import { useDateTime } from "@/lib/datetime/client";
 
@@ -30,6 +35,8 @@ export function PollResultsPage({
     ? `/invite/${poll.id}?token=${encodeURIComponent(token)}`
     : `/invite/${poll.id}`;
   const publicResultsLink = shortUrl(`/invite/${poll.id}/results`);
+  const resultRows = sortParticipantsByResponse(participants);
+  const responseTotals = getResponseTotals(resultRows);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -89,7 +96,37 @@ export function PollResultsPage({
         </div>
       </div>
 
-      <div className="space-y-12">
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-md border border-green-500/20 bg-green-500/10 p-3 text-green-700 dark:text-green-300">
+            <div className="flex items-center gap-2 font-medium text-sm">
+              <VoteIcon type="yes" className="size-5" />
+              <Trans i18nKey="yes" defaults="Yes" />
+            </div>
+            <div className="mt-1 font-bold text-2xl tabular-nums">
+              {responseTotals.yes}
+            </div>
+          </div>
+          <div className="rounded-md border border-yellow-500/20 bg-yellow-500/10 p-3 text-yellow-700 dark:text-yellow-300">
+            <div className="flex items-center gap-2 font-medium text-sm">
+              <VoteIcon type="ifNeedBe" className="size-5" />
+              <Trans i18nKey="ifNeedBe" defaults="If needed" />
+            </div>
+            <div className="mt-1 font-bold text-2xl tabular-nums">
+              {responseTotals.ifNeedBe}
+            </div>
+          </div>
+          <div className="rounded-md border border-red-500/20 bg-red-500/5 p-3 text-red-700 dark:text-red-300">
+            <div className="flex items-center gap-2 font-medium text-sm">
+              <VoteIcon type="no" className="size-5" />
+              <Trans i18nKey="no" defaults="No" />
+            </div>
+            <div className="mt-1 font-bold text-2xl tabular-nums">
+              {responseTotals.no}
+            </div>
+          </div>
+        </div>
+
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted text-muted-foreground">
@@ -97,18 +134,20 @@ export function PollResultsPage({
                 <th className="px-4 py-3 font-medium">
                   <Trans i18nKey="name" defaults="Name" />
                 </th>
-                <th className="px-4 py-3 font-medium">
-                  <Trans i18nKey="email" defaults="Email" />
-                </th>
-                <th className="px-4 py-3 font-medium">Joined</th>
-                <th className="px-4 py-3 font-medium">Yes votes</th>
+                {!publicView ? (
+                  <th className="px-4 py-3 font-medium">
+                    <Trans i18nKey="email" defaults="Email" />
+                  </th>
+                ) : null}
+                <th className="px-4 py-3 font-medium">Voted</th>
+                <th className="px-4 py-3 font-medium">Response</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {participants.length === 0 ? (
+              {resultRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={publicView ? 3 : 4}
                     className="px-4 py-8 text-center text-muted-foreground"
                   >
                     <Trans
@@ -118,12 +157,27 @@ export function PollResultsPage({
                   </td>
                 </tr>
               ) : (
-                participants.map((p) => {
-                  const yesVotesCount = p.votes.filter(
-                    (v) => v.type === "yes",
-                  ).length;
+                resultRows.map(({ participant: p, response }) => {
+                  const responseLabel =
+                    response === "yes"
+                      ? "Yes"
+                      : response === "ifNeedBe"
+                        ? "If needed"
+                        : "No";
+                  const rowClassName =
+                    response === "yes"
+                      ? "bg-green-500/10 hover:bg-green-500/15"
+                      : response === "ifNeedBe"
+                        ? "bg-yellow-500/10 hover:bg-yellow-500/15"
+                        : "bg-red-500/5 hover:bg-red-500/10";
+                  const responseClassName =
+                    response === "yes"
+                      ? "text-green-700 dark:text-green-300"
+                      : response === "ifNeedBe"
+                        ? "text-yellow-700 dark:text-yellow-300"
+                        : "text-red-700 dark:text-red-300";
                   return (
-                    <tr key={p.id} className="hover:bg-muted/50">
+                    <tr key={p.id} className={rowClassName}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-x-2">
                           <OptimizedAvatarImage
@@ -134,17 +188,30 @@ export function PollResultsPage({
                           <span className="font-medium">{p.name}</span>
                         </div>
                       </td>
+                      {!publicView ? (
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {p.email ? (
+                            p.email
+                          ) : (
+                            <span className="italic">N/A</span>
+                          )}
+                        </td>
+                      ) : null}
                       <td className="px-4 py-3 text-muted-foreground">
-                        {p.email ? (
-                          p.email
+                        {p.votedAt ? (
+                          formatDateTime(p.votedAt, "datetime")
                         ) : (
                           <span className="italic">N/A</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {formatDateTime(p.createdAt, "date")}
+                      <td className="px-4 py-3 font-medium">
+                        <span
+                          className={`inline-flex items-center gap-2 ${responseClassName}`}
+                        >
+                          <VoteIcon type={response} className="size-6" />
+                          {responseLabel}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 font-medium">{yesVotesCount}</td>
                     </tr>
                   );
                 })

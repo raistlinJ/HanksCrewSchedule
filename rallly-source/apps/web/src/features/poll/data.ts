@@ -43,7 +43,7 @@ export function getPublicPollGroupResults(groupId: string) {
             where: { deleted: false },
             select: {
               name: true,
-              email: true,
+              userId: true,
               votes: { select: { optionId: true, type: true } },
             },
           },

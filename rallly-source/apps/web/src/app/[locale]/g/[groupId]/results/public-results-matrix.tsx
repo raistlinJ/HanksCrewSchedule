@@ -16,7 +16,7 @@ type PublicResultsGroup = {
     }>;
     participants: Array<{
       name: string;
-      email: string | null;
+      userId: string | null;
       votes: Array<{
         optionId: string;
         type: "yes" | "no" | "ifNeedBe";
@@ -39,19 +39,18 @@ export function PublicResultsMatrix({ group }: { group: PublicResultsGroup }) {
   const participantGroups = new Map<
     string,
     {
+      key: string;
       name: string;
-      email: string | null;
       votes: Map<string, "yes" | "no" | "ifNeedBe">;
     }
   >();
 
   for (const poll of group.polls) {
     for (const participant of poll.participants) {
-      const key =
-        participant.email?.toLowerCase() ?? participant.name.toLowerCase();
+      const key = participant.userId ?? participant.name.toLowerCase();
       const row = participantGroups.get(key) ?? {
+        key,
         name: participant.name,
-        email: participant.email,
         votes: new Map(),
       };
       for (const vote of participant.votes) {
@@ -127,17 +126,9 @@ export function PublicResultsMatrix({ group }: { group: PublicResultsGroup }) {
             </tr>
           ) : (
             rows.map((row) => (
-              <tr
-                key={row.email ?? row.name}
-                className="border-b last:border-0"
-              >
+              <tr key={row.key} className="border-b last:border-0">
                 <td className="sticky left-0 z-10 border-r bg-card p-3">
                   <div className="font-medium text-sm">{row.name}</div>
-                  {row.email ? (
-                    <div className="text-muted-foreground text-xs">
-                      {row.email}
-                    </div>
-                  ) : null}
                 </td>
                 {options.map((option) => {
                   const vote = row.votes.get(option.id) ?? "no";

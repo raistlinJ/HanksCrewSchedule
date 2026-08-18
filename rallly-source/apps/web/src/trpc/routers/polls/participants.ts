@@ -9,10 +9,14 @@ import { after } from "next/server";
 import * as z from "zod";
 import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
 import { getNotificationRecipient } from "@/features/notifications/data";
+import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
 import { hasPollAdminAccess } from "@/features/poll/data";
 import { canAccessParticipantByEmail } from "@/features/poll/email-access/utils";
 import { addUserAsPollParticipant } from "@/features/poll/mutations";
-import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
+import {
+  getLatestVoteDate,
+  redactPublicResultParticipants,
+} from "@/features/poll/poll-results/utils";
 import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
 import { AppError } from "@/lib/errors/app-error";
 import { track } from "@/lib/posthog";
@@ -36,16 +40,30 @@ const MAX_PARTICIPANTS = 1000;
 
 function createParticipantFullDTO(
   participant: Participant & { user: { image: string | null } | null } & {
-    votes: { optionId: string; type: VoteType }[];
-    auxiliaryVotes: { auxiliaryOptionId: string; type: VoteType }[];
+    votes: {
+      optionId: string;
+      type: VoteType;
+      createdAt: Date;
+      updatedAt: Date | null;
+    }[];
+    auxiliaryVotes: {
+      auxiliaryOptionId: string;
+      type: VoteType;
+      createdAt: Date;
+      updatedAt: Date | null;
+    }[];
   },
 ) {
   const { votes, auxiliaryVotes, user, ...rest } = participant;
   return {
     ...rest,
     image: user?.image ?? null,
-    votes,
-    auxiliaryVotes,
+    votedAt: getLatestVoteDate([...votes, ...auxiliaryVotes]),
+    votes: votes.map(({ optionId, type }) => ({ optionId, type })),
+    auxiliaryVotes: auxiliaryVotes.map(({ auxiliaryOptionId, type }) => ({
+      auxiliaryOptionId,
+      type,
+    })),
     hidden: false,
   };
 }
@@ -165,111 +183,131 @@ export const participants = router({
         pollId: z.string(),
         token: z.string().optional(),
         accessEmail: z.email().optional(),
+        publicResultsView: z.boolean().optional().default(false),
       }),
     )
-    .query(async ({ ctx, input: { pollId, token, accessEmail } }) => {
-      const poll = await prisma.poll.findUnique({
-        where: { id: pollId },
-        select: {
-          hideParticipants: true,
-          requireEmailVerification: true,
-          deleted: true,
-        },
-      });
-
-      // A deleted poll never exposes its participants.
-      if (!poll || poll.deleted) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Poll not found" });
-      }
-
-      const rawParticipants = await prisma.participant.findMany({
-        where: {
-          pollId,
-          deleted: false,
-        },
-        include: {
-          votes: {
-            select: {
-              optionId: true,
-              type: true,
-            },
+    .query(
+      async ({
+        ctx,
+        input: { pollId, token, accessEmail, publicResultsView },
+      }) => {
+        const poll = await prisma.poll.findUnique({
+          where: { id: pollId },
+          select: {
+            hideParticipants: true,
+            requireEmailVerification: true,
+            publicResults: true,
+            deleted: true,
           },
-          auxiliaryVotes: {
-            select: {
-              auxiliaryOptionId: true,
-              type: true,
-            },
-          },
-          user: {
-            select: {
-              image: true,
-            },
-          },
-        },
-        orderBy: [
-          {
-            createdAt: "desc",
-          },
-          { name: "desc" },
-        ],
-      });
-
-      // Admin check is intentionally bound to ctx.user only — an edit
-      // token must never unlock the admin view of other participants.
-      const isAdmin = ctx.user
-        ? await hasPollAdminAccess(pollId, ctx.user.id)
-        : false;
-
-      // Fall back to the edit token so a guest can still see their own
-      // response when opening the email link in a fresh browser.
-      const viewerId = isAdmin ? null : await tryResolveUserId(token, ctx.user);
-      const canViewParticipantByEmail = (participantEmail: string | null) =>
-        canAccessParticipantByEmail({
-          requireEmailVerification: poll.requireEmailVerification,
-          participantEmail,
-          accessEmail: accessEmail ?? null,
         });
 
-      // Response notes are visible to the host and their author only: strip
-      // them from every other payload rather than hiding them in the UI.
-      const participants = rawParticipants.map((participant) => {
-        const dto = createParticipantFullDTO(participant);
-        if (
-          isAdmin ||
-          (participant.userId && participant.userId === viewerId) ||
-          canViewParticipantByEmail(participant.email)
-        ) {
-          return dto;
+        // A deleted poll never exposes its participants.
+        if (!poll || poll.deleted) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Poll not found" });
         }
-        return { ...dto, note: null };
-      });
 
-      // Hide participants if the poll has hideParticipants enabled
-      // and the current user is not an admin
-      if (poll.hideParticipants) {
-        if (!isAdmin) {
-          return participants.map((participant) => {
-            if (
-              (viewerId && participant.userId === viewerId) ||
-              canViewParticipantByEmail(participant.email)
-            ) {
-              return participant;
-            }
+        if (publicResultsView && !poll.publicResults) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Poll not found" });
+        }
 
-            return {
-              ...participant,
-              userId: null,
-              name: "",
-              email: null,
-              image: null,
-              hidden: true,
-            };
+        const rawParticipants = await prisma.participant.findMany({
+          where: {
+            pollId,
+            deleted: false,
+          },
+          include: {
+            votes: {
+              select: {
+                optionId: true,
+                type: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+            auxiliaryVotes: {
+              select: {
+                auxiliaryOptionId: true,
+                type: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+            user: {
+              select: {
+                image: true,
+              },
+            },
+          },
+          orderBy: [
+            {
+              createdAt: "desc",
+            },
+            { name: "desc" },
+          ],
+        });
+
+        // Admin check is intentionally bound to ctx.user only — an edit
+        // token must never unlock the admin view of other participants.
+        const isAdmin = ctx.user
+          ? await hasPollAdminAccess(pollId, ctx.user.id)
+          : false;
+
+        // Fall back to the edit token so a guest can still see their own
+        // response when opening the email link in a fresh browser.
+        const viewerId = isAdmin
+          ? null
+          : await tryResolveUserId(token, ctx.user);
+        const canViewParticipantByEmail = (participantEmail: string | null) =>
+          canAccessParticipantByEmail({
+            requireEmailVerification: poll.requireEmailVerification,
+            participantEmail,
+            accessEmail: accessEmail ?? null,
           });
-        }
-      }
 
-      return participants;
-    }),
+        // Response notes are visible to the host and their author only: strip
+        // them from every other payload rather than hiding them in the UI.
+        const participants = rawParticipants.map((participant) => {
+          const dto = createParticipantFullDTO(participant);
+          if (
+            isAdmin ||
+            (participant.userId && participant.userId === viewerId) ||
+            canViewParticipantByEmail(participant.email)
+          ) {
+            return dto;
+          }
+          return { ...dto, note: null };
+        });
+
+        // Hide participants if the poll has hideParticipants enabled
+        // and the current user is not an admin
+        let visibleParticipants = participants;
+        if (poll.hideParticipants) {
+          if (!isAdmin) {
+            visibleParticipants = participants.map((participant) => {
+              if (
+                (viewerId && participant.userId === viewerId) ||
+                canViewParticipantByEmail(participant.email)
+              ) {
+                return participant;
+              }
+
+              return {
+                ...participant,
+                userId: null,
+                name: "",
+                email: null,
+                image: null,
+                hidden: true,
+              };
+            });
+          }
+        }
+
+        return publicResultsView
+          ? redactPublicResultParticipants(visibleParticipants)
+          : visibleParticipants;
+      },
+    ),
   delete: publicProcedure
     .input(
       z.object({
@@ -484,12 +522,16 @@ export const participants = router({
                 select: {
                   optionId: true,
                   type: true,
+                  createdAt: true,
+                  updatedAt: true,
                 },
               },
               auxiliaryVotes: {
                 select: {
                   auxiliaryOptionId: true,
                   type: true,
+                  createdAt: true,
+                  updatedAt: true,
                 },
               },
               user: {
@@ -727,12 +769,16 @@ export const participants = router({
               select: {
                 optionId: true,
                 type: true,
+                createdAt: true,
+                updatedAt: true,
               },
             },
             auxiliaryVotes: {
               select: {
                 auxiliaryOptionId: true,
                 type: true,
+                createdAt: true,
+                updatedAt: true,
               },
             },
             user: {

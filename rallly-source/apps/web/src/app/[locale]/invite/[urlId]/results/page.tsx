@@ -28,7 +28,11 @@ export default async function Page(props: {
     getSession(),
     getDeviceDateTimeConfig(),
     trpc.polls.get.prefetch({ urlId }),
-    trpc.polls.participants.list.prefetch({ pollId: urlId, token }),
+    trpc.polls.participants.list.prefetch({
+      pollId: urlId,
+      token,
+      publicResultsView: true,
+    }),
   ]);
 
   let impersonatedUserId: string | null = null;
