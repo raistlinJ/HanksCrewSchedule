@@ -131,6 +131,7 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
       enableComments: !poll.disableComments,
       requireParticipantEmail: poll.requireParticipantEmail ?? false,
       requireEmailVerification: poll.requireEmailVerification ?? true,
+      publicResults: poll.publicResults ?? false,
       auxiliarySelection: poll.auxiliarySelection
         ? {
             enabled: true,
@@ -247,6 +248,7 @@ export const EditPoll = ({ nav }: { nav?: React.ReactNode }) => {
               hideScores: data.hideScores,
               requireParticipantEmail: data.requireParticipantEmail,
               requireEmailVerification: data.requireEmailVerification,
+              publicResults: data.publicResults,
               optionsToDelete: optionsToDelete.map(({ id }) => id),
               optionsToAdd,
               optionsToUpdate,

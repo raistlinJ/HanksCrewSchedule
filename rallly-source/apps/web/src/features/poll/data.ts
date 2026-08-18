@@ -12,7 +12,43 @@ export function getPublicPollMetadata(urlId: string) {
       id: true,
       title: true,
       deleted: true,
+      publicResults: true,
       user: { select: { banned: true } },
+    },
+  });
+}
+
+export function getPublicPollGroupResults(groupId: string) {
+  return prisma.pollGroup.findUnique({
+    where: { id: groupId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      publicResults: true,
+      pollOrder: true,
+      polls: {
+        where: { deleted: false },
+        select: {
+          id: true,
+          title: true,
+          kind: true,
+          timeZone: true,
+          createdAt: true,
+          options: {
+            orderBy: { startTime: "asc" },
+            select: { id: true, startTime: true, duration: true },
+          },
+          participants: {
+            where: { deleted: false },
+            select: {
+              name: true,
+              email: true,
+              votes: { select: { optionId: true, type: true } },
+            },
+          },
+        },
+      },
     },
   });
 }

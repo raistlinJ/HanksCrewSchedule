@@ -51,6 +51,7 @@ model Poll {
   disableComments          Boolean           @default(true) @map("disable_comments")
   requireParticipantEmail  Boolean           @default(false) @map("require_participant_email")
   requireEmailVerification Boolean           @default(true) @map("require_email_verification")
+  publicResults            Boolean           @default(false) @map("public_results")
   muted                    Boolean           @default(false)
 
   user               User?                   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -272,6 +273,7 @@ model PollGroup {
   updatedAt                DateTime @updatedAt @map("updated_at")
   pollOrder                String[] @default([]) @map("poll_order")
   requireEmailVerification Boolean  @default(false) @map("require_email_verification")
+  publicResults            Boolean  @default(false) @map("public_results")
 
   space Space? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
   user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)

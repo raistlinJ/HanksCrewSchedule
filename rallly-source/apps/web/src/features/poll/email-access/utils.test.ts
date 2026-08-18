@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canAccessParticipantByEmail,
+  getEffectivePollEmailSettings,
   normalizePollAccessEmail,
   shouldRequirePollEmailGate,
 } from "./utils";
@@ -55,5 +56,34 @@ describe("standalone poll email access", () => {
         accessEmail: "person@example.com",
       }),
     ).toBe(false);
+  });
+
+  it.each([
+    true,
+    false,
+  ])("makes a group's %s setting authoritative for child polls", (groupRequireEmailVerification) => {
+    expect(
+      getEffectivePollEmailSettings({
+        groupRequireEmailVerification,
+        requireParticipantEmail: !groupRequireEmailVerification,
+        requireEmailVerification: !groupRequireEmailVerification,
+      }),
+    ).toEqual({
+      requireParticipantEmail: groupRequireEmailVerification,
+      requireEmailVerification: groupRequireEmailVerification,
+    });
+  });
+
+  it("keeps standalone poll settings independent", () => {
+    expect(
+      getEffectivePollEmailSettings({
+        groupRequireEmailVerification: null,
+        requireParticipantEmail: true,
+        requireEmailVerification: false,
+      }),
+    ).toEqual({
+      requireParticipantEmail: true,
+      requireEmailVerification: false,
+    });
   });
 });

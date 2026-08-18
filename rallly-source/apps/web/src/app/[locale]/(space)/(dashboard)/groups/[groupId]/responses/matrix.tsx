@@ -187,15 +187,18 @@ export function ResponsesMatrix({ group }: { group: any }) {
 
   const handleAddParticipant = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newParticipantName.trim() || addParticipantMutation.isPending) return;
+    if (
+      !newParticipantName.trim() ||
+      !newParticipantEmail.trim() ||
+      addParticipantMutation.isPending
+    )
+      return;
     
     setAddError("");
     const emailStr = newParticipantEmail.trim().toLowerCase();
-    const nameStr = newParticipantName.trim().toLowerCase();
-    
+
     const exists = participantRows.some(r => {
-      if (emailStr) return r.email?.toLowerCase() === emailStr;
-      return !r.email && r.name.toLowerCase() === nameStr;
+      return r.email?.toLowerCase() === emailStr;
     });
 
     if (exists) {
@@ -207,7 +210,7 @@ export function ResponsesMatrix({ group }: { group: any }) {
       await addParticipantMutation.mutateAsync({
         groupId: group.id,
         name: newParticipantName.trim(),
-        email: newParticipantEmail.trim() || undefined
+        email: newParticipantEmail.trim()
       });
       setNewParticipantName("");
       setNewParticipantEmail("");
@@ -505,7 +508,8 @@ export function ResponsesMatrix({ group }: { group: any }) {
                     <div className="flex items-center gap-1 mt-1">
                       <input 
                         type="email" 
-                        placeholder="Email (optional)" 
+                        placeholder="Email"
+                        required
                         className="text-xs border rounded px-2 py-1 w-full bg-background"
                         value={newParticipantEmail}
                         onChange={(e) => {
@@ -516,7 +520,11 @@ export function ResponsesMatrix({ group }: { group: any }) {
                       <button 
                         type="submit" 
                         className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded disabled:opacity-50 font-medium" 
-                        disabled={addParticipantMutation.isPending || !newParticipantName.trim()}
+                        disabled={
+                          addParticipantMutation.isPending ||
+                          !newParticipantName.trim() ||
+                          !newParticipantEmail.trim()
+                        }
                       >
                         {addParticipantMutation.isPending ? "..." : "Add"}
                       </button>

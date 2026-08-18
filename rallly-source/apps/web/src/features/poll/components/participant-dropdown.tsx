@@ -96,7 +96,7 @@ export const ParticipantDropdown = ({
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsChangeNameModalVisible(true)}>
             <TagIcon />
-            <Trans i18nKey="changeInfo" defaults="Change info" />
+            Change info
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"

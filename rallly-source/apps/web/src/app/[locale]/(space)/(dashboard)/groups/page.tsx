@@ -24,6 +24,7 @@ import { BellIcon, BellOffIcon, GripVertical, CheckIcon, XIcon, DownloadIcon, Mo
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@rallly/ui/dropdown-menu";
 import { Button } from "@rallly/ui/button";
 import { SidebarTrigger } from "@rallly/ui/sidebar";
+import { Switch } from "@rallly/ui/switch";
 import { shortUrl } from "@rallly/utils/absolute-url";
 import Link from "next/link";
 import { useCopyToClipboard } from "react-use";
@@ -41,6 +42,7 @@ import VoteIcon from "@/features/poll/components/vote-icon";
 
 interface PollGroupDTO {
   requireEmailVerification: boolean;
+  publicResults: boolean;
   id: string;
   title: string;
   description: string | null;
@@ -250,6 +252,7 @@ export default function PollGroupsDashboardPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editRequireEmailVerification, setEditRequireEmailVerification] = useState(false);
+  const [editPublicResults, setEditPublicResults] = useState(false);
   const [editSelectedPollIds, setEditSelectedPollIds] = useState<string[]>([]);
 
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
@@ -475,6 +478,7 @@ export default function PollGroupsDashboardPage() {
     setEditTitle(group.title);
     setEditDescription(group.description || "");
     setEditRequireEmailVerification(group.requireEmailVerification ?? false);
+    setEditPublicResults(group.publicResults ?? false);
     setEditSelectedPollIds(group.polls.map((p) => p.id));
   };
 
@@ -488,12 +492,18 @@ export default function PollGroupsDashboardPage() {
       description: editDescription,
       pollIds: editSelectedPollIds,
       requireEmailVerification: editRequireEmailVerification,
+      publicResults: editPublicResults,
     });
   };
 
   const handleCopyLink = (groupId: string) => {
     copyToClipboard(shortUrl(`/g/${groupId}`));
     toast.success("Share link copied");
+  };
+
+  const handleCopyResultsLink = (groupId: string) => {
+    copyToClipboard(shortUrl(`/g/${groupId}/results`));
+    toast.success("Public results link copied");
   };
 
   const handleSaveQrCode = async () => {
@@ -869,8 +879,16 @@ export default function PollGroupsDashboardPage() {
                             <DropdownMenuContent align="start">
                               <DropdownMenuItem onClick={() => handleCopyLink(group.id)}>
                                 <LinkIcon />
-                                Link
+                                Voting link
                               </DropdownMenuItem>
+                              {group.publicResults ? (
+                                <DropdownMenuItem
+                                  onClick={() => handleCopyResultsLink(group.id)}
+                                >
+                                  <ExternalLink />
+                                  Public results link
+                                </DropdownMenuItem>
+                              ) : null}
                               <DropdownMenuItem onClick={() => setQrCodeGroup(group)}>
                                 <QrCodeIcon />
                                 QR Code
@@ -990,6 +1008,25 @@ export default function PollGroupsDashboardPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   When enabled, participants receive a secure link to edit their response. When disabled, they can load it by entering their email address.
                 </p>
+              </div>
+
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <label
+                    htmlFor="group-public-results"
+                    className="text-sm font-medium"
+                  >
+                    Public Results Page
+                  </label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Anyone with the results link can view the full group results.
+                  </p>
+                </div>
+                <Switch
+                  id="group-public-results"
+                  checked={editPublicResults}
+                  onCheckedChange={setEditPublicResults}
+                />
               </div>
 
               <div>

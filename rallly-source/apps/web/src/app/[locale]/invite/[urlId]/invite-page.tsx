@@ -1,8 +1,10 @@
 "use client";
 import { buttonVariants } from "@rallly/ui";
 import { Alert, AlertAction, AlertDescription } from "@rallly/ui/alert";
+import { Button } from "@rallly/ui/button";
 import { ArrowUpRightIcon, CrownIcon } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { HanksThemeLogo } from "@/components/hanks-theme-logo";
 import { usePoll } from "@/features/poll/client";
 import { CommentsSheet } from "@/features/poll/components/comments-sheet";
@@ -47,6 +49,29 @@ const GoToApp = () => {
   );
 };
 
+const PublicResultsLink = () => {
+  const poll = usePoll();
+  const searchParams = useSearchParams();
+
+  if (!poll.publicResults) {
+    return null;
+  }
+
+  const token = searchParams.get("token");
+  const href = token
+    ? `/invite/${poll.id}/results?token=${encodeURIComponent(token)}`
+    : `/invite/${poll.id}/results`;
+
+  return (
+    <div className="flex justify-end">
+      <Button render={<Link href={href} />}>
+        View full results
+        <ArrowUpRightIcon className="size-4" />
+      </Button>
+    </div>
+  );
+};
+
 export function InvitePage() {
   return (
     <div className="page-bg-gray-100 h-dvh overflow-auto p-3 lg:p-6 dark:bg-gray-900">
@@ -60,6 +85,7 @@ export function InvitePage() {
         </div>
         <GoToApp />
         <EventCard />
+        <PublicResultsLink />
         <PollEmailGate>
           <VotingForm>
             <ResponsiveResults />

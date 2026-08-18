@@ -12,6 +12,7 @@ import {
   CircleStopIcon,
   CopyIcon,
   DownloadIcon,
+  ExternalLinkIcon,
   PencilIcon,
   PlayIcon,
   TrashIcon,
@@ -133,8 +134,18 @@ const ManagePoll: React.FunctionComponent<{
           </DropdownMenuItem>
           <DropdownMenuItem render={<Link href={`/poll/${poll.id}/results`} />}>
             <UsersIcon />
-            <Trans i18nKey="results" defaults="Results" />
+            Manage results
           </DropdownMenuItem>
+          {poll.publicResults ? (
+            <DropdownMenuItem
+              render={
+                <Link href={`/invite/${poll.id}/results`} target="_blank" />
+              }
+            >
+              <ExternalLinkIcon />
+              Public results page
+            </DropdownMenuItem>
+          ) : null}
           {poll.status === "scheduled" || poll.status === "canceled" ? null : (
             <>
               <DropdownMenuSeparator />

@@ -15,6 +15,7 @@ import {
   getPolls,
   hasPollAdminAccess,
 } from "@/features/poll/data";
+import { getEffectivePollEmailSettings } from "@/features/poll/email-access/utils";
 import { markUserYesForPoll } from "@/features/poll/mutations";
 import { MAX_POLL_DESCRIPTION_LENGTH } from "@/features/poll/schema";
 import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
@@ -308,6 +309,7 @@ export const polls = router({
         disableComments: z.boolean().optional(),
         requireParticipantEmail: z.boolean().optional(),
         requireEmailVerification: z.boolean().optional(),
+        publicResults: z.boolean().optional(),
         options: z
           .object({
             startDate: z.string(),
@@ -441,6 +443,7 @@ export const polls = router({
           hideScores: input.hideScores,
           requireParticipantEmail: input.requireParticipantEmail,
           requireEmailVerification: input.requireEmailVerification ?? true,
+          publicResults: input.publicResults ?? false,
           spaceId,
         },
       });
@@ -551,6 +554,7 @@ export const polls = router({
         hideScores: z.boolean().optional(),
         requireParticipantEmail: z.boolean().optional(),
         requireEmailVerification: z.boolean().optional(),
+        publicResults: z.boolean().optional(),
         auxiliarySelection: auxiliarySelectionInput.nullable().optional(),
       }),
     )
@@ -610,12 +614,15 @@ export const polls = router({
             pollGroup: { select: { requireEmailVerification: true } },
           },
         });
-        const groupEmailPolicy =
-          pollEmailPolicy?.pollGroup?.requireEmailVerification;
-        const effectiveRequireParticipantEmail =
-          groupEmailPolicy ?? input.requireParticipantEmail;
-        const effectiveRequireEmailVerification =
-          groupEmailPolicy ?? input.requireEmailVerification;
+        const {
+          requireParticipantEmail: effectiveRequireParticipantEmail,
+          requireEmailVerification: effectiveRequireEmailVerification,
+        } = getEffectivePollEmailSettings({
+          groupRequireEmailVerification:
+            pollEmailPolicy?.pollGroup?.requireEmailVerification,
+          requireParticipantEmail: input.requireParticipantEmail,
+          requireEmailVerification: input.requireEmailVerification,
+        });
 
         const newOptions =
           input.optionsToAdd?.map(({ value, maxYes }) => {
@@ -799,6 +806,7 @@ export const polls = router({
             disableComments: input.disableComments,
             requireParticipantEmail: effectiveRequireParticipantEmail,
             requireEmailVerification: effectiveRequireEmailVerification,
+            publicResults: input.publicResults,
             kind,
             ...(reopen ? { status: "open" as const, closedReason: null } : {}),
           },
@@ -818,6 +826,7 @@ export const polls = router({
           disableComments: true,
           requireParticipantEmail: true,
           requireEmailVerification: true,
+          publicResults: true,
           hideParticipants: true,
           hideScores: true,
           timeZone: true,
@@ -873,7 +882,8 @@ export const polls = router({
         input.disableComments !== undefined ||
         input.hideScores !== undefined ||
         input.requireParticipantEmail !== undefined ||
-        input.requireEmailVerification !== undefined;
+        input.requireEmailVerification !== undefined ||
+        input.publicResults !== undefined;
 
       if (hasDetailsUpdate) {
         track(
@@ -1106,6 +1116,7 @@ export const polls = router({
           hideScores: true,
           requireParticipantEmail: true,
           requireEmailVerification: true,
+          publicResults: true,
           options: {
             select: {
               id: true,
@@ -1762,6 +1773,7 @@ export const polls = router({
           hideScores: true,
           requireParticipantEmail: true,
           requireEmailVerification: true,
+          publicResults: true,
           disableComments: true,
           spaceId: true,
           kind: true,
@@ -1802,7 +1814,8 @@ export const polls = router({
           location: poll.location,
           spaceId: poll.spaceId,
           requireParticipantEmail: poll.requireParticipantEmail,
-            requireEmailVerification: poll.requireEmailVerification,
+          requireEmailVerification: poll.requireEmailVerification,
+          publicResults: poll.publicResults,
           description: poll.description,
           hideParticipants: poll.hideParticipants,
           hideScores: poll.hideScores,

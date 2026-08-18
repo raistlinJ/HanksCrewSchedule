@@ -154,6 +154,7 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
       options: [defaultTimeOption],
       hideScores: false,
       hideParticipants: false,
+      publicResults: false,
       enableComments: false,
       duration: defaultDuration,
       timeZone: getBrowserTimeZone(),
@@ -260,6 +261,7 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
               requireParticipantEmail: formData?.requireParticipantEmail,
               requireEmailVerification:
                 formData?.requireEmailVerification ?? true,
+              publicResults: formData?.publicResults ?? false,
               options: required(formData?.options).map((option) => ({
                 startDate: option.type === "date" ? option.date : option.start,
                 endDate: option.type === "timeSlot" ? option.end : undefined,

@@ -5,6 +5,7 @@ import { cache } from "react";
 import {
   getPollQrVotingData,
   getPollStatusCounts,
+  getPublicPollGroupResults,
   getPublicPollMetadata,
   hasPollAdminAccess,
 } from "@/features/poll/data";
@@ -24,6 +25,37 @@ export const loadPublicPollMetadata = cache(async (urlId: string) => {
   }
 
   return poll;
+});
+
+export const loadPublicPollResults = cache(async (urlId: string) => {
+  const poll = await loadPublicPollMetadata(urlId);
+
+  if (!poll.publicResults) {
+    notFound();
+  }
+
+  return poll;
+});
+
+export const loadPublicPollGroupResults = cache(async (groupId: string) => {
+  const group = await getPublicPollGroupResults(groupId);
+
+  if (!group?.publicResults) {
+    notFound();
+  }
+
+  group.polls.sort((a, b) => {
+    const aIndex = group.pollOrder.indexOf(a.id);
+    const bIndex = group.pollOrder.indexOf(b.id);
+    if (aIndex === -1 && bIndex === -1) {
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    }
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
+
+  return group;
 });
 
 export async function loadPollForQrVoting({

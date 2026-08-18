@@ -94,21 +94,41 @@ export const PollSettingsForm = ({
                 </SettingIcon>
                 <FieldContent>
                   <FieldLabel htmlFor="require-email-verification">
-                    <Trans
-                      i18nKey="requireEmailVerificationTitle"
-                      defaults="Require email verification"
-                    />
+                    Require email verification
                   </FieldLabel>
                   <FieldDescription>
-                    <Trans
-                      i18nKey="requireEmailVerificationDescription"
-                      defaults="Participants must verify their email with a link to edit their vote. If disabled, anyone can type an email address to edit that user's vote."
-                    />
+                    Participants must verify their email with a link to edit
+                    their vote. If disabled, anyone can type an email address to
+                    edit that user&apos;s vote.
                   </FieldDescription>
                 </FieldContent>
                 <Switch
                   id="require-email-verification"
                   disabled={emailSettingsDisabled}
+                  checked={!!field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </Field>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="publicResults"
+            render={({ field }) => (
+              <Field orientation="horizontal">
+                <SettingIcon>
+                  <BarChart2Icon />
+                </SettingIcon>
+                <FieldContent>
+                  <FieldLabel htmlFor="public-results">
+                    Public results page
+                  </FieldLabel>
+                  <FieldDescription>
+                    Anyone with the results link can view the full poll results.
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="public-results"
                   checked={!!field.value}
                   onCheckedChange={field.onChange}
                 />

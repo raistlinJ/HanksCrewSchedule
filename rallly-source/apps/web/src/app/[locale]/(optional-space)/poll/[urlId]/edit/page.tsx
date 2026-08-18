@@ -45,7 +45,7 @@ export default async function Page() {
               <BreadcrumbSeparator />
               <BreadcrumbItem>
                 <BreadcrumbPage>
-                  <Trans i18nKey="editPoll" defaults="Edit poll" />
+                  Edit poll
                 </BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>

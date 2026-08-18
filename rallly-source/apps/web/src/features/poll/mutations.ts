@@ -106,6 +106,137 @@ export async function addUserAsPollParticipant({
   });
 }
 
+export async function addUserAsPollGroupParticipant({
+  pollIds,
+  name,
+  email,
+}: {
+  pollIds: string[];
+  name: string;
+  email?: string;
+}) {
+  const uniquePollIds = Array.from(new Set(pollIds));
+  const normalizedEmail = email?.trim().toLowerCase() || null;
+
+  return prisma.$transaction(async (tx) => {
+    let userId: string | null = null;
+
+    if (normalizedEmail) {
+      const user = await tx.user.upsert({
+        where: { email: normalizedEmail },
+        create: {
+          name,
+          email: normalizedEmail,
+          emailVerified: false,
+          role: "user",
+        },
+        update: {},
+        select: {
+          id: true,
+          banned: true,
+          deletedAt: true,
+          isAnonymous: true,
+        },
+      });
+
+      if (user.banned || user.deletedAt || user.isAnonymous) {
+        return { ok: false, reason: "user_unavailable" } as const;
+      }
+
+      userId = user.id;
+    }
+
+    const existingParticipants = await tx.participant.findMany({
+      where: {
+        pollId: { in: uniquePollIds },
+        deleted: false,
+        ...(normalizedEmail
+          ? { email: { equals: normalizedEmail, mode: "insensitive" } }
+          : { name, email: null }),
+      },
+      select: { id: true, pollId: true },
+    });
+    const existingPollIds = new Set(
+      existingParticipants.map((participant) => participant.pollId),
+    );
+
+    if (normalizedEmail && existingParticipants.length > 0) {
+      await tx.participant.updateMany({
+        where: {
+          id: { in: existingParticipants.map((participant) => participant.id) },
+        },
+        data: { name, email: normalizedEmail, userId },
+      });
+    }
+
+    const participantIds = existingParticipants.map(
+      (participant) => participant.id,
+    );
+    const createdParticipantIds: string[] = [];
+    for (const pollId of uniquePollIds) {
+      if (existingPollIds.has(pollId)) {
+        continue;
+      }
+
+      const participant = await tx.participant.create({
+        data: {
+          pollId,
+          name,
+          email: normalizedEmail,
+          userId,
+        },
+        select: { id: true },
+      });
+      participantIds.push(participant.id);
+      createdParticipantIds.push(participant.id);
+
+      const auxiliaryVotes = await validateAuxiliaryVotes({
+        tx,
+        pollId,
+        votes: [],
+        enforceMinimum: false,
+      });
+      if (auxiliaryVotes.length > 0) {
+        await tx.pollAuxiliaryVote.createMany({
+          data: auxiliaryVotes.map(({ auxiliaryOptionId, type }) => ({
+            participantId: participant.id,
+            auxiliaryOptionId,
+            pollId,
+            type,
+          })),
+        });
+      }
+    }
+
+    return {
+      ok: true,
+      participantIds,
+      createdParticipantIds,
+      userId,
+    } as const;
+  });
+}
+
+export async function removePollParticipantsFromResults({
+  participantIds,
+  pollIds,
+}: {
+  participantIds: string[];
+  pollIds: string[];
+}) {
+  return prisma.participant.updateMany({
+    where: {
+      id: { in: participantIds },
+      pollId: { in: pollIds },
+      deleted: false,
+    },
+    data: {
+      deleted: true,
+      deletedAt: new Date(),
+    },
+  });
+}
+
 export async function markUserYesForPoll({
   groupId,
   pollId,

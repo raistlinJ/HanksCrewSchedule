@@ -9,6 +9,7 @@ import {
   DialogTrigger,
 } from "@rallly/ui/dialog";
 import { toast } from "@rallly/ui/sonner";
+import { shortUrl } from "@rallly/utils/absolute-url";
 
 import { ArrowUpRightIcon, DownloadIcon, Share2Icon } from "lucide-react";
 import Link from "next/link";
@@ -20,11 +21,10 @@ import { usePoll } from "@/features/poll/client";
 import { Trans } from "@/i18n/client";
 import { createLabeledQrCodePng } from "@/lib/labeled-qr-code";
 
-export function CopyInviteLinkButton() {
+function CopyShareLinkButton({ link }: { link: string }) {
   const [didCopy, setDidCopy] = React.useState(false);
   const [state, copyToClipboard] = useCopyToClipboard();
-  const poll = usePoll();
-  const inviteLinkWithoutProtocol = poll.inviteLink.replace(/^https?:\/\//, "");
+  const linkWithoutProtocol = link.replace(/^https?:\/\//, "");
 
   React.useEffect(() => {
     if (state.error) {
@@ -36,7 +36,7 @@ export function CopyInviteLinkButton() {
     <Button
       className="min-w-0 grow"
       onClick={() => {
-        copyToClipboard(poll.inviteLink);
+        copyToClipboard(link);
         setDidCopy(true);
         setTimeout(() => {
           setDidCopy(false);
@@ -46,10 +46,15 @@ export function CopyInviteLinkButton() {
       {didCopy ? (
         <Trans i18nKey="copied" />
       ) : (
-        <span className="min-w-0 truncate">{inviteLinkWithoutProtocol}</span>
+        <span className="min-w-0 truncate">{linkWithoutProtocol}</span>
       )}
     </Button>
   );
+}
+
+export function CopyInviteLinkButton() {
+  const poll = usePoll();
+  return <CopyShareLinkButton link={poll.inviteLink} />;
 }
 
 export const InviteDialog = () => {
@@ -57,6 +62,7 @@ export const InviteDialog = () => {
   const [isSavingQrCode, setIsSavingQrCode] = React.useState(false);
   const downloadQrCodeRef = React.useRef<HTMLCanvasElement>(null);
   const poll = usePoll();
+  const publicResultsLink = shortUrl(`/invite/${poll.id}/results`);
 
   const saveQrCode = async () => {
     const canvas = downloadQrCodeRef.current;
@@ -155,6 +161,28 @@ export const InviteDialog = () => {
             </div>
           </div>
         </div>
+        {poll.publicResults ? (
+          <div className="min-w-0 border-t pt-4">
+            <p className="mb-2 font-medium text-sm">Public results link</p>
+            <div className="flex gap-2">
+              <CopyShareLinkButton link={publicResultsLink} />
+              <div className="shrink-0">
+                <Link
+                  target="_blank"
+                  href={`/invite/${poll.id}/results`}
+                  prefetch={false}
+                  className={buttonVariants()}
+                >
+                  <ArrowUpRightIcon className="size-4" />
+                </Link>
+              </div>
+            </div>
+            <p className="mt-2 text-muted-foreground text-sm">
+              Anyone with this separate link can view the full results without
+              entering an email address.
+            </p>
+          </div>
+        ) : null}
         <p className="text-muted-foreground text-sm">
           <Trans
             i18nKey="inviteParticipantLinkInfo"

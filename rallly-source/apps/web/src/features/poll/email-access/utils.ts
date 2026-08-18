@@ -29,3 +29,20 @@ export function shouldRequirePollEmailGate({
 }) {
   return !requireEmailVerification && !impersonatedUserId;
 }
+
+export function getEffectivePollEmailSettings({
+  groupRequireEmailVerification,
+  requireParticipantEmail,
+  requireEmailVerification,
+}: {
+  groupRequireEmailVerification: boolean | null | undefined;
+  requireParticipantEmail: boolean | undefined;
+  requireEmailVerification: boolean | undefined;
+}) {
+  return {
+    requireParticipantEmail:
+      groupRequireEmailVerification ?? requireParticipantEmail,
+    requireEmailVerification:
+      groupRequireEmailVerification ?? requireEmailVerification,
+  };
+}

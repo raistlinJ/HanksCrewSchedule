@@ -9,7 +9,9 @@ import * as z from "zod";
 import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
 import { getInstanceSettings } from "@/features/instance-settings/data";
 import {
+  addUserAsPollGroupParticipant,
   markUserYesForPoll,
+  removePollParticipantsFromResults,
   setPollGroupMuted,
 } from "@/features/poll/mutations";
 import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
@@ -178,6 +180,7 @@ export const pollGroups = router({
         description: z.string().trim().optional(),
         pollIds: z.array(z.string()).optional(),
         requireEmailVerification: z.boolean().optional(),
+        publicResults: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -189,6 +192,7 @@ export const pollGroups = router({
           userId: ctx.user.id,
           pollOrder: input.pollIds || [],
           requireEmailVerification: input.requireEmailVerification ?? false,
+          publicResults: input.publicResults ?? false,
         },
       });
 
@@ -217,13 +221,21 @@ export const pollGroups = router({
         description: z.string().trim().optional(),
         pollIds: z.array(z.string()).optional(),
         requireEmailVerification: z.boolean().optional(),
+        publicResults: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { groupId, title, description, pollIds = [], requireEmailVerification } = input;
+      const {
+        groupId,
+        title,
+        description,
+        pollIds = [],
+        requireEmailVerification,
+        publicResults,
+      } = input;
 
-      const existingGroup = await prisma.pollGroup.findUnique({
-        where: { id: groupId },
+      const existingGroup = await prisma.pollGroup.findFirst({
+        where: { id: groupId, spaceId: ctx.space.id },
         select: { pollOrder: true, requireEmailVerification: true },
       });
 
@@ -246,6 +258,7 @@ export const pollGroups = router({
           description,
           pollOrder: newPollOrder,
           requireEmailVerification: newRequireEmail,
+          publicResults,
         },
       });
 
@@ -732,6 +745,7 @@ export const pollGroups = router({
             spaceId: ctx.space.id,
             pollOrder: group.pollOrder,
             requireEmailVerification: group.requireEmailVerification,
+            publicResults: group.publicResults,
           },
         });
 
@@ -753,6 +767,7 @@ export const pollGroups = router({
               disableComments: poll.disableComments,
               requireParticipantEmail: group.requireEmailVerification,
               requireEmailVerification: group.requireEmailVerification,
+              publicResults: poll.publicResults,
               muted: poll.muted,
               deadline: poll.deadline,
               status: poll.status,
@@ -895,27 +910,28 @@ export const pollGroups = router({
       }
 
       const emailStr = input.email ? input.email.toLowerCase() : null;
-
-      // Check if participant already exists in this poll
-      const existing = await prisma.participant.findFirst({
-        where: {
-          pollId: input.pollId,
-          ...(emailStr ? { email: emailStr } : { name: input.name, email: null }),
-        }
+      const result = await addUserAsPollGroupParticipant({
+        pollIds: [input.pollId],
+        name: input.name,
+        email: emailStr ?? undefined,
       });
 
-      if (existing) {
-        return existing;
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This user cannot be added",
+        });
       }
 
-      const participant = await prisma.participant.create({
-        data: {
-          name: input.name,
-          email: emailStr,
-          pollId: input.pollId,
-        }
-      });
-      return participant;
+      const participantId = result.participantIds[0];
+      if (!participantId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Participant could not be added",
+        });
+      }
+
+      return { id: participantId };
     }),
   cycleVote: spaceProcedure
     .input(z.object({ 
@@ -976,7 +992,7 @@ export const pollGroups = router({
     .input(z.object({
       groupId: z.string(),
       name: z.string().min(1, "Name is required"),
-      email: z.string().email().optional().or(z.literal(''))
+      email: z.string().email()
     }))
     .mutation(async ({ ctx, input }) => {
       const group = await prisma.pollGroup.findUnique({
@@ -988,19 +1004,22 @@ export const pollGroups = router({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Group not found or access denied" });
       }
 
-      const emailStr = input.email ? input.email.toLowerCase() : null;
+      const emailStr = input.email.toLowerCase();
 
-      const participants = await Promise.all(group.polls.map(poll => 
-        prisma.participant.create({
-          data: {
-            name: input.name,
-            email: emailStr,
-            pollId: poll.id,
-          }
-        })
-      ));
+      const result = await addUserAsPollGroupParticipant({
+        pollIds: group.polls.map((poll) => poll.id),
+        name: input.name,
+        email: emailStr,
+      });
 
-      return { success: true, count: participants.length };
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This user cannot be added",
+        });
+      }
+
+      return { success: true, count: result.createdParticipantIds.length };
     }),
   deleteGroupParticipant: spaceProcedure
     .input(z.object({
@@ -1008,17 +1027,20 @@ export const pollGroups = router({
       participantIds: z.array(z.string())
     }))
     .mutation(async ({ ctx, input }) => {
-      const group = await prisma.pollGroup.findUnique({ where: { id: input.groupId } });
+      const group = await prisma.pollGroup.findUnique({
+        where: { id: input.groupId },
+        select: {
+          spaceId: true,
+          polls: { select: { id: true } },
+        },
+      });
       if (!group || group.spaceId !== ctx.space.id) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Group not found or access denied" });
       }
 
-      await prisma.participant.updateMany({
-        where: { id: { in: input.participantIds } },
-        data: {
-          deleted: true,
-          deletedAt: new Date()
-        }
+      await removePollParticipantsFromResults({
+        participantIds: input.participantIds,
+        pollIds: group.polls.map((poll) => poll.id),
       });
       return { success: true };
     }),

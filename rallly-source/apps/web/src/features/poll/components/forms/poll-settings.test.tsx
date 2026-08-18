@@ -20,6 +20,8 @@ function TestForm({ enableComments = false }: { enableComments?: boolean }) {
     defaultValues: {
       enableComments,
       requireParticipantEmail: false,
+      requireEmailVerification: true,
+      publicResults: false,
       hideParticipants: false,
       hideScores: false,
     },
@@ -66,5 +68,21 @@ describe("PollSettingsForm comments setting", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       /comments are being phased out/i,
     );
+  });
+});
+
+describe("PollSettingsForm public results setting", () => {
+  it("allows the public results page to be enabled", async () => {
+    const user = userEvent.setup();
+    render(<TestForm />);
+
+    const publicResultsSwitch = screen.getByRole("switch", {
+      name: /public results page/i,
+    });
+    expect(publicResultsSwitch).not.toBeChecked();
+
+    await user.click(publicResultsSwitch);
+
+    expect(publicResultsSwitch).toBeChecked();
   });
 });

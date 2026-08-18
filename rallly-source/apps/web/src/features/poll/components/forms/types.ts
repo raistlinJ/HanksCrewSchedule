@@ -19,6 +19,7 @@ export type PollOptionsData = {
 export type PollSettingsFormData = {
   requireParticipantEmail: boolean;
   requireEmailVerification: boolean;
+  publicResults: boolean;
   hideParticipants: boolean;
   hideScores: boolean;
   enableComments: boolean;

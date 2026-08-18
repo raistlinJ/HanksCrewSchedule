@@ -1,4 +1,6 @@
 import { prisma } from "@rallly/database";
+import { Button } from "@rallly/ui/button";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { HanksThemeLogo } from "@/components/hanks-theme-logo";
 import { getSession } from "@/lib/auth";
@@ -67,6 +69,13 @@ export default async function PublicPollGroupPage({
             {group.description}
           </p>
         )}
+        {group.publicResults ? (
+          <div className="mt-4">
+            <Button render={<Link href={`/g/${group.id}/results`} />}>
+              View full results
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <VotingClient group={group} userEmail={session?.user?.email || null} />

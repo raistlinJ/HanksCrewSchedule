@@ -35,6 +35,7 @@ export type GetPollApiResponse = {
   disableComments: boolean;
   requireParticipantEmail: boolean;
   requireEmailVerification: boolean;
+  publicResults: boolean;
   canManage: boolean;
   groupNavigation: {
     groupId: string;

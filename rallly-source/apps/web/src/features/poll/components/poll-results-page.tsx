@@ -1,47 +1,92 @@
 "use client";
 
-import { Trans } from "@/i18n/client";
-import { useParticipants } from "@/features/poll/components/participants-provider";
-import { usePoll } from "@/features/poll/client";
-import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
-import { ArrowLeftIcon, DownloadIcon } from "lucide-react";
 import { Button } from "@rallly/ui/button";
-import { useRouter } from "next/navigation";
+import { shortUrl } from "@rallly/utils/absolute-url";
+import { ArrowLeftIcon, CheckIcon, CopyIcon, DownloadIcon } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useCopyToClipboard } from "react-use";
+import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
+import { usePoll } from "@/features/poll/client";
+import { useParticipants } from "@/features/poll/components/participants-provider";
+import { Trans } from "@/i18n/client";
+import { useDateTime } from "@/lib/datetime/client";
 
-export function PollResultsPage() {
+export function PollResultsPage({
+  publicView = false,
+}: {
+  publicView?: boolean;
+}) {
   const { participants } = useParticipants();
   const poll = usePoll();
   const router = useRouter();
-  
+  const searchParams = useSearchParams();
+  const { formatDateTime } = useDateTime();
+  const [, copyToClipboard] = useCopyToClipboard();
+  const [didCopyResultsLink, setDidCopyResultsLink] = useState(false);
+  const token = searchParams.get("token");
+  const publicPollHref = token
+    ? `/invite/${poll.id}?token=${encodeURIComponent(token)}`
+    : `/invite/${poll.id}`;
+  const publicResultsLink = shortUrl(`/invite/${poll.id}/results`);
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6">
-        <button 
-          onClick={() => router.back()} 
-          className="text-primary hover:underline flex items-center text-sm font-medium"
-        >
-          <ArrowLeftIcon className="w-4 h-4 mr-1" />
-          <Trans i18nKey="backToPoll" defaults="Back to Poll" />
-        </button>
+        {publicView ? (
+          <Link
+            href={publicPollHref}
+            className="flex items-center font-medium text-primary text-sm hover:underline"
+          >
+            <ArrowLeftIcon className="mr-1 h-4 w-4" />
+            Back to poll
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="flex items-center font-medium text-primary text-sm hover:underline"
+          >
+            <ArrowLeftIcon className="mr-1 h-4 w-4" />
+            Back to poll
+          </button>
+        )}
       </div>
 
-      <div className="mb-8 border-b pb-8 flex justify-between items-start">
+      <div className="mb-8 flex items-start justify-between border-b pb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            {poll.title} - <Trans i18nKey="results" defaults="Results" />
+          <h1 className="mb-2 font-bold text-3xl tracking-tight">
+            {poll.title} - Results
           </h1>
           {poll.description && (
-            <p className="text-md text-muted-foreground whitespace-pre-wrap">
+            <p className="whitespace-pre-wrap text-md text-muted-foreground">
               {poll.description}
             </p>
           )}
         </div>
-        <a href={`/poll/${poll.id}/export/csv`} download>
-          <Button variant="outline" className="flex items-center gap-2">
-            <DownloadIcon className="w-4 h-4" />
-            <Trans i18nKey="exportCsv" defaults="Export CSV" />
-          </Button>
-        </a>
+        <div className="flex flex-wrap justify-end gap-2">
+          {!publicView && poll.publicResults ? (
+            <Button
+              onClick={() => {
+                copyToClipboard(publicResultsLink);
+                setDidCopyResultsLink(true);
+                window.setTimeout(() => setDidCopyResultsLink(false), 1000);
+              }}
+            >
+              {didCopyResultsLink ? <CheckIcon /> : <CopyIcon />}
+              {didCopyResultsLink ? "Copied" : "Copy public results link"}
+            </Button>
+          ) : null}
+          {poll.canManage ? (
+            <a href={`/poll/${poll.id}/export/csv`} download>
+              <Button className="flex items-center gap-2">
+                <DownloadIcon className="h-4 w-4" />
+                <Trans i18nKey="exportToCsv" defaults="Export to CSV" />
+              </Button>
+            </a>
+          ) : null}
+        </div>
       </div>
 
       <div className="space-y-12">
@@ -55,24 +100,28 @@ export function PollResultsPage() {
                 <th className="px-4 py-3 font-medium">
                   <Trans i18nKey="email" defaults="Email" />
                 </th>
-                <th className="px-4 py-3 font-medium">
-                  Joined
-                </th>
-                <th className="px-4 py-3 font-medium">
-                  <Trans i18nKey="yesVotes" defaults="Yes Votes" />
-                </th>
+                <th className="px-4 py-3 font-medium">Joined</th>
+                <th className="px-4 py-3 font-medium">Yes votes</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {participants.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                    <Trans i18nKey="noParticipantsYet" defaults="No participants yet." />
+                  <td
+                    colSpan={4}
+                    className="px-4 py-8 text-center text-muted-foreground"
+                  >
+                    <Trans
+                      i18nKey="noParticipants"
+                      defaults="No participants"
+                    />
                   </td>
                 </tr>
               ) : (
                 participants.map((p) => {
-                  const yesVotesCount = p.votes.filter(v => v.type === "yes").length;
+                  const yesVotesCount = p.votes.filter(
+                    (v) => v.type === "yes",
+                  ).length;
                   return (
                     <tr key={p.id} className="hover:bg-muted/50">
                       <td className="px-4 py-3">
@@ -86,14 +135,16 @@ export function PollResultsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {p.email ? p.email : <span className="italic">N/A</span>}
+                        {p.email ? (
+                          p.email
+                        ) : (
+                          <span className="italic">N/A</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {new Date(p.createdAt).toLocaleDateString()}
+                        {formatDateTime(p.createdAt, "date")}
                       </td>
-                      <td className="px-4 py-3 font-medium">
-                        {yesVotesCount}
-                      </td>
+                      <td className="px-4 py-3 font-medium">{yesVotesCount}</td>
                     </tr>
                   );
                 })
