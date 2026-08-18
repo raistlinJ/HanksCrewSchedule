@@ -16,7 +16,12 @@ echo "Building custom Rallly Docker image (this may take a few minutes)..."
 echo "Application version: $BUILD_VERSION"
 echo "------------------------------------------------------------------"
 
-DOCKER_BUILDKIT=1 docker build \
+# This image is loaded directly into the local Docker engine. Docker Desktop's
+# BuildKit can hang after the image has been successfully unpacked while it
+# finalizes the default provenance attestation, which is not needed here.
+BUILDX_NO_DEFAULT_ATTESTATIONS=1 DOCKER_BUILDKIT=1 docker build \
+  --load \
+  --provenance=false \
   --build-arg APP_VERSION="$BUILD_VERSION" \
   --build-arg SELF_HOSTED="true" \
   -t custom-rallly:latest \

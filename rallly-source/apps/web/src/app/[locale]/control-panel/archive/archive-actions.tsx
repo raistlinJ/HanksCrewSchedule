@@ -19,6 +19,8 @@ import { Trans } from "@/i18n/client";
 const RESTORE_CONFIRMATION = "RESTORE";
 
 const restoreErrorMessages: Record<string, string> = {
+  archive_creation_failed:
+    "The database could not create an archive. No file was downloaded.",
   archive_restore_failed:
     "The database could not restore this archive. No data was changed.",
   archive_too_large: "This archive is too large to restore.",
@@ -29,8 +31,49 @@ const restoreErrorMessages: Record<string, string> = {
 };
 
 export function DownloadArchiveButton() {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const downloadArchive = async () => {
+    setIsDownloading(true);
+    try {
+      const response = await fetch("/api/admin/archive", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error ?? "archive_creation_failed");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition");
+      const fileName =
+        disposition?.match(/filename="([^"]+)"/)?.[1] ??
+        `rallly-archive-${new Date().toISOString().slice(0, 10)}.json`;
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "unknown_error";
+      toast.error(
+        restoreErrorMessages[reason] ??
+          "The archive could not be created. Try again.",
+      );
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
-    <Button render={<a href="/api/admin/archive" download />}>
+    <Button loading={isDownloading} onClick={downloadArchive}>
       <DownloadIcon />
       <Trans i18nKey="downloadArchive" defaults="Download archive" />
     </Button>
