@@ -72,28 +72,30 @@ export function PollResultsPage({
             </p>
           )}
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          {!publicView && poll.publicResults ? (
-            <Button
-              onClick={() => {
-                copyToClipboard(publicResultsLink);
-                setDidCopyResultsLink(true);
-                window.setTimeout(() => setDidCopyResultsLink(false), 1000);
-              }}
-            >
-              {didCopyResultsLink ? <CheckIcon /> : <CopyIcon />}
-              {didCopyResultsLink ? "Copied" : "Copy public results link"}
-            </Button>
-          ) : null}
-          {poll.canManage ? (
-            <a href={`/poll/${poll.id}/export/csv`} download>
-              <Button className="flex items-center gap-2">
-                <DownloadIcon className="h-4 w-4" />
-                <Trans i18nKey="exportToCsv" defaults="Export to CSV" />
+        {!publicView ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            {poll.publicResults ? (
+              <Button
+                onClick={() => {
+                  copyToClipboard(publicResultsLink);
+                  setDidCopyResultsLink(true);
+                  window.setTimeout(() => setDidCopyResultsLink(false), 1000);
+                }}
+              >
+                {didCopyResultsLink ? <CheckIcon /> : <CopyIcon />}
+                {didCopyResultsLink ? "Copied" : "Copy public results link"}
               </Button>
-            </a>
-          ) : null}
-        </div>
+            ) : null}
+            {poll.canManage ? (
+              <a href={`/poll/${poll.id}/export/csv`} download>
+                <Button className="flex items-center gap-2">
+                  <DownloadIcon className="h-4 w-4" />
+                  <Trans i18nKey="exportToCsv" defaults="Export to CSV" />
+                </Button>
+              </a>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-4">
