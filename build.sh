@@ -16,12 +16,21 @@ echo "Building custom Rallly Docker image (this may take a few minutes)..."
 echo "Application version: $BUILD_VERSION"
 echo "------------------------------------------------------------------"
 
-# This image is loaded directly into the local Docker engine. Docker Desktop's
-# BuildKit can hang after the image has been successfully unpacked while it
-# finalizes the default provenance attestation, which is not needed here.
-BUILDX_NO_DEFAULT_ATTESTATIONS=1 DOCKER_BUILDKIT=1 docker build \
-  --load \
-  --provenance=false \
+# This image is loaded directly into the local Docker engine. Prefer Buildx so
+# Docker Desktop does not hang while finalizing an unnecessary provenance
+# attestation. Older Docker installations do not support Buildx's --load or
+# --provenance flags, so fall back to the classic `docker build` interface.
+if docker buildx version >/dev/null 2>&1; then
+  BUILD_COMMAND=(docker buildx build --load)
+  if docker buildx build --help 2>/dev/null | grep -q -- "--provenance"; then
+    BUILD_COMMAND+=(--provenance=false)
+  fi
+else
+  echo "Docker Buildx not found; using the compatible Docker build command."
+  BUILD_COMMAND=(docker build)
+fi
+
+BUILDX_NO_DEFAULT_ATTESTATIONS=1 DOCKER_BUILDKIT=1 "${BUILD_COMMAND[@]}" \
   --build-arg APP_VERSION="$BUILD_VERSION" \
   --build-arg SELF_HOSTED="true" \
   -t custom-rallly:latest \
