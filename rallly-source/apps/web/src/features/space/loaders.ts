@@ -6,11 +6,13 @@ import { cache } from "react";
 import { getUpcomingEventCount } from "@/features/scheduled-event/data";
 import {
   getActiveSpaceForUser,
+  getAllSpaceCount,
   getOwnedSpace,
   getSpaceSeatCount,
   getTotalSeatsForSpace,
+  listAllSpaces,
 } from "@/features/space/data";
-import { requireUser } from "@/features/user/loaders";
+import { requireAdmin, requireUser } from "@/features/user/loaders";
 import { getSessionState } from "@/lib/auth";
 import { getDeviceTimeZone } from "@/lib/datetime/server";
 import { normalizeTimeZone } from "@/lib/datetime/utils";
@@ -94,6 +96,20 @@ export const getActiveSpace = cache(async () => {
 
   return space;
 });
+
+export async function loadAllSpacesForAdmin(input: {
+  page: number;
+  pageSize: number;
+  q?: string;
+}) {
+  await requireAdmin();
+  return listAllSpaces(input);
+}
+
+export async function loadAllSpaceCountForAdmin() {
+  await requireAdmin();
+  return getAllSpaceCount();
+}
 
 /**
  * Upcoming event count for the signed-in user's active space. Lives here

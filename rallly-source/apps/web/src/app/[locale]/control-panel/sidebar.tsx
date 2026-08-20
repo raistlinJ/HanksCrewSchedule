@@ -11,6 +11,7 @@ import {
   ArchiveIcon,
   ArrowLeftIcon,
   HomeIcon,
+  LayersIcon,
   PaletteIcon,
   SettingsIcon,
   UsersIcon,
@@ -48,6 +49,10 @@ export async function ControlPanelSidebar(
             <NavItem href="/control-panel/users">
               <UsersIcon className="size-4" />
               <Trans i18nKey="users" defaults="Users" />
+            </NavItem>
+            <NavItem href="/control-panel/spaces">
+              <LayersIcon className="size-4" />
+              <Trans i18nKey="allSpaces" defaults="All spaces" />
             </NavItem>
 
             <NavItem href="/control-panel/branding">

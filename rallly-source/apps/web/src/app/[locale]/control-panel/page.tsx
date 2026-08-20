@@ -5,6 +5,7 @@ import {
   ArchiveIcon,
   InfinityIcon,
   KeySquareIcon,
+  LayersIcon,
   PaletteIcon,
   SettingsIcon,
   UsersIcon,
@@ -20,23 +21,26 @@ import {
 } from "@/components/settings-layout";
 import { DEFAULT_SEAT_LIMIT } from "@/features/licensing/constants";
 import { loadInstanceLicense } from "@/features/licensing/data";
+import { loadAllSpaceCountForAdmin } from "@/features/space/loaders";
 import { getUserCount } from "@/features/user/data";
 import { Trans } from "@/i18n/client";
 
 async function loadData() {
-  const [userCount, license] = await Promise.all([
+  const [userCount, spaceCount, license] = await Promise.all([
     getUserCount(),
+    loadAllSpaceCountForAdmin(),
     loadInstanceLicense(),
   ]);
 
   return {
     userCount,
+    spaceCount,
     license,
   };
 }
 
 export default async function AdminPage() {
-  const { userCount, license } = await loadData();
+  const { userCount, spaceCount, license } = await loadData();
 
   const userLimit = license?.seats ?? DEFAULT_SEAT_LIMIT;
   const tier = license?.type;
@@ -85,6 +89,24 @@ export default async function AdminPage() {
                   </span>
                 </div>
               </div>
+            </Tile>
+            {/* SPACES */}
+            <Tile render={<Link href="/control-panel/spaces" />}>
+              <div className="flex justify-between">
+                <PageIcon>
+                  <LayersIcon />
+                </PageIcon>
+                <span className="text-muted-foreground text-sm">
+                  <Trans
+                    i18nKey="spaceCount"
+                    defaults="{count, number, ::compact-short}"
+                    values={{ count: spaceCount }}
+                  />
+                </span>
+              </div>
+              <TileTitle>
+                <Trans i18nKey="allSpaces" defaults="All spaces" />
+              </TileTitle>
             </Tile>
             {/* LICENSE */}
             <Tile render={<Link href="/control-panel/license" />}>

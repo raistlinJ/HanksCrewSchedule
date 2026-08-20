@@ -3,6 +3,7 @@ import "server-only";
 import type {
   SpaceMemberRole as DBSpaceMemberRole,
   SpaceTier as DBSpaceTier,
+  Prisma,
 } from "@rallly/database";
 import { prisma } from "@rallly/database";
 import { createLogger } from "@rallly/logger";
@@ -52,6 +53,65 @@ export async function getSpaceSeatCount(spaceId: string) {
       spaceId: spaceId,
     },
   });
+}
+
+export async function listAllSpaces({
+  page,
+  pageSize,
+  q,
+}: {
+  page: number;
+  pageSize: number;
+  q?: string;
+}) {
+  const where: Prisma.SpaceWhereInput | undefined = q
+    ? {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { owner: { name: { contains: q, mode: "insensitive" } } },
+          { owner: { email: { contains: q, mode: "insensitive" } } },
+        ],
+      }
+    : undefined;
+
+  const [spaces, total] = await Promise.all([
+    prisma.space.findMany({
+      ...(where ? { where } : {}),
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        tier: true,
+        createdAt: true,
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            isAnonymous: true,
+          },
+        },
+        _count: {
+          select: {
+            members: true,
+            polls: true,
+            pollGroups: true,
+            scheduledEvents: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: pageSize,
+      skip: (page - 1) * pageSize,
+    }),
+    prisma.space.count({ ...(where ? { where } : {}) }),
+  ]);
+
+  return { spaces, total };
+}
+
+export function getAllSpaceCount() {
+  return prisma.space.count();
 }
 
 /**
