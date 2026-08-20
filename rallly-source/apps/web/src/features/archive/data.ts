@@ -97,7 +97,14 @@ export async function createInstanceArchive(): Promise<InstanceArchive> {
         scheduledEvents,
         rescheduledEventDates,
         scheduledEventInvites,
-        polls,
+        polls: polls.map((poll) => ({
+          ...poll,
+          // Poll classification and sharing behavior are portable. In
+          // particular, restored on-demand polls must return to their
+          // dedicated menu with their public results link still enabled.
+          isOnDemand: poll.isOnDemand,
+          publicResults: poll.publicResults,
+        })),
         options,
         pollAuxiliarySelections,
         pollAuxiliaryOptions,

@@ -10,7 +10,7 @@ import {
 } from "@rallly/ui/command";
 import { useDialog } from "@rallly/ui/dialog";
 import { Icon } from "@rallly/ui/icon";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, ZapIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   BillingPageIcon,
@@ -71,6 +71,15 @@ export function CommandMenu() {
           <CommandGroup
             heading={<Trans i18nKey="commandMenuActions" defaults="Actions" />}
           >
+            <CommandItem onSelect={() => handleSelect("/new?type=on-demand")}>
+              <Icon>
+                <ZapIcon />
+              </Icon>
+              <Trans
+                i18nKey="createOnDemandPoll"
+                defaults="Create on-demand poll"
+              />
+            </CommandItem>
             <CommandItem onSelect={() => handleSelect("/new")}>
               <Icon>
                 <PlusIcon />
@@ -90,6 +99,16 @@ export function CommandMenu() {
             <CommandItem onSelect={() => handleSelect("/polls")}>
               <PollPageIcon size="sm" />
               <NavigationCommandLabel label={t("polls")} />
+            </CommandItem>
+            <CommandItem onSelect={() => handleSelect("/on-demand-polls")}>
+              <Icon>
+                <ZapIcon />
+              </Icon>
+              <NavigationCommandLabel
+                label={t("onDemandPolls", {
+                  defaultValue: "On-demand polls",
+                })}
+              />
             </CommandItem>
             <CommandItem onSelect={() => handleSelect("/events")}>
               <EventPageIcon size="sm" />

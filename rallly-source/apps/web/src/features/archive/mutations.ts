@@ -81,6 +81,9 @@ export async function restoreInstanceArchive(input: unknown) {
         data: data.scheduledEventInvites as Prisma.ScheduledEventInviteCreateManyInput[],
       });
       await tx.poll.createMany({
+        // Older version-one archives omit isOnDemand; the database default
+        // restores those as standard polls. New archives carry the flag and
+        // public-results setting through unchanged.
         data: data.polls as Prisma.PollCreateManyInput[],
       });
       await tx.option.createMany({

@@ -232,10 +232,19 @@ export const polls = router({
   reorder: spaceProcedure
     .input(z.object({ pollIds: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {
+      const space = await prisma.space.findUnique({
+        where: { id: ctx.space.id },
+        select: { pollOrder: true },
+      });
+      const reorderedIds = new Set(input.pollIds);
+      const remainingIds = (space?.pollOrder ?? []).filter(
+        (pollId) => !reorderedIds.has(pollId),
+      );
+
       await prisma.space.update({
         where: { id: ctx.space.id },
         data: {
-          pollOrder: input.pollIds,
+          pollOrder: [...input.pollIds, ...remainingIds],
         },
       });
       return { success: true };
@@ -261,17 +270,20 @@ export const polls = router({
         status: z.enum(["open", "closed", "scheduled", "canceled"]).optional(),
         search: z.string().optional(),
         member: z.string().optional(),
+        category: z.enum(["regular", "onDemand", "all"]).default("regular"),
         cursor: z.number().optional().default(1),
         limit: z.number().default(20),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const { cursor: page, limit: pageSize, status, search, member } = input;
+      const { cursor: page, limit: pageSize, status, search, member, category } =
+        input;
 
       const result = await getPolls({
         status,
         q: search,
         member,
+        isOnDemand: category === "all" ? undefined : category === "onDemand",
         page,
         pageSize,
         spaceId: ctx.space.id,
@@ -310,6 +322,7 @@ export const polls = router({
         requireParticipantEmail: z.boolean().optional(),
         requireEmailVerification: z.boolean().optional(),
         publicResults: z.boolean().optional(),
+        isOnDemand: z.boolean().optional(),
         options: z
           .object({
             startDate: z.string(),
@@ -444,6 +457,7 @@ export const polls = router({
           requireParticipantEmail: input.requireParticipantEmail,
           requireEmailVerification: input.requireEmailVerification ?? true,
           publicResults: input.publicResults ?? false,
+          isOnDemand: input.isOnDemand ?? false,
           spaceId,
         },
       });
@@ -1774,6 +1788,7 @@ export const polls = router({
           requireParticipantEmail: true,
           requireEmailVerification: true,
           publicResults: true,
+          isOnDemand: true,
           disableComments: true,
           spaceId: true,
           kind: true,
@@ -1816,6 +1831,7 @@ export const polls = router({
           requireParticipantEmail: poll.requireParticipantEmail,
           requireEmailVerification: poll.requireEmailVerification,
           publicResults: poll.publicResults,
+          isOnDemand: poll.isOnDemand,
           description: poll.description,
           hideParticipants: poll.hideParticipants,
           hideScores: poll.hideScores,

@@ -284,6 +284,132 @@ export async function getUserPollResponses(userId: string) {
   };
 }
 
+export async function getUserHoursExportRows(
+  userIds: string[],
+): Promise<UserResponseExportRow[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      id: { in: userIds },
+      isAnonymous: false,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+
+  if (users.length === 0) {
+    return [];
+  }
+
+  const usersByEmail = new Map(
+    users.map((user) => [user.email.trim().toLowerCase(), user]),
+  );
+  const userEmailById = new Map(
+    users.map((user) => [user.id, user.email.trim().toLowerCase()]),
+  );
+  const responses = await prisma.participant.findMany({
+    where: {
+      deleted: false,
+      poll: { deleted: false },
+      OR: [
+        { userId: { in: users.map((user) => user.id) } },
+        {
+          email: { in: users.map((user) => user.email), mode: "insensitive" },
+        },
+      ],
+    },
+    select: {
+      userId: true,
+      email: true,
+      note: true,
+      createdAt: true,
+      updatedAt: true,
+      votes: {
+        select: {
+          optionId: true,
+          type: true,
+        },
+      },
+      poll: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          pollGroup: { select: { title: true } },
+          options: {
+            select: {
+              id: true,
+              startTime: true,
+              duration: true,
+              maxYes: true,
+            },
+            orderBy: { startTime: "asc" },
+          },
+        },
+      },
+    },
+  });
+
+  const rowsByEmailPollOption = new Map<string, UserResponseExportRow>();
+  for (const response of responses) {
+    const responseEmail = response.email?.trim().toLowerCase();
+    const canonicalEmail =
+      (responseEmail && usersByEmail.has(responseEmail)
+        ? responseEmail
+        : undefined) ??
+      (response.userId ? userEmailById.get(response.userId) : undefined);
+    const user = canonicalEmail ? usersByEmail.get(canonicalEmail) : undefined;
+    if (!user) {
+      continue;
+    }
+
+    const votesByOptionId = new Map(
+      response.votes.map((vote) => [vote.optionId, vote.type]),
+    );
+    const common = {
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      pollGroup: response.poll.pollGroup?.title ?? "",
+      pollId: response.poll.id,
+      pollTitle: response.poll.title,
+      pollStatus: response.poll.status,
+      note: response.note ?? "",
+      responseUpdatedAt: (
+        response.updatedAt ?? response.createdAt
+      ).toISOString(),
+      hasPrimaryYes: "yes",
+    };
+
+    for (const option of response.poll.options) {
+      if (votesByOptionId.get(option.id) !== "yes") {
+        continue;
+      }
+
+      const key = `${canonicalEmail}:${response.poll.id}:${option.id}`;
+      rowsByEmailPollOption.set(key, {
+        ...common,
+        optionStart: option.startTime.toISOString(),
+        durationMinutes: option.duration,
+        optionMaxYes: option.maxYes ?? "",
+        responseKind: "pollOption",
+        response: "yes",
+      });
+    }
+  }
+
+  return Array.from(rowsByEmailPollOption.values()).sort(
+    (a, b) =>
+      a.userEmail.localeCompare(b.userEmail, undefined, {
+        sensitivity: "base",
+      }) ||
+      a.optionStart.localeCompare(b.optionStart) ||
+      a.pollTitle.localeCompare(b.pollTitle),
+  );
+}
+
 export async function getUserResponseExportRows(
   userIds: string[],
 ): Promise<UserResponseExportRow[]> {

@@ -69,6 +69,7 @@ interface PollsInfiniteListProps {
   status?: PollStatus;
   search?: string;
   member?: string;
+  category?: "regular" | "onDemand" | "all";
   emptyState: React.ReactNode;
 }
 
@@ -374,6 +375,7 @@ export function PollsInfiniteList({
   status,
   search,
   member,
+  category = "regular",
   emptyState,
 }: PollsInfiniteListProps) {
   const [data, { fetchNextPage, hasNextPage, isFetchingNextPage }] =
@@ -382,6 +384,7 @@ export function PollsInfiniteList({
         status,
         search,
         member,
+        category,
       },
       {
         getNextPageParam: (lastPage) => lastPage.nextCursor,

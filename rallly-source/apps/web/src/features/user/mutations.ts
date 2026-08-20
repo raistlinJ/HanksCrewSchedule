@@ -2,6 +2,7 @@ import "server-only";
 
 import type { TimeFormat, VoteType } from "@rallly/database";
 import { Prisma, prisma } from "@rallly/database";
+import * as z from "zod";
 import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
 import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
 import { authLib } from "@/lib/auth";
@@ -68,6 +69,118 @@ export async function createUser({
     }
     throw error;
   }
+}
+
+export async function syncPollRespondentsToUsers() {
+  const participants = await prisma.participant.findMany({
+    where: {
+      deleted: false,
+      email: { not: null },
+      poll: { deleted: false },
+      OR: [{ votes: { some: {} } }, { auxiliaryVotes: { some: {} } }],
+    },
+    select: {
+      name: true,
+      email: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  const respondentsByEmail = new Map<
+    string,
+    { name: string; respondedAt: Date }
+  >();
+  const invalidEmails = new Set<string>();
+
+  for (const participant of participants) {
+    const parsedEmail = z.email().safeParse(participant.email?.trim());
+    if (!parsedEmail.success) {
+      invalidEmails.add(participant.email?.trim().toLowerCase() ?? "");
+      continue;
+    }
+
+    const email = parsedEmail.data.toLowerCase();
+    const respondedAt = participant.updatedAt ?? participant.createdAt;
+    const current = respondentsByEmail.get(email);
+    if (!current || respondedAt > current.respondedAt) {
+      respondentsByEmail.set(email, {
+        name: participant.name,
+        respondedAt,
+      });
+    }
+  }
+
+  const emails = Array.from(respondentsByEmail.keys());
+  if (emails.length === 0) {
+    return {
+      respondents: 0,
+      createdUsers: 0,
+      linkedResponses: 0,
+      skippedEmails: invalidEmails.size,
+    };
+  }
+
+  const existingUsers = await prisma.user.findMany({
+    where: { email: { in: emails } },
+    select: { email: true },
+  });
+  const existingEmails = new Set(
+    existingUsers.map((user) => user.email.trim().toLowerCase()),
+  );
+  const usersToCreate = emails.filter((email) => !existingEmails.has(email));
+
+  const createdUsers = usersToCreate.length
+    ? (
+        await prisma.user.createMany({
+          data: usersToCreate.map((email) => ({
+            email,
+            name: respondentsByEmail.get(email)?.name ?? email,
+            emailVerified: false,
+            role: "user" as const,
+          })),
+          skipDuplicates: true,
+        })
+      ).count
+    : 0;
+
+  const users = await prisma.user.findMany({
+    where: { email: { in: emails } },
+    select: {
+      id: true,
+      email: true,
+      banned: true,
+      deletedAt: true,
+      isAnonymous: true,
+    },
+  });
+
+  let linkedResponses = 0;
+  let unavailableUsers = 0;
+  for (const user of users) {
+    if (user.banned || user.deletedAt || user.isAnonymous) {
+      unavailableUsers += 1;
+      continue;
+    }
+
+    const linked = await prisma.participant.updateMany({
+      where: {
+        deleted: false,
+        email: { equals: user.email, mode: "insensitive" },
+        poll: { deleted: false },
+        OR: [{ userId: null }, { userId: { not: user.id } }],
+      },
+      data: { userId: user.id },
+    });
+    linkedResponses += linked.count;
+  }
+
+  return {
+    respondents: emails.length,
+    createdUsers,
+    linkedResponses,
+    skippedEmails: invalidEmails.size + unavailableUsers,
+  };
 }
 
 // There are deliberately no self-profile mutations (name, image,

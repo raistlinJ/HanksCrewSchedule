@@ -269,7 +269,7 @@ export default function PollGroupsDashboardPage() {
     notificationSettingsQuery.data?.sendSupportEmails === false;
   const allPollsQuery = trpc.polls.listAll.useQuery();
   const pollsQuery = trpc.polls.infiniteChronological.useInfiniteQuery(
-    {},
+    { category: "all" },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
     }

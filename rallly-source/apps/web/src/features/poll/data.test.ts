@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const mockFindMany = vi.fn();
-
 vi.mock("@rallly/database", () => ({
   prisma: {
     poll: {
@@ -13,7 +12,7 @@ vi.mock("@rallly/database", () => ({
 }));
 
 import type { AuthorizedSpaceId } from "@/features/space/types";
-import { listPolls } from "./data";
+import { getOnDemandPollTitles, listPolls } from "./data";
 
 const spaceId = "test-space-id" as AuthorizedSpaceId;
 
@@ -90,6 +89,18 @@ describe("listPolls", () => {
     );
   });
 
+  it("can limit results to on-demand polls", async () => {
+    mockFindMany.mockResolvedValue([]);
+
+    await listPolls({ spaceId, isOnDemand: true, limit: 20 });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { spaceId, deleted: false, isOnDemand: true },
+      }),
+    );
+  });
+
   it("resumes from the cursor when provided", async () => {
     mockFindMany.mockResolvedValue([]);
 
@@ -101,5 +112,23 @@ describe("listPolls", () => {
         skip: 1,
       }),
     );
+  });
+});
+
+describe("getOnDemandPollTitles", () => {
+  it("returns active on-demand titles in the space", async () => {
+    mockFindMany.mockResolvedValue([
+      { title: "2026-08-19/14:30" },
+      { title: "2026-08-19/14:30-(2)" },
+    ]);
+
+    await expect(getOnDemandPollTitles({ spaceId })).resolves.toEqual([
+      "2026-08-19/14:30",
+      "2026-08-19/14:30-(2)",
+    ]);
+    expect(mockFindMany).toHaveBeenCalledWith({
+      where: { isOnDemand: true, deleted: false, spaceId },
+      select: { title: true },
+    });
   });
 });

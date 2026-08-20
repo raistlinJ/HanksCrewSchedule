@@ -9,15 +9,20 @@ import {
   getUserByEmail,
   getUserCleanupCandidates,
   getUserDeletionDetails,
+  getUserHoursExportRows,
   getUserResponseExportRows,
 } from "@/features/user/data";
 import {
   createUser,
   hardDeleteUser,
+  syncPollRespondentsToUsers,
   updateUserPollAuxiliaryResponse,
   updateUserPollResponse,
 } from "@/features/user/mutations";
-import { createUserResponsesCsv } from "@/features/user/utils";
+import {
+  createUserHoursCsv,
+  createUserResponsesCsv,
+} from "@/features/user/utils";
 import { AppError } from "@/lib/errors/app-error";
 import { deletePostHogPerson } from "@/lib/posthog";
 import { adminActionClient } from "@/lib/safe-action/server";
@@ -184,6 +189,29 @@ export const exportUserResponsesAction = adminActionClient
       fileName: `user-responses-${new Date().toISOString().slice(0, 10)}.csv`,
     };
   });
+
+export const exportUserHoursAction = adminActionClient
+  .metadata({ actionName: "export_user_hours" })
+  .inputSchema(
+    z.object({
+      userIds: z.array(z.string()).min(1).max(100),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    const rows = await getUserHoursExportRows(
+      Array.from(new Set(parsedInput.userIds)),
+    );
+
+    return {
+      csv: createUserHoursCsv(rows),
+      fileName: `user-hours-${new Date().toISOString().slice(0, 10)}.csv`,
+    };
+  });
+
+export const syncPollRespondentsAction = adminActionClient
+  .metadata({ actionName: "sync_poll_respondents" })
+  .inputSchema(z.object({}))
+  .action(async () => syncPollRespondentsToUsers());
 
 export const findUserCleanupCandidatesAction = adminActionClient
   .metadata({ actionName: "find_user_cleanup_candidates" })

@@ -17,6 +17,7 @@ import { Trans } from "@/i18n/client";
 import { getTranslation } from "@/i18n/server";
 import { AddUserDialog } from "./add-user-dialog";
 import { CleanupUsersDialog } from "./cleanup-users-dialog";
+import { SyncPollRespondentsButton } from "./sync-poll-respondents-button";
 import { UsersList } from "./users-list";
 
 async function loadData({
@@ -145,6 +146,7 @@ export default async function AdminPage(props: {
           />
         </SettingsPageDescription>
         <SettingsPageAction>
+          <SyncPollRespondentsButton />
           <CleanupUsersDialog />
           <AddUserDialog spaces={spaces} />
         </SettingsPageAction>

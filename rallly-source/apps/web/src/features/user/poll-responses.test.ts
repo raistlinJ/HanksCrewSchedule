@@ -163,7 +163,7 @@ describe("user poll responses", () => {
     expect(result?.responses[0]?.id).toBe("participant-linked");
   });
 
-  it("builds flat export rows for selected users and their poll options", async () => {
+  it("exports only poll options answered yes", async () => {
     mockParticipantFindMany.mockResolvedValue([
       {
         userId: user.id,
@@ -171,7 +171,10 @@ describe("user poll responses", () => {
         note: "Morning only",
         createdAt: new Date("2026-08-01T00:00:00Z"),
         updatedAt: new Date("2026-08-02T00:00:00Z"),
-        votes: [{ optionId: "option-1", type: "yes" }],
+        votes: [
+          { optionId: "option-1", type: "yes" },
+          { optionId: "option-2", type: "ifNeedBe" },
+        ],
         auxiliaryVotes: [{ auxiliaryOptionId: "role-1", type: "ifNeedBe" }],
         poll: {
           id: poll.id,
@@ -184,6 +187,79 @@ describe("user poll responses", () => {
               startTime: new Date("2026-08-15T15:00:00Z"),
               duration: 60,
               maxYes: 12,
+            },
+            {
+              id: "option-2",
+              startTime: new Date("2026-08-15T16:00:00Z"),
+              duration: 60,
+              maxYes: null,
+            },
+          ],
+          auxiliarySelection: {
+            name: "Roles",
+            minYes: 1,
+            maxYesSelections: 1,
+            options: [{ id: "role-1", label: "Driver", maxYes: 3 }],
+          },
+        },
+      },
+    ]);
+    const { getUserHoursExportRows } = await import("./data");
+
+    const rows = await getUserHoursExportRows([user.id]);
+
+    expect(mockUserFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [user.id] }, isAnonymous: false },
+      }),
+    );
+    expect(rows).toEqual([
+      expect.objectContaining({
+        userId: user.id,
+        userEmail: user.email,
+        pollGroup: "August shifts",
+        pollId: poll.id,
+        optionStart: "2026-08-15T15:00:00.000Z",
+        durationMinutes: 60,
+        optionMaxYes: 12,
+        hasPrimaryYes: "yes",
+        responseKind: "pollOption",
+        response: "yes",
+        note: "Morning only",
+      }),
+    ]);
+  });
+
+  it("retains every primary and auxiliary value in the all-responses export", async () => {
+    mockParticipantFindMany.mockResolvedValue([
+      {
+        userId: user.id,
+        email: user.email,
+        note: "Morning only",
+        createdAt: new Date("2026-08-01T00:00:00Z"),
+        updatedAt: null,
+        votes: [
+          { optionId: "option-1", type: "yes" },
+          { optionId: "option-2", type: "no" },
+        ],
+        auxiliaryVotes: [{ auxiliaryOptionId: "role-1", type: "ifNeedBe" }],
+        poll: {
+          id: poll.id,
+          title: poll.title,
+          status: poll.status,
+          pollGroup: { title: "August shifts" },
+          options: [
+            {
+              id: "option-1",
+              startTime: new Date("2026-08-15T15:00:00Z"),
+              duration: 60,
+              maxYes: 12,
+            },
+            {
+              id: "option-2",
+              startTime: new Date("2026-08-15T16:00:00Z"),
+              duration: 60,
+              maxYes: null,
             },
           ],
           auxiliarySelection: {
@@ -199,40 +275,98 @@ describe("user poll responses", () => {
 
     const rows = await getUserResponseExportRows([user.id]);
 
-    expect(mockUserFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: { in: [user.id] }, isAnonymous: false },
-      }),
-    );
+    expect(rows).toHaveLength(3);
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          userId: user.id,
-          userEmail: user.email,
-          pollGroup: "August shifts",
-          pollId: poll.id,
-          optionStart: "2026-08-15T15:00:00.000Z",
-          durationMinutes: 60,
-          optionMaxYes: 12,
-          hasPrimaryYes: "yes",
           responseKind: "pollOption",
+          optionStart: "2026-08-15T15:00:00.000Z",
           response: "yes",
-          note: "Morning only",
         }),
         expect.objectContaining({
-          userId: user.id,
-          pollId: poll.id,
+          responseKind: "pollOption",
+          optionStart: "2026-08-15T16:00:00.000Z",
+          response: "no",
+        }),
+        expect.objectContaining({
           responseKind: "auxiliary",
-          auxiliarySelection: "Roles",
-          auxiliaryMinYes: 1,
-          auxiliaryMaxYesSelections: 1,
           auxiliaryOption: "Driver",
-          auxiliaryOptionMaxYes: 3,
           response: "ifNeedBe",
         }),
       ]),
     );
+  });
+
+  it("groups matches by email, deduplicates a poll option, and retains other polls", async () => {
+    const sharedOption = {
+      id: "option-1",
+      startTime: new Date("2026-08-15T15:00:00Z"),
+      duration: 60,
+      maxYes: null,
+    };
+    const makeResponse = ({
+      pollId,
+      participantEmail,
+      linkedUserId,
+    }: {
+      pollId: string;
+      participantEmail: string;
+      linkedUserId: string | null;
+    }) => ({
+      userId: linkedUserId,
+      email: participantEmail,
+      note: "",
+      createdAt: new Date("2026-08-01T00:00:00Z"),
+      updatedAt: null,
+      votes: [{ optionId: sharedOption.id, type: "yes" }],
+      auxiliaryVotes: [],
+      poll: {
+        id: pollId,
+        title: `Poll ${pollId}`,
+        status: "open",
+        pollGroup: null,
+        options: [sharedOption],
+        auxiliarySelection: null,
+      },
+    });
+    mockParticipantFindMany.mockResolvedValue([
+      makeResponse({
+        pollId: "poll-1",
+        participantEmail: "AVERY@example.com",
+        linkedUserId: null,
+      }),
+      makeResponse({
+        pollId: "poll-1",
+        participantEmail: user.email,
+        linkedUserId: user.id,
+      }),
+      makeResponse({
+        pollId: "poll-2",
+        participantEmail: user.email,
+        linkedUserId: null,
+      }),
+    ]);
+    const { getUserHoursExportRows } = await import("./data");
+
+    const rows = await getUserHoursExportRows([user.id]);
+
     expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.pollId)).toEqual(["poll-1", "poll-2"]);
+    expect(new Set(rows.map((row) => row.userEmail))).toEqual(
+      new Set([user.email]),
+    );
+    expect(mockParticipantFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { userId: { in: [user.id] } },
+            {
+              email: { in: [user.email], mode: "insensitive" },
+            },
+          ]),
+        }),
+      }),
+    );
   });
 
   it("upserts an edited vote after validating the response belongs to the user", async () => {

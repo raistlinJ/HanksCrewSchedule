@@ -768,6 +768,7 @@ export const pollGroups = router({
               requireParticipantEmail: group.requireEmailVerification,
               requireEmailVerification: group.requireEmailVerification,
               publicResults: poll.publicResults,
+              isOnDemand: poll.isOnDemand,
               muted: poll.muted,
               deadline: poll.deadline,
               status: poll.status,

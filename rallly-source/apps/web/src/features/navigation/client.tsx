@@ -4,9 +4,9 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart2Icon,
   CalendarDaysIcon,
-  CalendarIcon,
-  HomeIcon,
   FolderIcon,
+  HomeIcon,
+  ZapIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import React from "react";
@@ -57,6 +57,15 @@ export const useSpaceMenu = () => {
           id: "content",
           title: t("content", { defaultValue: "Content" }),
           items: [
+            {
+              id: "on-demand-polls",
+              label: t("onDemandPolls", {
+                defaultValue: "On-demand polls",
+              }),
+              href: "/on-demand-polls",
+              icon: ZapIcon,
+              isActive: pathname.startsWith("/on-demand-polls"),
+            },
             {
               id: "polls",
               label: t("polls", { defaultValue: "Polls" }),

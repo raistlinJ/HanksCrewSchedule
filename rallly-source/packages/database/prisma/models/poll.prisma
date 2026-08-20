@@ -52,6 +52,7 @@ model Poll {
   requireParticipantEmail  Boolean           @default(false) @map("require_participant_email")
   requireEmailVerification Boolean           @default(true) @map("require_email_verification")
   publicResults            Boolean           @default(false) @map("public_results")
+  isOnDemand               Boolean           @default(false) @map("is_on_demand")
   muted                    Boolean           @default(false)
 
   user               User?                   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -70,6 +71,7 @@ model Poll {
   pollGroupId        String?                 @map("poll_group_id")
 
   @@index([spaceId])
+  @@index([spaceId, isOnDemand])
   @@index([pollGroupId])
   @@index([userId])
   @@map("polls")

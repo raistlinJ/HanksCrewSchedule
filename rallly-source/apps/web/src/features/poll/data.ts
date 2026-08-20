@@ -245,17 +245,20 @@ export async function listPolls({
   status,
   cursor,
   limit,
+  isOnDemand,
 }: {
   spaceId: AuthorizedSpaceId;
   status?: PollStatus;
   cursor?: string;
   limit: number;
+  isOnDemand?: boolean;
 }) {
   // Fetch one extra row to determine whether there is a next page
   const polls = await prisma.poll.findMany({
     where: {
       spaceId,
       deleted: false,
+      ...(isOnDemand !== undefined && { isOnDemand }),
       ...(status && { status }),
     },
     select: {
@@ -313,6 +316,7 @@ type PollFilters = {
   pageSize?: number;
   q?: string;
   member?: string;
+  isOnDemand?: boolean;
   spaceId: string;
 };
 
@@ -322,12 +326,14 @@ export const getPolls = async ({
   member,
   page = 1,
   pageSize = 20,
+  isOnDemand,
   spaceId,
 }: PollFilters) => {
   // Build the where clause based on filters
   const where: Prisma.PollWhereInput = {
     spaceId,
     deletedAt: null,
+    ...(isOnDemand !== undefined && { isOnDemand }),
     ...(status && { status }),
     ...(q && { title: { contains: q, mode: "insensitive" } }),
     ...(member && { userId: member }),
@@ -448,14 +454,17 @@ export const getPolls = async ({
 
 export const getPollStatusCounts = async ({
   spaceId,
+  isOnDemand,
 }: {
   spaceId: AuthorizedSpaceId;
+  isOnDemand?: boolean;
 }) => {
   const res = await prisma.poll.groupBy({
     by: ["status"],
     where: {
       spaceId,
       deletedAt: null,
+      ...(isOnDemand !== undefined && { isOnDemand }),
     },
     _count: {
       status: true,
@@ -475,6 +484,29 @@ export const getPollStatusCounts = async ({
 
   return counts;
 };
+
+export async function getOnDemandPollTitles({
+  spaceId,
+  userId,
+}: {
+  spaceId?: string;
+  userId?: string;
+}) {
+  if (!spaceId && !userId) {
+    return [];
+  }
+
+  const polls = await prisma.poll.findMany({
+    where: {
+      isOnDemand: true,
+      deleted: false,
+      ...(spaceId ? { spaceId } : { userId }),
+    },
+    select: { title: true },
+  });
+
+  return polls.map((poll) => poll.title);
+}
 
 export async function canUserManagePoll(
   user: {

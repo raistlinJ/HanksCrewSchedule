@@ -29,14 +29,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@rallly/ui/popover";
 import { SidebarTrigger } from "@rallly/ui/sidebar";
 import { toast } from "@rallly/ui/sonner";
 import { shortUrl } from "@rallly/utils/absolute-url";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, ListCollapseIcon } from "lucide-react";
 import Link from "next/link";
+import { QRCodeCanvas } from "qrcode.react";
 import React from "react";
 import { useForm, useFormContext } from "react-hook-form";
 import useFormPersist from "react-hook-form-persist";
 import { useCopyToClipboard } from "react-use";
-import { PollDetailsForm } from "@/features/poll/components/forms/poll-details-form";
 import { AuxiliarySelectionForm } from "@/features/poll/components/forms/auxiliary-selection-form";
+import { OnDemandPollFields } from "@/features/poll/components/forms/on-demand-poll-fields";
+import { PollDetailsForm } from "@/features/poll/components/forms/poll-details-form";
 import PollOptionsForm from "@/features/poll/components/forms/poll-options-form/poll-options-form";
 import {
   createDefaultTimeOption,
@@ -44,6 +46,10 @@ import {
 } from "@/features/poll/components/forms/poll-options-form/utils";
 import { PollSettingsForm } from "@/features/poll/components/forms/poll-settings";
 import type { NewEventData } from "@/features/poll/components/forms/types";
+import {
+  createDefaultOnDemandTimeOption,
+  getOnDemandPollTitle,
+} from "@/features/poll/on-demand/utils";
 import { useUser } from "@/features/user/client";
 import { Trans, useTranslation } from "@/i18n/client";
 import { getBrowserTimeZone } from "@/lib/utils/date-time-utils";
@@ -98,8 +104,10 @@ const GuestModeBadge = () => {
 
 const CreatePollActions = ({
   createdPollId,
+  isOnDemand,
 }: {
   createdPollId: string | null;
+  isOnDemand: boolean;
 }) => {
   const form = useFormContext<NewEventData>();
 
@@ -121,6 +129,8 @@ const CreatePollActions = ({
     >
       {form.formState.isSubmitting ? (
         <Trans i18nKey="createPollFooterCreating" defaults="Creating…" />
+      ) : isOnDemand ? (
+        <Trans i18nKey="createAndShare" defaults="Create & share" />
       ) : (
         <Trans i18nKey="create" defaults="Create" />
       )}
@@ -128,14 +138,33 @@ const CreatePollActions = ({
   );
 };
 
-export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
+export const CreatePoll = ({
+  nav,
+  mode = "standard",
+  existingOnDemandTitles = [],
+}: {
+  nav?: React.ReactNode;
+  mode?: "standard" | "on-demand";
+  existingOnDemandTitles?: string[];
+}) => {
   const { t } = useTranslation();
   const { user, createGuestIfNeeded } = useUser();
   const isLoggedIn = !!user && !user.isGuest;
   const [createdPollId, setCreatedPollId] = React.useState<string | null>(null);
+  const [createdPollHasPublicResults, setCreatedPollHasPublicResults] =
+    React.useState(false);
   const [, copy] = useCopyToClipboard();
   const [didCopy, setDidCopy] = React.useState(false);
-  const defaultTimeOption = React.useMemo(() => createDefaultTimeOption(), []);
+  const [didCopyResults, setDidCopyResults] = React.useState(false);
+  const [viewAllOptions, setViewAllOptions] = React.useState(false);
+  const isOnDemand = mode === "on-demand";
+  const defaultTimeOption = React.useMemo(
+    () =>
+      isOnDemand
+        ? createDefaultOnDemandTimeOption()
+        : createDefaultTimeOption(),
+    [isOnDemand],
+  );
   const defaultDuration = React.useMemo(
     () =>
       (new Date(defaultTimeOption.end).getTime() -
@@ -146,7 +175,9 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
 
   const form = useForm<NewEventData>({
     defaultValues: {
-      title: "",
+      title: isOnDemand
+        ? getOnDemandPollTitle(defaultTimeOption.start, existingOnDemandTitles)
+        : "",
       description: "",
       location: "",
       view: "month",
@@ -154,7 +185,7 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
       options: [defaultTimeOption],
       hideScores: false,
       hideParticipants: false,
-      publicResults: false,
+      publicResults: isOnDemand,
       enableComments: false,
       duration: defaultDuration,
       timeZone: getBrowserTimeZone(),
@@ -211,11 +242,14 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
     [defaultDuration, defaultTimeOption, form],
   );
 
-  const { clear } = useFormPersist("new-poll", {
-    watch: form.watch,
-    setValue: form.setValue,
-    onDataRestored: restoreDefaultTimeOption,
-  });
+  const { clear } = useFormPersist(
+    isOnDemand ? "new-on-demand-poll" : "new-poll",
+    {
+      watch: form.watch,
+      setValue: form.setValue,
+      onDataRestored: restoreDefaultTimeOption,
+    },
+  );
 
   const makePoll = trpc.polls.make.useMutation();
 
@@ -229,7 +263,10 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
           </div>
           <div className="flex shrink-0 items-center gap-x-4">
             {!isLoggedIn ? <GuestModeBadge /> : null}
-            <CreatePollActions createdPollId={createdPollId} />
+            <CreatePollActions
+              createdPollId={createdPollId}
+              isOnDemand={isOnDemand}
+            />
           </div>
         </div>
       </header>
@@ -261,7 +298,8 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
               requireParticipantEmail: formData?.requireParticipantEmail,
               requireEmailVerification:
                 formData?.requireEmailVerification ?? true,
-              publicResults: formData?.publicResults ?? false,
+              publicResults: formData?.publicResults ?? isOnDemand,
+              isOnDemand,
               options: required(formData?.options).map((option) => ({
                 startDate: option.type === "date" ? option.date : option.start,
                 endDate: option.type === "timeSlot" ? option.end : undefined,
@@ -269,16 +307,14 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
               })),
               auxiliarySelection: formData.auxiliarySelection.enabled
                 ? {
-                    name: required(
-                      formData.auxiliarySelection.name.trim(),
-                    ),
+                    name: required(formData.auxiliarySelection.name.trim()),
                     minYes: formData.auxiliarySelection.requireMinimum
                       ? formData.auxiliarySelection.minYes
                       : 0,
-                    maxYesSelections:
-                      formData.auxiliarySelection.limitSelections
-                        ? formData.auxiliarySelection.maxYesSelections
-                        : null,
+                    maxYesSelections: formData.auxiliarySelection
+                      .limitSelections
+                      ? formData.auxiliarySelection.maxYesSelections
+                      : null,
                     options: formData.auxiliarySelection.options.map(
                       (option) => ({
                         label: required(option.label.trim()),
@@ -294,6 +330,7 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
               // alone is not enough — reset the form so defaults get persisted
               clear();
               form.reset();
+              setCreatedPollHasPublicResults(formData.publicResults);
               setCreatedPollId(res.data.id);
             } else {
               toast.error(
@@ -316,28 +353,50 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
           })}
         >
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <Trans i18nKey="event" defaults="Event" />
-                </CardTitle>
-                <CardDescription>
-                  <Trans
-                    i18nKey="describeYourEvent"
-                    defaults="Describe what your event is about"
-                  />
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <PollDetailsForm />
-              </CardContent>
-            </Card>
+            {isOnDemand && !viewAllOptions ? (
+              <OnDemandPollFields
+                onViewAllOptions={() => setViewAllOptions(true)}
+              />
+            ) : (
+              <>
+                {isOnDemand ? (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      onClick={() => setViewAllOptions(false)}
+                    >
+                      <ListCollapseIcon data-icon="inline-start" />
+                      <Trans
+                        i18nKey="showStartAndEndOnly"
+                        defaults="Show start and end only"
+                      />
+                    </Button>
+                  </div>
+                ) : null}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      <Trans i18nKey="event" defaults="Event" />
+                    </CardTitle>
+                    <CardDescription>
+                      <Trans
+                        i18nKey="describeYourEvent"
+                        defaults="Describe what your event is about"
+                      />
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <PollDetailsForm />
+                  </CardContent>
+                </Card>
 
-            <PollOptionsForm />
+                <PollOptionsForm />
 
-            <AuxiliarySelectionForm />
+                <AuxiliarySelectionForm />
 
-            <PollSettingsForm />
+                <PollSettingsForm />
+              </>
+            )}
           </div>
         </form>
       </main>
@@ -366,33 +425,106 @@ export const CreatePoll = ({ nav }: { nav?: React.ReactNode }) => {
               </div>
             </div>
           </DialogHeader>
-          <InputGroup className="w-full">
-            <InputGroupInput
-              className="text-center"
-              value={shortUrl(`/invite/${createdPollId}`)}
-              readOnly
-            />
-            <InputGroupAddon align="inline-end">
-              <InputGroupButton
-                variant="ghost"
-                size="icon-xs"
-                disabled={didCopy}
-                aria-label={
-                  didCopy
-                    ? t("copied", { defaultValue: "Copied" })
-                    : t("copyLink", { defaultValue: "Copy link" })
-                }
-                onClick={() => {
-                  copy(shortUrl(`/invite/${createdPollId}`));
-                  setDidCopy(true);
-                  setTimeout(() => setDidCopy(false), 2000);
-                  posthog?.capture("poll_creation:invite_link_copy");
-                }}
-              >
-                {didCopy ? <CheckIcon /> : <CopyIcon />}
-              </InputGroupButton>
-            </InputGroupAddon>
-          </InputGroup>
+          <div className="space-y-2">
+            <p className="font-medium text-sm">
+              <Trans i18nKey="inviteLink" defaults="Invite link" />
+            </p>
+            <InputGroup className="w-full">
+              <InputGroupInput
+                className="text-center"
+                value={shortUrl(`/invite/${createdPollId}`)}
+                readOnly
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  variant="ghost"
+                  size="icon-xs"
+                  disabled={didCopy}
+                  aria-label={
+                    didCopy
+                      ? t("copied", { defaultValue: "Copied" })
+                      : t("copyLink", { defaultValue: "Copy link" })
+                  }
+                  onClick={() => {
+                    copy(shortUrl(`/invite/${createdPollId}`));
+                    setDidCopy(true);
+                    setTimeout(() => setDidCopy(false), 2000);
+                    posthog?.capture("poll_creation:invite_link_copy");
+                  }}
+                >
+                  {didCopy ? <CheckIcon /> : <CopyIcon />}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+          </div>
+          {isOnDemand ? (
+            <div className="flex flex-col items-center gap-2 rounded-xl border bg-muted/30 p-3">
+              <p className="font-medium text-sm">
+                <Trans
+                  i18nKey="scanToOpenPoll"
+                  defaults="Scan to open the poll"
+                />
+              </p>
+              <div className="rounded-xl border bg-white p-2">
+                <QRCodeCanvas
+                  className="h-auto w-full max-w-52"
+                  level="M"
+                  marginSize={4}
+                  size={208}
+                  title={t("pollQrCodeTitle", {
+                    defaultValue: "QR code for {title}",
+                    title: form.getValues("title"),
+                  })}
+                  value={shortUrl(`/invite/${createdPollId}`)}
+                />
+              </div>
+            </div>
+          ) : null}
+          {createdPollHasPublicResults ? (
+            <div className="space-y-2 border-t pt-4">
+              <p className="font-medium text-sm">
+                <Trans
+                  i18nKey="publicResultsLink"
+                  defaults="Public results link"
+                />
+              </p>
+              <InputGroup className="w-full">
+                <InputGroupInput
+                  className="text-center"
+                  value={shortUrl(`/invite/${createdPollId}/results`)}
+                  readOnly
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    variant="ghost"
+                    size="icon-xs"
+                    disabled={didCopyResults}
+                    aria-label={
+                      didCopyResults
+                        ? t("copied", { defaultValue: "Copied" })
+                        : t("copyLink", { defaultValue: "Copy link" })
+                    }
+                    onClick={() => {
+                      copy(shortUrl(`/invite/${createdPollId}/results`));
+                      setDidCopyResults(true);
+                      setTimeout(() => setDidCopyResults(false), 2000);
+                      posthog?.capture(
+                        "poll_creation:public_results_link_copy",
+                      );
+                    }}
+                  >
+                    {didCopyResults ? <CheckIcon /> : <CopyIcon />}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+              <p className="text-muted-foreground text-sm">
+                <Trans
+                  i18nKey="publicResultsLinkDescription"
+                  defaults="Anyone with this separate link can view the full results."
+                />
+              </p>
+            </div>
+          ) : null}
           <DialogFooter className="grid grid-cols-2 gap-2">
             <Link
               href={`/poll/${createdPollId}`}

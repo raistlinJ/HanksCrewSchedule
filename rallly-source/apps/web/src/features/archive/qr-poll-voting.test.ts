@@ -68,6 +68,12 @@ const archivedParticipant = {
   name: archivedUser.name,
   email: archivedUser.email,
 };
+const archivedPoll = {
+  id: "poll-1",
+  pollGroupId: "group-1",
+  isOnDemand: true,
+  publicResults: true,
+};
 const archivedVote = {
   id: "vote-1",
   participantId: archivedParticipant.id,
@@ -106,7 +112,7 @@ function createArchive() {
   >;
   data.users = [{ ...archivedUser }];
   data.pollGroups = [{ id: "group-1" }];
-  data.polls = [{ id: "poll-1", pollGroupId: "group-1" }];
+  data.polls = [{ ...archivedPoll }];
   data.options = [{ id: "option-1", pollId: "poll-1", maxYes: 8 }];
   data.pollAuxiliarySelections = [{ ...archivedAuxiliarySelection }];
   data.pollAuxiliaryOptions = [{ ...archivedAuxiliaryOption }];
@@ -140,12 +146,10 @@ describe("QR poll voting archive support", () => {
     );
   });
 
-  it("exports the badge credential, linked participant, and yes vote", async () => {
+  it("exports on-demand settings, the linked respondent, and their votes", async () => {
     tx.user.findMany.mockResolvedValue([archivedUser]);
     tx.pollGroup.findMany.mockResolvedValue([{ id: "group-1" }]);
-    tx.poll.findMany.mockResolvedValue([
-      { id: "poll-1", pollGroupId: "group-1" },
-    ]);
+    tx.poll.findMany.mockResolvedValue([{ ...archivedPoll }]);
     tx.option.findMany.mockResolvedValue([
       { id: "option-1", pollId: "poll-1", maxYes: 8 },
     ]);
@@ -169,6 +173,11 @@ describe("QR poll voting archive support", () => {
     expect(archive.data.participants[0]).toMatchObject({
       pollId: "poll-1",
       userId: archivedUser.id,
+    });
+    expect(archive.data.polls[0]).toMatchObject({
+      id: "poll-1",
+      isOnDemand: true,
+      publicResults: true,
     });
     expect(archive.data.votes[0]).toMatchObject({
       participantId: archivedParticipant.id,
@@ -207,6 +216,15 @@ describe("QR poll voting archive support", () => {
         expect.objectContaining({
           pollId: "poll-1",
           userId: archivedUser.id,
+        }),
+      ],
+    });
+    expect(tx.poll.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          id: "poll-1",
+          isOnDemand: true,
+          publicResults: true,
         }),
       ],
     });
@@ -260,6 +278,7 @@ describe("QR poll voting archive support", () => {
     const archive = createArchive();
     Reflect.deleteProperty(archive.data.users[0], "qrCodeToken");
     Reflect.deleteProperty(archive.data.options[0], "maxYes");
+    Reflect.deleteProperty(archive.data.polls[0], "isOnDemand");
     const { restoreInstanceArchive } = await import("./mutations");
 
     await restoreInstanceArchive(archive);
@@ -269,6 +288,9 @@ describe("QR poll voting archive support", () => {
     });
     expect(tx.option.createMany).toHaveBeenCalledWith({
       data: [expect.not.objectContaining({ maxYes: expect.anything() })],
+    });
+    expect(tx.poll.createMany).toHaveBeenCalledWith({
+      data: [expect.not.objectContaining({ isOnDemand: expect.anything() })],
     });
   });
 

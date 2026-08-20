@@ -1,15 +1,13 @@
 import { Tile, TileDescription, TileGrid, TileTitle } from "@rallly/ui/tile";
+import { FolderIcon, ZapIcon } from "lucide-react";
 import { Trans } from "react-i18next/TransWithoutContext";
 import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import {
   BillingPageIcon,
-  CreatePageIcon,
-  EventPageIcon,
   MembersPageIcon,
   PollPageIcon,
   SettingsPageIcon,
 } from "@/components/page-icons";
-import { FolderIcon } from "lucide-react";
 import {
   PageContainer,
   PageContent,
@@ -59,6 +57,18 @@ export async function DashboardHome({
             />
           </h2>
           <TileGrid>
+            <Tile render={<HoverPrefetchLink href="/new?type=on-demand" />}>
+              <ZapIcon className="size-8 text-primary" />
+              <TileTitle>
+                <Trans
+                  t={t}
+                  i18n={i18n}
+                  ns="app"
+                  i18nKey="createOnDemandPoll"
+                  defaults="Create on-demand poll"
+                />
+              </TileTitle>
+            </Tile>
             <Tile render={<HoverPrefetchLink href="/new" />}>
               <PollPageIcon />
               <TileTitle>
@@ -72,10 +82,8 @@ export async function DashboardHome({
               </TileTitle>
             </Tile>
             <Tile render={<HoverPrefetchLink href="/groups" />}>
-              <FolderIcon className="w-8 h-8 text-primary" />
-              <TileTitle>
-                Create Poll Group
-              </TileTitle>
+              <FolderIcon className="h-8 w-8 text-primary" />
+              <TileTitle>Create Poll Group</TileTitle>
             </Tile>
           </TileGrid>
         </div>
@@ -113,17 +121,33 @@ export async function DashboardHome({
               </TileDescription>
             </Tile>
 
-            <Tile render={<HoverPrefetchLink href="/groups" />}>
-              <FolderIcon className="w-8 h-8 text-primary" />
+            <Tile render={<HoverPrefetchLink href="/on-demand-polls" />}>
+              <ZapIcon className="size-8 text-primary" />
               <TileTitle>
-                Poll Groups
+                <Trans
+                  t={t}
+                  i18n={i18n}
+                  ns="app"
+                  i18nKey="onDemandPolls"
+                  defaults="On-demand polls"
+                />
               </TileTitle>
               <TileDescription>
-                Manage your poll groups.
+                <Trans
+                  t={t}
+                  i18n={i18n}
+                  ns="app"
+                  i18nKey="onDemandPollsDescription"
+                  defaults="Polls created for immediate sharing."
+                />
               </TileDescription>
             </Tile>
 
-
+            <Tile render={<HoverPrefetchLink href="/groups" />}>
+              <FolderIcon className="h-8 w-8 text-primary" />
+              <TileTitle>Poll Groups</TileTitle>
+              <TileDescription>Manage your poll groups.</TileDescription>
+            </Tile>
           </TileGrid>
         </div>
         <div className="space-y-4">

@@ -29,7 +29,7 @@ import { Trans, useTranslation } from "@/i18n/client";
 import { createLabeledQrCodePng } from "@/lib/labeled-qr-code";
 import { useSafeAction } from "@/lib/safe-action/client";
 import { createStoredZip } from "@/lib/stored-zip";
-import { exportUserResponsesAction } from "./actions";
+import { exportUserHoursAction, exportUserResponsesAction } from "./actions";
 import { UserRow } from "./user-row";
 import { UserSearchInput } from "./user-search-input";
 import { UsersTabbedView } from "./users-tabbed-view";
@@ -84,6 +84,7 @@ export function UsersList({
   const [downloadingQrCodes, setDownloadingQrCodes] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const qrCanvasRefs = useRef(new Map<string, HTMLCanvasElement>());
+  const exportHours = useSafeAction(exportUserHoursAction);
   const exportResponses = useSafeAction(exportUserResponsesAction);
   const visibleIds = useMemo(() => users.map((user) => user.id), [users]);
   const selectedUsers = users.filter((user) => selectedIds.has(user.id));
@@ -149,6 +150,20 @@ export function UsersList({
     );
   };
 
+  const downloadHours = async () => {
+    const result = await exportHours.executeAsync({
+      userIds: selectedUsers.map((user) => user.id),
+    });
+    if (!result?.data) {
+      return;
+    }
+
+    downloadBlob(
+      new Blob([result.data.csv], { type: "text/csv;charset=utf-8" }),
+      result.data.fileName,
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -197,11 +212,21 @@ export function UsersList({
               <Trans i18nKey="downloadQrCodes" defaults="Download QR codes" />
             </DropdownMenuItem>
             <DropdownMenuItem
+              disabled={exportHours.isPending}
+              onClick={downloadHours}
+            >
+              <FileSpreadsheetIcon />
+              <Trans i18nKey="exportHours" defaults="Export hours" />
+            </DropdownMenuItem>
+            <DropdownMenuItem
               disabled={exportResponses.isPending}
               onClick={downloadResponses}
             >
               <FileSpreadsheetIcon />
-              <Trans i18nKey="exportResponses" defaults="Export responses" />
+              <Trans
+                i18nKey="exportAllResponses"
+                defaults="Export all responses"
+              />
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

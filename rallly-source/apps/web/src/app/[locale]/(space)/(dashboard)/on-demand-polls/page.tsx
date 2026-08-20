@@ -1,11 +1,10 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import type { Metadata } from "next";
-import { getPollStatusCounts } from "@/features/poll/data";
-import { getActiveSpace } from "@/features/space/loaders";
+import { loadOnDemandPollStatusCounts } from "@/features/poll/loaders";
 import { getTranslation } from "@/i18n/server";
 import { createPrivateSSRHelper } from "@/trpc/server/create-ssr-helper";
-import { PollsPage } from "./polls-page";
-import { searchParamsSchema } from "./schema";
+import { PollsPage } from "../polls/polls-page";
+import { searchParamsSchema } from "../polls/schema";
 
 export default async function Page(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -13,23 +12,22 @@ export default async function Page(props: {
   const searchParams = await props.searchParams;
   const { status, q, member } = searchParamsSchema.parse(searchParams);
 
-  const space = await getActiveSpace();
   const helpers = await createPrivateSSRHelper();
 
   const [counts] = await Promise.all([
-    getPollStatusCounts({ spaceId: space.id, isOnDemand: false }),
+    loadOnDemandPollStatusCounts(),
     helpers.spaces.listMembers.prefetch(),
     helpers.polls.infiniteChronological.prefetchInfinite({
       status,
       search: q,
       member,
-      category: "regular",
+      category: "onDemand",
     }),
   ]);
 
   return (
     <HydrationBoundary state={dehydrate(helpers.queryClient)}>
-      <PollsPage counts={counts} />
+      <PollsPage counts={counts} isOnDemand />
     </HydrationBoundary>
   );
 }
@@ -37,8 +35,8 @@ export default async function Page(props: {
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getTranslation();
   return {
-    title: t("polls", {
-      defaultValue: "Polls",
+    title: t("onDemandPolls", {
+      defaultValue: "On-demand polls",
     }),
   };
 }
