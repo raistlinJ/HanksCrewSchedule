@@ -26,6 +26,76 @@ export type CreatePollParams = {
   spaceId: AuthorizedSpaceId;
 };
 
+type PollRespondentUserClient = {
+  user: Pick<Prisma.TransactionClient["user"], "upsert">;
+};
+
+export async function upsertPollRespondentUser({
+  tx,
+  name,
+  email,
+}: {
+  tx: PollRespondentUserClient;
+  name: string;
+  email: string;
+}) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await tx.user.upsert({
+    where: { email: normalizedEmail },
+    create: {
+      name,
+      email: normalizedEmail,
+      emailVerified: false,
+      role: "user",
+    },
+    update: {},
+    select: {
+      id: true,
+      banned: true,
+      deletedAt: true,
+      isAnonymous: true,
+    },
+  });
+
+  if (user.banned || user.deletedAt || user.isAnonymous) {
+    return { ok: false, reason: "user_unavailable" } as const;
+  }
+
+  return {
+    ok: true,
+    userId: user.id,
+    email: normalizedEmail,
+  } as const;
+}
+
+export async function resolvePollResponseUser({
+  tx,
+  sessionUser,
+  name,
+  email,
+}: {
+  tx: PollRespondentUserClient;
+  sessionUser: { id: string; isGuest: boolean };
+  name: string;
+  email?: string;
+}) {
+  const normalizedEmail = email?.trim().toLowerCase() || null;
+
+  if (!sessionUser.isGuest || !normalizedEmail) {
+    return {
+      ok: true,
+      userId: sessionUser.id,
+      email: normalizedEmail,
+    } as const;
+  }
+
+  return upsertPollRespondentUser({
+    tx,
+    name,
+    email: normalizedEmail,
+  });
+}
+
 export async function addUserAsPollParticipant({
   pollId,
   name,
@@ -51,25 +121,14 @@ export async function addUserAsPollParticipant({
   }
 
   return prisma.$transaction(async (tx) => {
-    const user = await tx.user.upsert({
-      where: { email: normalizedEmail },
-      create: {
-        name,
-        email: normalizedEmail,
-        emailVerified: false,
-        role: "user",
-      },
-      update: {},
-      select: {
-        id: true,
-        banned: true,
-        deletedAt: true,
-        isAnonymous: true,
-      },
+    const user = await upsertPollRespondentUser({
+      tx,
+      name,
+      email: normalizedEmail,
     });
 
-    if (user.banned || user.deletedAt || user.isAnonymous) {
-      return { ok: false, reason: "user_unavailable" } as const;
+    if (!user.ok) {
+      return user;
     }
 
     const participant = await tx.participant.create({
@@ -77,7 +136,7 @@ export async function addUserAsPollParticipant({
         pollId,
         name,
         email: normalizedEmail,
-        userId: user.id,
+        userId: user.userId,
       },
       select: { id: true },
     });
@@ -101,7 +160,7 @@ export async function addUserAsPollParticipant({
     return {
       ok: true,
       participantId: participant.id,
-      userId: user.id,
+      userId: user.userId,
     } as const;
   });
 }
@@ -122,28 +181,17 @@ export async function addUserAsPollGroupParticipant({
     let userId: string | null = null;
 
     if (normalizedEmail) {
-      const user = await tx.user.upsert({
-        where: { email: normalizedEmail },
-        create: {
-          name,
-          email: normalizedEmail,
-          emailVerified: false,
-          role: "user",
-        },
-        update: {},
-        select: {
-          id: true,
-          banned: true,
-          deletedAt: true,
-          isAnonymous: true,
-        },
+      const user = await upsertPollRespondentUser({
+        tx,
+        name,
+        email: normalizedEmail,
       });
 
-      if (user.banned || user.deletedAt || user.isAnonymous) {
-        return { ok: false, reason: "user_unavailable" } as const;
+      if (!user.ok) {
+        return user;
       }
 
-      userId = user.id;
+      userId = user.userId;
     }
 
     const existingParticipants = await tx.participant.findMany({

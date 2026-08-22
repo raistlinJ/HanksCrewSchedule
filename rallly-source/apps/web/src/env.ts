@@ -39,6 +39,7 @@ export const env = createEnv({
      * Make sure to configure the corresponding environment variables.
      */
     EMAIL_PROVIDER: z.enum(["smtp", "ses"]).default("smtp"),
+    EMAIL_DELIVERY_DISABLED: z.enum(["true", "false"]).default("false"),
     /**
      * SMTP Configuration
      */
@@ -235,6 +236,7 @@ export const env = createEnv({
     OIDC_NAME_CLAIM_PATH: process.env.OIDC_NAME_CLAIM_PATH,
     OIDC_PICTURE_CLAIM_PATH: process.env.OIDC_PICTURE_CLAIM_PATH,
     EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
+    EMAIL_DELIVERY_DISABLED: process.env.EMAIL_DELIVERY_DISABLED,
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_USER: process.env.SMTP_USER,
     SMTP_PWD: process.env.SMTP_PWD,

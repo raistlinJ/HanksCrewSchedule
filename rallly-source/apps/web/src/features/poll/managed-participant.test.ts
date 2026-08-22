@@ -199,6 +199,57 @@ describe("addUserAsPollParticipant", () => {
     });
   });
 
+  it("promotes an emailed guest response to a regular user", async () => {
+    const { resolvePollResponseUser } = await import("./mutations");
+
+    const result = await resolvePollResponseUser({
+      tx: transaction,
+      sessionUser: { id: "guest-1", isGuest: true },
+      name: "Avery Example",
+      email: " AVERY@EXAMPLE.COM ",
+    });
+
+    expect(mockUserUpsert).toHaveBeenCalledWith({
+      where: { email: "avery@example.com" },
+      create: {
+        name: "Avery Example",
+        email: "avery@example.com",
+        emailVerified: false,
+        role: "user",
+      },
+      update: {},
+      select: {
+        id: true,
+        banned: true,
+        deletedAt: true,
+        isAnonymous: true,
+      },
+    });
+    expect(result).toEqual({
+      ok: true,
+      userId: "user-1",
+      email: "avery@example.com",
+    });
+  });
+
+  it("keeps a signed-in response attached to its existing user", async () => {
+    const { resolvePollResponseUser } = await import("./mutations");
+
+    const result = await resolvePollResponseUser({
+      tx: transaction,
+      sessionUser: { id: "member-1", isGuest: false },
+      name: "Avery Example",
+      email: " AVERY@EXAMPLE.COM ",
+    });
+
+    expect(mockUserUpsert).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: true,
+      userId: "member-1",
+      email: "avery@example.com",
+    });
+  });
+
   it("does not create a duplicate participant for the same poll and email", async () => {
     mockParticipantFindFirst.mockResolvedValueOnce({ id: "participant-1" });
     const { addUserAsPollParticipant } = await import("./mutations");

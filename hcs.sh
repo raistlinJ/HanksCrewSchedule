@@ -306,6 +306,23 @@ ensure_unlimited_seats() {
   fi
 }
 
+configure_email_delivery_mode() {
+  case "${1:-}" in
+    ""|--live)
+      EMAIL_DELIVERY_DISABLED=false
+      ;;
+    --test)
+      EMAIL_DELIVERY_DISABLED=true
+      info "Email test mode is ON — outbound emails will be suppressed."
+      ;;
+    *)
+      error "Unknown option '$1'. Use --test to suppress email or --live to enable it."
+      exit 1
+      ;;
+  esac
+  export EMAIL_DELIVERY_DISABLED
+}
+
 # ── Commands ────────────────────────────────────────────────────
 
 cmd_setup() {
@@ -457,6 +474,7 @@ ENVEOF
 }
 
 cmd_start() {
+  configure_email_delivery_mode "${1:-}"
   check_docker
   if [ ! -f "$ENV_FILE" ]; then
     error "No .env file found. Run './rallly.sh setup' first."
@@ -479,6 +497,7 @@ cmd_stop() {
 }
 
 cmd_restart() {
+  configure_email_delivery_mode "${1:-}"
   check_docker
   ensure_postgres_pin
   ensure_ca_cert_env
@@ -814,9 +833,11 @@ Usage: ./rallly.sh <command> [options]
 
 Commands:
   setup          Interactive configuration and secret generation
-  start          Start all services
+  start [--test|--live]
+                 Start all services; --test suppresses outbound email
   stop           Stop all services
-  restart        Restart all services
+  restart [--test|--live]
+                 Restart all services; --test suppresses outbound email
   update         Pull latest images and restart
   logs [service] Stream logs (optionally for a specific service)
   status         Show service status
@@ -830,9 +851,9 @@ EOF
 
 case "${1:-help}" in
   setup)      cmd_setup ;;
-  start)      cmd_start ;;
+  start)      cmd_start "${2:-}" ;;
   stop)       cmd_stop ;;
-  restart)    cmd_restart ;;
+  restart)    cmd_restart "${2:-}" ;;
   update)     cmd_update ;;
   logs)       cmd_logs "${2:-}" ;;
   status)     cmd_status ;;

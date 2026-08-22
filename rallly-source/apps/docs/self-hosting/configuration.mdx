@@ -44,6 +44,11 @@ All configuration lives in the `.env` file at the root of your self-hosted stack
 
 An SMTP server is required to send magic-link sign-in emails and notifications.
 
+<ParamField path="EMAIL_DELIVERY_DISABLED" default="false">
+  Set to `true` to suppress all outbound email delivery while testing. Email
+  flows still run, but neither SMTP nor SES is contacted.
+</ParamField>
+
 <ParamField path="SMTP_HOST" required>The host address of your SMTP server</ParamField>
 
 <ParamField path="SMTP_PORT" default="587">

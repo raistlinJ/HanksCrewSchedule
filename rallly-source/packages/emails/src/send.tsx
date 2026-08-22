@@ -45,6 +45,14 @@ type DispatchOptions = {
 };
 
 async function dispatch(options: DispatchOptions) {
+  if (process.env.EMAIL_DELIVERY_DISABLED === "true") {
+    logger.info(
+      { recipient: options.to, subject: options.subject },
+      "Email test mode enabled - skipping email send",
+    );
+    return;
+  }
+
   if (!process.env.SUPPORT_EMAIL) {
     logger.info("SUPPORT_EMAIL not configured - skipping email send");
     return;

@@ -12,7 +12,10 @@ import { getNotificationRecipient } from "@/features/notifications/data";
 import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
 import { hasPollAdminAccess } from "@/features/poll/data";
 import { canAccessParticipantByEmail } from "@/features/poll/email-access/utils";
-import { addUserAsPollParticipant } from "@/features/poll/mutations";
+import {
+  addUserAsPollParticipant,
+  resolvePollResponseUser,
+} from "@/features/poll/mutations";
 import {
   getLatestVoteDate,
   redactPublicResultParticipants,
@@ -471,6 +474,23 @@ export const participants = router({
         );
 
         const participant = await prisma.$transaction(async (tx) => {
+          // Public voters start with an anonymous session. Promote respondents
+          // with an email to a regular user immediately so they appear in the
+          // user directory without requiring the bulk respondent sync.
+          const respondentUser = await resolvePollResponseUser({
+            tx,
+            sessionUser: ctx.user,
+            name,
+            email,
+          });
+
+          if (!respondentUser.ok) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "This user cannot submit a response",
+            });
+          }
+
           await assertYesCapacity({
             tx,
             pollId,
@@ -491,10 +511,10 @@ export const participants = router({
             data: {
               pollId: pollId,
               name: name,
-              email: email?.toLowerCase(),
+              email: respondentUser.email,
               note,
               timeZone,
-              userId: ctx.user.id,
+              userId: respondentUser.userId,
               locale: ctx.locale,
               votes: {
                 createMany: {
@@ -562,7 +582,9 @@ export const participants = router({
         const totalResponses = participantCount + 1;
 
         if (email) {
-          const token = await createParticipantEditToken(ctx.user.id);
+          const token = await createParticipantEditToken(
+            participant.userId ?? ctx.user.id,
+          );
 
           const space = participant.poll.space;
 
@@ -590,7 +612,7 @@ export const participants = router({
             participantName: participant.name,
             participantEmail: participant.email,
             note: participant.note,
-            excludeUserId: ctx.user.id,
+            excludeUserId: participant.userId ?? ctx.user.id,
           }),
         );
 

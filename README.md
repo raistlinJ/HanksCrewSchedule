@@ -106,8 +106,10 @@ Use `hcs.sh` to manage your instance:
 
 ```bash
 ./hcs.sh start          # Start all services
+./hcs.sh start --test   # Start with all outbound email suppressed
 ./hcs.sh stop           # Stop all services
 ./hcs.sh restart        # Restart all services
+./hcs.sh restart --test # Restart with all outbound email suppressed
 ./hcs.sh update         # Pull latest images and restart
 ./hcs.sh logs           # Stream all logs
 ./hcs.sh logs web       # Stream logs for a specific service
@@ -115,6 +117,10 @@ Use `hcs.sh` to manage your instance:
 ./hcs.sh backup         # Back up the database to ./backups/
 ./hcs.sh upgrade-db     # Upgrade the bundled PostgreSQL to a new major
 ```
+
+Email test mode is command-scoped. Starting or restarting with `--test`
+recreates the web container with all SMTP/SES delivery disabled. Run the same
+command without `--test` (or with `--live`) to restore normal email delivery.
 
 ## Updating
 
