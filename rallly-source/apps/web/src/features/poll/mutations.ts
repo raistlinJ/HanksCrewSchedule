@@ -289,6 +289,54 @@ export async function removePollParticipantsFromResults({
   });
 }
 
+export async function resolvePollGroupQrUser({
+  groupId,
+  qrCodeToken,
+  spaceId,
+}: {
+  groupId: string;
+  qrCodeToken: string;
+  spaceId: AuthorizedSpaceId;
+}) {
+  const [group, user] = await Promise.all([
+    prisma.pollGroup.findFirst({
+      where: { id: groupId, spaceId },
+      select: { id: true, requireEmailVerification: true },
+    }),
+    prisma.user.findUnique({
+      where: { qrCodeToken },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        banned: true,
+        deletedAt: true,
+        isAnonymous: true,
+      },
+    }),
+  ]);
+
+  if (!group) {
+    return { ok: false, reason: "group_not_found" } as const;
+  }
+
+  if (!user || user.banned || user.deletedAt || user.isAnonymous) {
+    return { ok: false, reason: "invalid_qr_code" } as const;
+  }
+
+  return {
+    ok: true,
+    requireEmailVerification: group.requireEmailVerification,
+    voter: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image ?? undefined,
+    },
+  } as const;
+}
+
 export async function markUserYesForPoll({
   groupId,
   pollId,

@@ -70,6 +70,7 @@ describe("buildActivePollOverview", () => {
       yesResponseCount: 3,
       status: "open",
       nextStart: new Date("2026-08-23T17:00:00Z"),
+      scanHref: "/groups/group-1/scan",
       manualAddHref: "/g/group-1?manualAdd=1",
       resultsHref: "/groups/group-1/responses",
     });
@@ -136,6 +137,7 @@ describe("buildActivePollOverview", () => {
     expect(result[0]).toMatchObject({
       kind: "poll",
       status: "closed",
+      scanHref: "/poll/recent/scan",
       manualAddHref: "/poll/recent?manualAdd=1",
       resultsHref: "/poll/recent/results",
       publicHref: "/invite/recent",

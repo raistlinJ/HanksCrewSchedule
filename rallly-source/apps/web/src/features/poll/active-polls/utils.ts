@@ -28,6 +28,7 @@ export type ActivePollOverviewItem = {
   yesResponseCount: number;
   nextStart: Date | null;
   createdAt: Date;
+  scanHref: string;
   manualAddHref: string;
   resultsHref: string;
   publicHref: string;
@@ -119,6 +120,7 @@ export function buildActivePollOverview(
         yesResponseCount: new Set(poll.yesRespondentIds).size,
         nextStart,
         createdAt: poll.createdAt,
+        scanHref: `/poll/${poll.id}/scan`,
         manualAddHref: `/poll/${poll.id}?manualAdd=1`,
         resultsHref: `/poll/${poll.id}/results`,
         publicHref: `/invite/${poll.id}`,
@@ -185,6 +187,7 @@ export function buildActivePollOverview(
       yesResponseCount: yesRespondents.size,
       nextStart,
       createdAt: poll.createdAt,
+      scanHref: `/groups/${poll.pollGroup.id}/scan`,
       manualAddHref: `/g/${poll.pollGroup.id}?manualAdd=1`,
       resultsHref: `/groups/${poll.pollGroup.id}/responses`,
       publicHref: `/g/${poll.pollGroup.id}`,

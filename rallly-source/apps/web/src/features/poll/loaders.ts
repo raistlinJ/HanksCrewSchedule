@@ -5,6 +5,7 @@ import { cache } from "react";
 import {
   getActivePollOverview,
   getOnDemandPollTitles,
+  getPollGroupQrVotingData,
   getPollQrVotingData,
   getPollStatusCounts,
   getPublicPollGroupResults,
@@ -98,6 +99,24 @@ export async function loadPollForQrVoting({
   }
 
   return poll;
+}
+
+export async function loadPollGroupForQrVoting({
+  groupId,
+}: {
+  groupId: string;
+}) {
+  const space = await getActiveSpace();
+  const group = await getPollGroupQrVotingData({
+    groupId,
+    spaceId: space.id,
+  });
+
+  if (!group) {
+    notFound();
+  }
+
+  return group;
 }
 
 export async function loadManagedPollForQrVoting({

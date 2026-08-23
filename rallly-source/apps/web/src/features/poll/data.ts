@@ -162,6 +162,19 @@ export function getPollQrVotingData({
   });
 }
 
+export function getPollGroupQrVotingData({
+  groupId,
+  spaceId,
+}: {
+  groupId: string;
+  spaceId: AuthorizedSpaceId;
+}) {
+  return prisma.pollGroup.findFirst({
+    where: { id: groupId, spaceId },
+    select: { id: true, title: true },
+  });
+}
+
 export async function getPollResults({
   pollId,
   spaceId,

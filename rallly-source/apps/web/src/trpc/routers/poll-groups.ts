@@ -12,6 +12,7 @@ import {
   addUserAsPollGroupParticipant,
   markUserYesForPoll,
   removePollParticipantsFromResults,
+  resolvePollGroupQrUser,
   resolvePollResponseUser,
   setPollGroupMuted,
 } from "@/features/poll/mutations";
@@ -92,6 +93,46 @@ export const pollGroups = router({
       }
 
       return result;
+    }),
+
+  scanGroupVoter: spaceProcedure
+    .input(
+      z.object({
+        groupId: z.string(),
+        qrCodeToken: z.uuid(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await resolvePollGroupQrUser({
+        ...input,
+        spaceId: ctx.space.id,
+      });
+
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            result.reason === "group_not_found"
+              ? "Poll group not found"
+              : "This is not a valid user QR code",
+        });
+      }
+
+      const encodedEmail = encodeURIComponent(result.voter.email);
+      const encodedName = encodeURIComponent(result.voter.name);
+      const query = result.requireEmailVerification
+        ? `token=${encodeURIComponent(
+            await createToken(
+              { groupId: input.groupId, email: result.voter.email },
+              { ttl: 0 },
+            ),
+          )}&email=${encodedEmail}&name=${encodedName}`
+        : `email=${encodedEmail}&name=${encodedName}`;
+
+      return {
+        voter: result.voter,
+        votingHref: `/g/${input.groupId}?${query}`,
+      };
     }),
 
   list: spaceProcedure.query(async ({ ctx }) => {

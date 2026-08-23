@@ -59,10 +59,11 @@ export default function VotingClient({
 }) {
   const searchParams = useSearchParams();
   const urlEmail = searchParams.get("email");
+  const urlName = searchParams.get("name");
   const editToken = searchParams.get("token");
   const requiresEmailVerification = group.requireEmailVerification ?? false;
 
-  const [name, setName] = useState("");
+  const [name, setName] = useState(manualAdd ? "" : urlName || "");
   const [email, setEmail] = useState(
     manualAdd ? "" : userEmail || urlEmail || "",
   );
@@ -173,9 +174,10 @@ export default function VotingClient({
         token,
       });
       if (participants.length === 0) {
-        throw new Error("No response was found for this edit link.");
+        applyParticipants([], urlEmail || "");
+      } else {
+        applyParticipants(participants);
       }
-      applyParticipants(participants);
       setIsEditingViaLink(true);
     } catch (err: any) {
       setGatekeeperError(err.message || "This edit link is invalid.");

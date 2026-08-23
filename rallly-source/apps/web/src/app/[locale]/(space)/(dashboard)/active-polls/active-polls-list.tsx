@@ -61,14 +61,11 @@ function ItemActions({
   item,
   compact,
   onShowQr,
-  onChooseScan,
 }: {
   item: ActivePollOverviewItem;
   compact?: boolean;
   onShowQr: () => void;
-  onChooseScan: () => void;
 }) {
-  const scanHref = item.kind === "poll" ? item.polls[0]?.scanHref : undefined;
   const size = compact ? "sm" : "default";
   return (
     <div
@@ -78,17 +75,14 @@ function ItemActions({
           : "grid grid-cols-2 gap-2 border-t pt-4"
       }
     >
-      {scanHref ? (
-        <Button size={size} render={<Link href={scanHref} />}>
-          <ScanQrCodeIcon />
-          Scan
-        </Button>
-      ) : (
-        <Button size={size} onClick={onChooseScan}>
-          <ScanQrCodeIcon />
-          Scan
-        </Button>
-      )}
+      <Button
+        className={compact ? undefined : "col-span-2"}
+        size={size}
+        render={<Link href={item.scanHref} />}
+      >
+        <ScanQrCodeIcon />
+        Scan Someone&apos;s QR Code
+      </Button>
       <Button size={size} onClick={onShowQr}>
         <QrCodeIcon />
         Show QR
@@ -117,8 +111,6 @@ export function ActivePollsList({
   const [qrItem, setQrItem] = React.useState<ActivePollOverviewItem | null>(
     null,
   );
-  const [scanGroup, setScanGroup] =
-    React.useState<ActivePollOverviewItem | null>(null);
 
   if (items.length === 0) {
     return (
@@ -172,11 +164,7 @@ export function ActivePollsList({
 
               <ItemDetails item={item} />
 
-              <ItemActions
-                item={item}
-                onShowQr={() => setQrItem(item)}
-                onChooseScan={() => setScanGroup(item)}
-              />
+              <ItemActions item={item} onShowQr={() => setQrItem(item)} />
             </div>
           </li>
         ))}
@@ -209,12 +197,7 @@ export function ActivePollsList({
               </div>
               <ItemDetails item={item} />
             </div>
-            <ItemActions
-              compact
-              item={item}
-              onShowQr={() => setQrItem(item)}
-              onChooseScan={() => setScanGroup(item)}
-            />
+            <ItemActions compact item={item} onShowQr={() => setQrItem(item)} />
           </li>
         ))}
       </ul>
@@ -246,32 +229,6 @@ export function ActivePollsList({
               </p>
             </div>
           ) : null}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={scanGroup !== null}
-        onOpenChange={(open) => !open && setScanGroup(null)}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Choose a poll to scan</DialogTitle>
-            <DialogDescription>
-              A scanned user is added to one poll at a time.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2">
-            {scanGroup?.polls.map((poll) => (
-              <Button
-                key={poll.id}
-                className="h-auto justify-between py-3"
-                render={<Link href={poll.scanHref} />}
-              >
-                <span className="truncate">{poll.title}</span>
-                <ScanQrCodeIcon className="size-4 shrink-0" />
-              </Button>
-            ))}
-          </div>
         </DialogContent>
       </Dialog>
     </>

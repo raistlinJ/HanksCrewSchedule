@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthorizedSpaceId } from "@/features/space/types";
 
+vi.mock("server-only", () => ({}));
+
 const {
   mockPollFindFirst,
+  mockPollGroupFindFirst,
   mockUserFindUnique,
   mockParticipantFindFirst,
   mockParticipantCreate,
@@ -13,6 +16,7 @@ const {
   mockValidateAuxiliaryVotes,
 } = vi.hoisted(() => ({
   mockPollFindFirst: vi.fn(),
+  mockPollGroupFindFirst: vi.fn(),
   mockUserFindUnique: vi.fn(),
   mockParticipantFindFirst: vi.fn(),
   mockParticipantCreate: vi.fn(),
@@ -34,6 +38,7 @@ const transaction = {
 vi.mock("@rallly/database", () => ({
   prisma: {
     poll: { findFirst: mockPollFindFirst },
+    pollGroup: { findFirst: mockPollGroupFindFirst },
     user: { findUnique: mockUserFindUnique },
     participant: { findFirst: mockParticipantFindFirst },
     $transaction: mockTransaction,
@@ -67,6 +72,10 @@ describe("markUserYesForPoll", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPollFindFirst.mockResolvedValue(poll);
+    mockPollGroupFindFirst.mockResolvedValue({
+      id: "group-1",
+      requireEmailVerification: false,
+    });
     mockUserFindUnique.mockResolvedValue(user);
     mockParticipantFindFirst.mockResolvedValue(null);
     mockParticipantCreate.mockResolvedValue({ id: "participant-1" });
@@ -77,6 +86,45 @@ describe("markUserYesForPoll", () => {
       async (callback: (tx: typeof transaction) => Promise<unknown>) =>
         callback(transaction),
     );
+  });
+
+  it("resolves a valid user QR code for the whole poll group", async () => {
+    const { resolvePollGroupQrUser } = await import("./mutations");
+
+    const result = await resolvePollGroupQrUser({
+      groupId: "group-1",
+      qrCodeToken: "18952f2f-9a61-4d28-a3a3-fc748689c150",
+      spaceId,
+    });
+
+    expect(mockPollGroupFindFirst).toHaveBeenCalledWith({
+      where: { id: "group-1", spaceId },
+      select: { id: true, requireEmailVerification: true },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      requireEmailVerification: false,
+      voter: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not resolve a QR code for a group outside the active space", async () => {
+    mockPollGroupFindFirst.mockResolvedValueOnce(null);
+    const { resolvePollGroupQrUser } = await import("./mutations");
+
+    const result = await resolvePollGroupQrUser({
+      groupId: "group-1",
+      qrCodeToken: "18952f2f-9a61-4d28-a3a3-fc748689c150",
+      spaceId,
+    });
+
+    expect(result).toEqual({ ok: false, reason: "group_not_found" });
+    expect(mockTransaction).not.toHaveBeenCalled();
   });
 
   it("creates a linked participant and yes votes for every option", async () => {
