@@ -32,3 +32,18 @@ export class AppError extends Error {
     this.cause = cause;
   }
 }
+
+export function findAppError(error: unknown): AppError | null {
+  const seen = new Set<unknown>();
+  let current = error;
+
+  while (current instanceof Error && !seen.has(current)) {
+    if (current instanceof AppError) {
+      return current;
+    }
+    seen.add(current);
+    current = current.cause;
+  }
+
+  return null;
+}

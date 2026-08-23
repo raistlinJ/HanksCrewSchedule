@@ -7,7 +7,7 @@ import * as z from "zod";
 import { defineAbilityFor } from "@/features/user/ability";
 import { getCurrentUser } from "@/features/user/loaders";
 import { signOut } from "@/lib/auth";
-import { AppError } from "@/lib/errors/app-error";
+import { AppError, findAppError } from "@/lib/errors/app-error";
 import { InvalidSessionError } from "@/lib/errors/invalid-session-error";
 import { assertAppAvailable } from "@/lib/maintenance-server";
 import type { Duration } from "@/lib/rate-limit";
@@ -62,9 +62,11 @@ export const actionClient = createSafeActionClient({
       return "UNAUTHORIZED" as const;
     }
 
-    if (error instanceof AppError && error.code === "SERVICE_UNAVAILABLE") {
+    const appError = findAppError(error);
+
+    if (appError?.code === "SERVICE_UNAVAILABLE") {
       // Maintenance mode — expected, not reported to Sentry
-      return error.code;
+      return appError.code;
     }
 
     Sentry.captureException(error, {
@@ -76,8 +78,8 @@ export const actionClient = createSafeActionClient({
       },
     });
 
-    if (error instanceof AppError) {
-      return error.code;
+    if (appError) {
+      return appError.code;
     }
 
     if (error instanceof APIError) {

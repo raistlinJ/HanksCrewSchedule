@@ -48,14 +48,24 @@ const createDefaultAuxiliaryVotes = (group: any) =>
     ]),
   ) as Record<string, Record<string, VoteState>>;
 
-export default function VotingClient({ group, userEmail }: { group: any; userEmail: string | null }) {
+export default function VotingClient({
+  group,
+  manualAdd = false,
+  userEmail,
+}: {
+  group: any;
+  manualAdd?: boolean;
+  userEmail: string | null;
+}) {
   const searchParams = useSearchParams();
   const urlEmail = searchParams.get("email");
   const editToken = searchParams.get("token");
   const requiresEmailVerification = group.requireEmailVerification ?? false;
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState(userEmail || urlEmail || "");
+  const [email, setEmail] = useState(
+    manualAdd ? "" : userEmail || urlEmail || "",
+  );
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<Record<string, Record<string, VoteState>>>({});
@@ -77,9 +87,11 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   } | null>(null);
   
   const [hasPassedGatekeeper, setHasPassedGatekeeper] = useState(
-    requiresEmailVerification || !!(userEmail || urlEmail),
+    manualAdd || requiresEmailVerification || !!(userEmail || urlEmail),
   );
-  const [gatekeeperEmail, setGatekeeperEmail] = useState(userEmail || urlEmail || "");
+  const [gatekeeperEmail, setGatekeeperEmail] = useState(
+    manualAdd ? "" : userEmail || urlEmail || "",
+  );
   const [gatekeeperError, setGatekeeperError] = useState("");
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isEditingViaLink, setIsEditingViaLink] = useState(false);
@@ -173,12 +185,15 @@ export default function VotingClient({ group, userEmail }: { group: any; userEma
   };
 
   useEffect(() => {
+    if (manualAdd) {
+      return;
+    }
     if (requiresEmailVerification && editToken) {
       performEditTokenLookup(editToken);
     } else if (!requiresEmailVerification && (userEmail || urlEmail)) {
       performLookup(userEmail || urlEmail || "");
     }
-  }, [editToken, requiresEmailVerification, userEmail, urlEmail]);
+  }, [editToken, manualAdd, requiresEmailVerification, userEmail, urlEmail]);
 
   const handleGatekeeperSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

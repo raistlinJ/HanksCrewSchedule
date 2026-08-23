@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart2Icon,
+  CalendarClockIcon,
   CalendarDaysIcon,
   FolderIcon,
   HomeIcon,
@@ -50,6 +51,15 @@ export const useSpaceMenu = () => {
               href: "/",
               icon: HomeIcon,
               isActive: pathname === "/",
+            },
+            {
+              id: "active-polls",
+              label: t("activePolls", {
+                defaultValue: "Upcoming/active polls",
+              }),
+              href: "/active-polls",
+              icon: CalendarClockIcon,
+              isActive: pathname.startsWith("/active-polls"),
             },
           ],
         },

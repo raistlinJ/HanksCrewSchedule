@@ -35,6 +35,7 @@ interface Participant {
 }
 
 interface MobilePollMatrixProps {
+  initialShowAddParticipant?: boolean;
   options: Option[];
   participants: Participant[];
   poll: any;
@@ -49,6 +50,7 @@ interface MobilePollMatrixProps {
 
 const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
   options,
+  initialShowAddParticipant = false,
   participants,
   poll,
   onVoteChange,
@@ -57,7 +59,9 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
   onEditParticipant,
 }) => {
   const [currentOptionIndex, setCurrentOptionIndex] = useState(0);
-  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [showAddParticipant, setShowAddParticipant] = useState(
+    initialShowAddParticipant,
+  );
   const [newParticipantName, setNewParticipantName] = useState("");
   const [newParticipantEmail, setNewParticipantEmail] = useState("");
   const [addError, setAddError] = useState("");
@@ -288,6 +292,7 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
                 }}
               >
                 <input
+                  autoFocus={initialShowAddParticipant}
                   type="text"
                   placeholder="Participant name"
                   required

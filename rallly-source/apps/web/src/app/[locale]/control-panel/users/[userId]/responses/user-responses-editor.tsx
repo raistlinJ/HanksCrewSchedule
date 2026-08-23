@@ -110,22 +110,18 @@ function ResponseSelect({
     no: t("no", { defaultValue: "No" }),
   };
 
-  const updateValue = (newValue: ResponseValue) => {
+  const updateValue = async (newValue: ResponseValue) => {
     setValue(newValue);
-    toast.promise(
-      updateResponse.executeAsync({
-        userId,
-        participantId,
-        pollId,
-        optionId,
-        type: newValue === "none" ? null : newValue,
-      }),
-      {
-        loading: t("saving", { defaultValue: "Saving..." }),
-        success: t("saved", { defaultValue: "Saved" }),
-        error: t("unexpectedError", { defaultValue: "Unexpected error" }),
-      },
-    );
+    const result = await updateResponse.executeAsync({
+      userId,
+      participantId,
+      pollId,
+      optionId,
+      type: newValue === "none" ? null : newValue,
+    });
+    if (!result?.serverError && !result?.validationErrors) {
+      toast.success(t("saved", { defaultValue: "Saved" }));
+    }
   };
 
   return (
@@ -134,7 +130,7 @@ function ResponseSelect({
       value={value}
       onValueChange={(newValue) => {
         if (newValue) {
-          updateValue(newValue as ResponseValue);
+          void updateValue(newValue as ResponseValue);
         }
       }}
       disabled={updateResponse.isPending}
@@ -326,22 +322,18 @@ function AuxiliaryResponseSelect({
     setSelected(initialType === "yes");
   }, [initialType]);
 
-  const updateValue = (newSelected: boolean) => {
+  const updateValue = async (newSelected: boolean) => {
     setSelected(newSelected);
-    toast.promise(
-      updateResponse.executeAsync({
-        userId,
-        participantId,
-        pollId,
-        auxiliaryOptionId,
-        type: newSelected ? "yes" : "no",
-      }),
-      {
-        loading: t("saving", { defaultValue: "Saving..." }),
-        success: t("saved", { defaultValue: "Saved" }),
-        error: t("unexpectedError", { defaultValue: "Unexpected error" }),
-      },
-    );
+    const result = await updateResponse.executeAsync({
+      userId,
+      participantId,
+      pollId,
+      auxiliaryOptionId,
+      type: newSelected ? "yes" : "no",
+    });
+    if (!result?.serverError && !result?.validationErrors) {
+      toast.success(t("saved", { defaultValue: "Saved" }));
+    }
   };
 
   return (
@@ -349,7 +341,7 @@ function AuxiliaryResponseSelect({
       optionLabel={optionLabel}
       selected={selected}
       disabled={updateResponse.isPending}
-      onChange={updateValue}
+      onChange={(newSelected) => void updateValue(newSelected)}
     />
   );
 }

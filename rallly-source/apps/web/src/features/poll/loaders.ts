@@ -3,6 +3,7 @@ import "server-only";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import {
+  getActivePollOverview,
   getOnDemandPollTitles,
   getPollQrVotingData,
   getPollStatusCounts,
@@ -17,6 +18,13 @@ export const loadPollStatusCounts = cache(async () => {
   const space = await getActiveSpace();
   return getPollStatusCounts({ spaceId: space.id, isOnDemand: false });
 });
+
+export const loadActivePollOverview = cache(
+  async (range: { start: Date; end: Date }) => {
+    const space = await getActiveSpace();
+    return getActivePollOverview({ spaceId: space.id, range });
+  },
+);
 
 export const loadOnDemandPollStatusCounts = cache(async () => {
   const space = await getActiveSpace();

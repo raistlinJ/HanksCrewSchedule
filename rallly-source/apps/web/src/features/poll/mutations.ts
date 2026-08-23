@@ -75,25 +75,29 @@ export async function resolvePollResponseUser({
   email,
 }: {
   tx: PollRespondentUserClient;
-  sessionUser: { id: string; isGuest: boolean };
+  sessionUser?: { id: string; isGuest?: boolean };
   name: string;
   email?: string;
 }) {
   const normalizedEmail = email?.trim().toLowerCase() || null;
 
-  if (!sessionUser.isGuest || !normalizedEmail) {
+  if (normalizedEmail) {
+    return upsertPollRespondentUser({
+      tx,
+      name,
+      email: normalizedEmail,
+    });
+  }
+
+  if (sessionUser) {
     return {
       ok: true,
       userId: sessionUser.id,
-      email: normalizedEmail,
+      email: null,
     } as const;
   }
 
-  return upsertPollRespondentUser({
-    tx,
-    name,
-    email: normalizedEmail,
-  });
+  return { ok: false, reason: "user_unavailable" } as const;
 }
 
 export async function addUserAsPollParticipant({

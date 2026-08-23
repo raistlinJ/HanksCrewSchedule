@@ -2,8 +2,78 @@ import "server-only";
 
 import type { PollStatus, Prisma } from "@rallly/database";
 import { prisma } from "@rallly/database";
+import { buildActivePollOverview } from "@/features/poll/active-polls/utils";
 import { effectiveSpaceMemberWhere } from "@/features/space/member/utils";
 import type { AuthorizedSpaceId } from "@/features/space/types";
+
+export async function getActivePollOverview({
+  spaceId,
+  range,
+}: {
+  spaceId: AuthorizedSpaceId;
+  range: { start: Date; end: Date };
+}) {
+  const polls = await prisma.poll.findMany({
+    where: {
+      spaceId,
+      deleted: false,
+      OR: [
+        { status: { in: ["open", "scheduled"] } },
+        { status: "closed", closedReason: "auto" },
+      ],
+      options: { some: { startTime: { lte: range.end } } },
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      location: true,
+      isOnDemand: true,
+      status: true,
+      createdAt: true,
+      pollGroupId: true,
+      options: {
+        orderBy: { startTime: "asc" },
+        select: { startTime: true, duration: true },
+      },
+      participants: {
+        where: {
+          deleted: false,
+          votes: { some: { type: "yes" } },
+        },
+        select: { id: true, userId: true, email: true },
+      },
+      pollGroup: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          pollOrder: true,
+        },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+  });
+
+  return buildActivePollOverview(
+    polls.map(({ participants, ...poll }) => ({
+      ...poll,
+      status:
+        poll.status === "scheduled"
+          ? "scheduled"
+          : poll.status === "closed"
+            ? "closed"
+            : "open",
+      yesRespondentIds: participants.map(
+        (participant) =>
+          participant.userId ??
+          participant.email?.trim().toLowerCase() ??
+          participant.id,
+      ),
+    })),
+    range,
+  );
+}
 
 export function getPublicPollMetadata(urlId: string) {
   return prisma.poll.findUnique({

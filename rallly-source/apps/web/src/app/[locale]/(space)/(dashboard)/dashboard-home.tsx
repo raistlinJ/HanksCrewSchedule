@@ -1,5 +1,5 @@
 import { Tile, TileDescription, TileGrid, TileTitle } from "@rallly/ui/tile";
-import { FolderIcon, ZapIcon } from "lucide-react";
+import { CalendarClockIcon, FolderIcon, ZapIcon } from "lucide-react";
 import { Trans } from "react-i18next/TransWithoutContext";
 import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import {
@@ -20,14 +20,16 @@ import { PasswordSetupAlert } from "./password-setup-alert";
 
 export async function DashboardHome({
   openPollCount,
-  upcomingEventCount,
+  activePollCount,
+  upcomingPollCount,
   memberCount,
   seatCount,
   hasNoAccounts,
   canManageBilling,
 }: {
   openPollCount: number;
-  upcomingEventCount: number;
+  activePollCount: number;
+  upcomingPollCount: number;
   memberCount: number;
   seatCount: number;
   hasNoAccounts: boolean;
@@ -46,6 +48,15 @@ export async function DashboardHome({
         {hasNoAccounts && isFeatureEnabled("emailLogin") ? (
           <PasswordSetupAlert />
         ) : null}
+        <TileGrid>
+          <Tile render={<HoverPrefetchLink href="/active-polls" />}>
+            <CalendarClockIcon className="size-8 text-primary" />
+            <TileTitle>View upcoming/active polls</TileTitle>
+            <TileDescription>
+              {activePollCount} active · {upcomingPollCount} upcoming
+            </TileDescription>
+          </Tile>
+        </TileGrid>
         <div className="space-y-4">
           <h2 className="text-muted-foreground text-sm">
             <Trans

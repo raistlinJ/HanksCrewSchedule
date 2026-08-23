@@ -10,10 +10,13 @@ import VotingClient from "./VotingClient";
 
 export default async function PublicPollGroupPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ groupId: string; locale: string }>;
+  searchParams: Promise<{ manualAdd?: string | string[] }>;
 }) {
   const { groupId } = await params;
+  const isManualAdd = (await searchParams).manualAdd === "1";
   const session = await getSession();
 
   const group = await prisma.pollGroup
@@ -78,7 +81,11 @@ export default async function PublicPollGroupPage({
         ) : null}
       </div>
 
-      <VotingClient group={group} userEmail={session?.user?.email || null} />
+      <VotingClient
+        group={group}
+        manualAdd={isManualAdd}
+        userEmail={isManualAdd ? null : session?.user?.email || null}
+      />
     </div>
   );
 }

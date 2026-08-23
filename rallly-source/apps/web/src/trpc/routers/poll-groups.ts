@@ -12,6 +12,7 @@ import {
   addUserAsPollGroupParticipant,
   markUserYesForPoll,
   removePollParticipantsFromResults,
+  resolvePollResponseUser,
   setPollGroupMuted,
 } from "@/features/poll/mutations";
 import { validateAuxiliaryVotes } from "@/features/poll/auxiliary-selection/mutations";
@@ -553,6 +554,19 @@ export const pollGroups = router({
         : normalizedEmail;
       const createdParticipant = await prisma.$transaction(async (tx) => {
         let didCreateParticipant = false;
+        const respondentUser = await resolvePollResponseUser({
+          tx,
+          sessionUser: ctx.user,
+          name,
+          email: normalizedEmail,
+        });
+
+        if (!respondentUser.ok) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "This user cannot submit a response",
+          });
+        }
 
         for (const voteItem of [...votes].sort((a, b) =>
           a.pollId.localeCompare(b.pollId),
@@ -627,6 +641,7 @@ export const pollGroups = router({
                 name,
                 email: normalizedEmail,
                 note: note || null,
+                userId: respondentUser.userId,
                 updatedAt: new Date(),
               },
             });
@@ -641,7 +656,7 @@ export const pollGroups = router({
                 email: normalizedEmail,
                 note: note || null,
                 pollId: voteItem.pollId,
-                userId: ctx.user?.id || null,
+                userId: respondentUser.userId,
               },
             });
             participantId = newParticipant.id;

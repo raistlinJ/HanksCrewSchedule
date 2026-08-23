@@ -62,6 +62,35 @@ export const useSafeAction: typeof useAction = (action, options) => {
                 "The file you uploaded is too large. Please try a smaller file.",
             });
             break;
+          case "OPTION_FULL":
+            translatedDescription = t("actionErrorOptionFull", {
+              defaultValue:
+                "This option has reached its Yes limit. Choose If need be or No instead.",
+            });
+            break;
+          case "AUXILIARY_OPTION_FULL":
+            translatedDescription = t("actionErrorAuxiliaryOptionFull", {
+              defaultValue:
+                "This additional choice has reached its limit. Select another choice.",
+            });
+            break;
+          case "AUXILIARY_MINIMUM_NOT_MET":
+            translatedDescription = t("actionErrorAuxiliaryMinimum", {
+              defaultValue:
+                "This response does not meet the minimum number of required choices.",
+            });
+            break;
+          case "AUXILIARY_MAXIMUM_EXCEEDED":
+            translatedDescription = t("actionErrorAuxiliaryMaximum", {
+              defaultValue:
+                "This response already has the maximum number of additional choices.",
+            });
+            break;
+          case "POLL_FULL":
+            translatedDescription = t("actionErrorPollFull", {
+              defaultValue: "This poll is no longer accepting new responses.",
+            });
+            break;
         }
 
         toast.error(translatedDescription);

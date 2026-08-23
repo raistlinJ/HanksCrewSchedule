@@ -5,7 +5,7 @@ import Link from "next/link";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createBreakpoint } from "react-use";
 import { trpc } from "@/trpc/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/lib/locale/client";
 import { OptionEditForm } from "./option-edit-form";
 import MobilePollMatrix from "./single-poll-matrix/mobile-matrix";
@@ -15,6 +15,8 @@ const useBreakpoint = createBreakpoint({ mobile: 0, tablet: 768 });
 
 export function SinglePollMatrix({ poll }: { poll: any }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isManualAdd = searchParams.get("manualAdd") === "1";
   const utils = trpc.useUtils();
   const updateVoteMutation = trpc.polls.cycleVote.useMutation();
   const { locale } = useLocale();
@@ -296,6 +298,7 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
     return (
       <div className="mt-8 mb-16">
         <MobilePollMatrix
+          initialShowAddParticipant={isManualAdd}
           options={allOptions}
           participants={participants}
           poll={poll}
@@ -519,6 +522,7 @@ export function SinglePollMatrix({ poll }: { poll: any }) {
               <td className="p-3 sticky left-0 bg-card z-10 border-r shadow-[1px_0_0_0_#e5e7eb]">
                 <form onSubmit={handleAddParticipant} className="flex flex-col gap-1 w-full min-w-[150px]">
                   <input 
+                    autoFocus={isManualAdd}
                     type="text" 
                     placeholder="+ Add Participant..." 
                     required
