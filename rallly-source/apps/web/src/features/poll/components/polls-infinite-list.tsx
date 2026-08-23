@@ -122,8 +122,8 @@ function PollListItem({
   const reopenPoll = trpc.polls.reopen.useMutation(refresh);
   return (
     <div ref={setNodeRef} style={style} className="w-full">
-      <div className="grid w-full grid-cols-[1fr_auto] gap-2 bg-background">
-        <div className="relative -m-4 flex min-w-0 flex-1 items-center gap-2 p-4">
+      <div className="grid w-full gap-4 bg-background sm:grid-cols-[1fr_auto] sm:gap-2">
+        <div className="relative flex min-w-0 flex-1 items-start gap-3 sm:-m-4 sm:items-center sm:gap-2 sm:p-4">
           <input
             type="checkbox"
             checked={selected}
@@ -139,11 +139,11 @@ function PollListItem({
             <GripVertical className="h-5 w-5" />
           </div>
           <HoverPrefetchLink
-            className="min-w-0 text-sm hover:underline focus:ring-ring focus-visible:ring-2"
+            className="min-w-0 font-semibold text-base leading-snug hover:underline focus:ring-ring focus-visible:ring-2 sm:font-normal sm:text-sm"
             href={absoluteUrl(`/poll/${id}`)}
           >
             <span className="absolute inset-0" />
-            <span className="block truncate">{title}</span>
+            <span className="line-clamp-2 sm:block sm:truncate">{title}</span>
           </HoverPrefetchLink>
           {status === "closed" && closedReason === "auto" && (
             <Tooltip>
@@ -166,7 +166,7 @@ function PollListItem({
             </Tooltip>
           )}
         </div>
-        <div className="flex items-center justify-end gap-2 sm:gap-4">
+        <div className="flex min-w-0 items-center justify-between gap-2 border-t pt-4 sm:justify-end sm:gap-4 sm:border-t-0 sm:pt-0">
           {voteCounts ? (
             <div className="flex items-center gap-3 font-medium text-xs">
               <span className="flex items-center gap-1 text-green-600">
@@ -233,7 +233,7 @@ function PollListItem({
               <TooltipContent>{user.name}</TooltipContent>
             </Tooltip>
           )}
-          <div className="flex items-center gap-x-1">
+          <div className="ml-auto flex items-center gap-x-1 sm:ml-0">
             <CopyLinkButton href={shortUrl(`/invite/${id}`)} />
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -579,7 +579,7 @@ export function PollsInfiniteList({
           items={items.map((i) => i.id)}
           strategy={verticalListSortingStrategy}
         >
-          <StackedList>
+          <StackedList className="space-y-3 divide-y-0 overflow-visible border-0 bg-transparent sm:space-y-0 sm:divide-y sm:overflow-hidden sm:border sm:border-card-border sm:bg-card/25">
             {items.map(
               ({
                 id,
@@ -590,7 +590,10 @@ export function PollsInfiniteList({
                 user,
                 voteCounts,
               }) => (
-                <StackedListItem key={id} className="bg-background">
+                <StackedListItem
+                  key={id}
+                  className="min-h-36 rounded-2xl border border-card-border bg-background p-5 shadow-xs sm:min-h-0 sm:rounded-none sm:border-0 sm:p-4 sm:shadow-none"
+                >
                   <PollListItem
                     id={id}
                     title={title}
