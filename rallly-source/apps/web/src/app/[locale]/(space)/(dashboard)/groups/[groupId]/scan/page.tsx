@@ -23,14 +23,14 @@ export default async function PollGroupQrVotingPage({
 
   return (
     <PageContainer className="max-w-5xl">
-      <PageHeader>
+      <PageHeader className="flex-col md:flex-row">
         <PageHeaderContent>
           <PageTitle>{group.title}</PageTitle>
           <p className="text-muted-foreground text-sm">
             Scan someone&apos;s QR code to open their group voting page.
           </p>
         </PageHeaderContent>
-        <PageHeaderActions>
+        <PageHeaderActions className="w-full md:w-auto">
           <Button variant="ghost" render={<Link href="/active-polls" />}>
             <ArrowLeftIcon />
             Back to upcoming &amp; active polls
