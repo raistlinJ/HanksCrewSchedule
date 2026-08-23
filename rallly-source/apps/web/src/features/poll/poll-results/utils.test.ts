@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  filterResultParticipants,
   getLatestVoteDate,
   getOverallResponse,
   getResponseTotals,
@@ -54,6 +55,60 @@ describe("public poll result responses", () => {
         { response: "no" },
       ]),
     ).toEqual({ yes: 2, ifNeedBe: 1, no: 1 });
+  });
+
+  it("filters result participants by name or email", () => {
+    const participants = [
+      { name: "Avery Example", email: "avery@example.com" },
+      { name: "Blake Sample", email: "blake@example.com" },
+    ];
+
+    expect(filterResultParticipants(participants, "avery")).toEqual([
+      participants[0],
+    ]);
+    expect(filterResultParticipants(participants, "BLAKE@EXAMPLE")).toEqual([
+      participants[1],
+    ]);
+    expect(filterResultParticipants(participants, "  ")).toEqual(participants);
+  });
+
+  it("filters participants by affirmative auxiliary items", () => {
+    const participants = [
+      {
+        name: "Avery",
+        auxiliaryVotes: [
+          { auxiliaryOptionId: "registration", type: "yes" as const },
+          { auxiliaryOptionId: "cleanup", type: "no" as const },
+        ],
+      },
+      {
+        name: "Blake",
+        auxiliaryVotes: [
+          { auxiliaryOptionId: "cleanup", type: "yes" as const },
+        ],
+      },
+    ];
+    const auxiliarySelection = {
+      name: "Skills",
+      options: [
+        { id: "registration", label: "Registration" },
+        { id: "cleanup", label: "Cleanup" },
+      ],
+    };
+
+    expect(
+      filterResultParticipants(
+        participants,
+        "registration",
+        auxiliarySelection,
+      ),
+    ).toEqual([participants[0]]);
+    expect(
+      filterResultParticipants(participants, "cleanup", auxiliarySelection),
+    ).toEqual([participants[1]]);
+    expect(
+      filterResultParticipants(participants, "skills", auxiliarySelection),
+    ).toEqual(participants);
   });
 
   it("recognizes only the public invite results route", () => {

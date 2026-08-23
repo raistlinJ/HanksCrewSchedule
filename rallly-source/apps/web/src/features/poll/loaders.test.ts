@@ -8,6 +8,8 @@ const mockNotFound = vi.fn(() => {
 });
 const mockGetPublicPollMetadata = vi.fn();
 const mockGetPublicPollGroupResults = vi.fn();
+const mockGetPollGroupResults = vi.fn();
+const mockGetActiveSpace = vi.fn();
 
 vi.mock("next/navigation", () => ({
   notFound: () => mockNotFound(),
@@ -15,6 +17,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/poll/data", () => ({
   getPollQrVotingData: vi.fn(),
+  getPollGroupResults: (...args: unknown[]) => mockGetPollGroupResults(...args),
   getPollStatusCounts: vi.fn(),
   getPublicPollMetadata: (...args: unknown[]) =>
     mockGetPublicPollMetadata(...args),
@@ -24,7 +27,7 @@ vi.mock("@/features/poll/data", () => ({
 }));
 
 vi.mock("@/features/space/loaders", () => ({
-  getActiveSpace: vi.fn(),
+  getActiveSpace: (...args: unknown[]) => mockGetActiveSpace(...args),
 }));
 
 vi.mock("@/features/user/loaders", () => ({
@@ -100,5 +103,26 @@ describe("public results loaders", () => {
       NOT_FOUND,
     );
     expect(mockNotFound).toHaveBeenCalledOnce();
+  });
+
+  it("loads managed group results only from the active space", async () => {
+    mockGetActiveSpace.mockResolvedValue({ id: "space-1" });
+    mockGetPollGroupResults.mockResolvedValue({
+      id: "group-1",
+      pollOrder: ["poll-2", "poll-1"],
+      polls: [
+        { id: "poll-1", createdAt: new Date("2026-01-01") },
+        { id: "poll-2", createdAt: new Date("2026-01-02") },
+      ],
+    });
+    const { loadPollGroupResults } = await loadModule();
+
+    const group = await loadPollGroupResults("group-1");
+
+    expect(mockGetPollGroupResults).toHaveBeenCalledWith({
+      groupId: "group-1",
+      spaceId: "space-1",
+    });
+    expect(group.polls.map((poll) => poll.id)).toEqual(["poll-2", "poll-1"]);
   });
 });

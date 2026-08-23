@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MobileLandscapeHint } from "@/components/mobile-landscape-hint";
+import { PollGroupResultCards } from "@/features/poll/components/poll-group-result-cards";
 import { loadPublicPollGroupResults } from "@/features/poll/loaders";
 import { getLocale } from "@/i18n/server/get-locale";
 import { DeviceDateTimeProvider } from "@/lib/datetime/device";
 import { getDeviceDateTimeConfig } from "@/lib/datetime/server";
-import { PublicResultsMatrix } from "./public-results-matrix";
 
 export default async function Page(props: {
   params: Promise<{ groupId: string }>;
@@ -40,8 +39,7 @@ export default async function Page(props: {
             </p>
           ) : null}
         </div>
-        <MobileLandscapeHint />
-        <PublicResultsMatrix group={group} />
+        <PollGroupResultCards group={group} />
       </main>
     </DeviceDateTimeProvider>
   );

@@ -54,6 +54,52 @@ export function getResponseTotals(
   );
 }
 
+export function filterResultParticipants<
+  T extends {
+    name: string;
+    email?: string | null;
+    auxiliaryVotes?: ReadonlyArray<{
+      auxiliaryOptionId: string;
+      type: ResultResponse;
+    }>;
+  },
+>(
+  participants: ReadonlyArray<T>,
+  filter: string,
+  auxiliarySelection?: {
+    name: string;
+    options: ReadonlyArray<{ id: string; label: string }>;
+  } | null,
+) {
+  const normalizedFilter = filter.trim().toLowerCase();
+  if (!normalizedFilter) return [...participants];
+
+  const matchingAuxiliaryOptionIds = new Set(
+    auxiliarySelection?.options
+      .filter(
+        (option) =>
+          option.label.toLowerCase().includes(normalizedFilter) ||
+          auxiliarySelection.name.toLowerCase().includes(normalizedFilter),
+      )
+      .map((option) => option.id) ?? [],
+  );
+
+  return participants.filter((participant) => {
+    if (
+      participant.name.toLowerCase().includes(normalizedFilter) ||
+      participant.email?.toLowerCase().includes(normalizedFilter)
+    ) {
+      return true;
+    }
+
+    return participant.auxiliaryVotes?.some(
+      (vote) =>
+        vote.type === "yes" &&
+        matchingAuxiliaryOptionIds.has(vote.auxiliaryOptionId),
+    );
+  });
+}
+
 export function isPublicPollResultsPath(pathname: string) {
   return /\/invite\/[^/]+\/results\/?$/.test(pathname);
 }

@@ -7,16 +7,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useCopyToClipboard } from "react-use";
-import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { usePoll } from "@/features/poll/client";
 import { useParticipants } from "@/features/poll/components/participants-provider";
-import VoteIcon from "@/features/poll/components/vote-icon";
 import {
-  getResponseTotals,
-  sortParticipantsByResponse,
-} from "@/features/poll/poll-results/utils";
+  PollResultCards,
+  ResultsEditLockButton,
+  ResultsFilterInput,
+} from "@/features/poll/components/poll-result-cards";
 import { Trans } from "@/i18n/client";
 import { useDateTime } from "@/lib/datetime/client";
+import { trpc } from "@/trpc/client";
 
 export function PollResultsPage({
   publicView = false,
@@ -27,16 +27,38 @@ export function PollResultsPage({
   const poll = usePoll();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { formatDateTime } = useDateTime();
   const [, copyToClipboard] = useCopyToClipboard();
   const [didCopyResultsLink, setDidCopyResultsLink] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [editingUnlocked, setEditingUnlocked] = useState(false);
+  const updateParticipant = trpc.polls.participants.update.useMutation();
+  const utils = trpc.useUtils();
+  const { formatDateTime, formatDateTimeRange } = useDateTime();
   const token = searchParams.get("token");
   const publicPollHref = token
     ? `/invite/${poll.id}?token=${encodeURIComponent(token)}`
     : `/invite/${poll.id}`;
   const publicResultsLink = shortUrl(`/invite/${poll.id}/results`);
-  const resultRows = sortParticipantsByResponse(participants);
-  const responseTotals = getResponseTotals(resultRows);
+  const resultOptions = poll.options.map((option) => {
+    const endTime = new Date(
+      option.startTime.getTime() + option.duration * 60_000,
+    );
+    const timeZoneOptions =
+      option.duration > 0 ? undefined : { timeZone: "UTC" };
+
+    return {
+      id: option.id,
+      label:
+        option.duration > 0
+          ? formatDateTimeRange(
+              option.startTime,
+              endTime,
+              "datetime",
+              timeZoneOptions,
+            )
+          : formatDateTime(option.startTime, "date", timeZoneOptions),
+    };
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -61,7 +83,7 @@ export function PollResultsPage({
         )}
       </div>
 
-      <div className="mb-8 flex items-start justify-between border-b pb-8">
+      <div className="mb-8 flex flex-col items-start justify-between gap-4 border-b pb-8 md:flex-row">
         <div>
           <h1 className="mb-2 font-bold text-3xl tracking-tight">
             {poll.title} - Results
@@ -99,128 +121,44 @@ export function PollResultsPage({
       </div>
 
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-md border border-green-500/20 bg-green-500/10 p-3 text-green-700 dark:text-green-300">
-            <div className="flex items-center gap-2 font-medium text-sm">
-              <VoteIcon type="yes" className="size-5" />
-              <Trans i18nKey="yes" defaults="Yes" />
-            </div>
-            <div className="mt-1 font-bold text-2xl tabular-nums">
-              {responseTotals.yes}
-            </div>
-          </div>
-          <div className="rounded-md border border-yellow-500/20 bg-yellow-500/10 p-3 text-yellow-700 dark:text-yellow-300">
-            <div className="flex items-center gap-2 font-medium text-sm">
-              <VoteIcon type="ifNeedBe" className="size-5" />
-              <Trans i18nKey="ifNeedBe" defaults="If needed" />
-            </div>
-            <div className="mt-1 font-bold text-2xl tabular-nums">
-              {responseTotals.ifNeedBe}
-            </div>
-          </div>
-          <div className="rounded-md border border-red-500/20 bg-red-500/5 p-3 text-red-700 dark:text-red-300">
-            <div className="flex items-center gap-2 font-medium text-sm">
-              <VoteIcon type="no" className="size-5" />
-              <Trans i18nKey="no" defaults="No" />
-            </div>
-            <div className="mt-1 font-bold text-2xl tabular-nums">
-              {responseTotals.no}
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <ResultsFilterInput value={filter} onChange={setFilter} />
+          {!publicView && poll.canManage ? (
+            <ResultsEditLockButton
+              unlocked={editingUnlocked}
+              onUnlockedChange={setEditingUnlocked}
+            />
+          ) : null}
         </div>
+        <PollResultCards
+          participants={participants}
+          auxiliarySelection={poll.auxiliarySelection}
+          options={resultOptions}
+          filter={filter}
+          showEmail={!publicView}
+          editable={!publicView && poll.canManage && editingUnlocked}
+          onParticipantChange={async (participant) => {
+            const savedParticipant = await updateParticipant.mutateAsync({
+              pollId: poll.id,
+              participantId: participant.id,
+              votes: participant.votes,
+              auxiliaryVotes: participant.auxiliaryVotes ?? [],
+            });
+            await utils.polls.participants.list.invalidate({
+              pollId: poll.id,
+            });
 
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-muted text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 font-medium">
-                  <Trans i18nKey="name" defaults="Name" />
-                </th>
-                {!publicView ? (
-                  <th className="px-4 py-3 font-medium">
-                    <Trans i18nKey="email" defaults="Email" />
-                  </th>
-                ) : null}
-                <th className="px-4 py-3 font-medium">Voted</th>
-                <th className="px-4 py-3 font-medium">Response</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {resultRows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={publicView ? 3 : 4}
-                    className="px-4 py-8 text-center text-muted-foreground"
-                  >
-                    <Trans
-                      i18nKey="noParticipants"
-                      defaults="No participants"
-                    />
-                  </td>
-                </tr>
-              ) : (
-                resultRows.map(({ participant: p, response }) => {
-                  const responseLabel =
-                    response === "yes"
-                      ? "Yes"
-                      : response === "ifNeedBe"
-                        ? "If needed"
-                        : "No";
-                  const rowClassName =
-                    response === "yes"
-                      ? "bg-green-500/10 hover:bg-green-500/15"
-                      : response === "ifNeedBe"
-                        ? "bg-yellow-500/10 hover:bg-yellow-500/15"
-                        : "bg-red-500/5 hover:bg-red-500/10";
-                  const responseClassName =
-                    response === "yes"
-                      ? "text-green-700 dark:text-green-300"
-                      : response === "ifNeedBe"
-                        ? "text-yellow-700 dark:text-yellow-300"
-                        : "text-red-700 dark:text-red-300";
-                  return (
-                    <tr key={p.id} className={rowClassName}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-x-2">
-                          <OptimizedAvatarImage
-                            size="sm"
-                            name={p.name}
-                            src={p.image ?? undefined}
-                          />
-                          <span className="font-medium">{p.name}</span>
-                        </div>
-                      </td>
-                      {!publicView ? (
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {p.email ? (
-                            p.email
-                          ) : (
-                            <span className="italic">N/A</span>
-                          )}
-                        </td>
-                      ) : null}
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {p.votedAt ? (
-                          formatDateTime(p.votedAt, "datetime")
-                        ) : (
-                          <span className="italic">N/A</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-medium">
-                        <span
-                          className={`inline-flex items-center gap-2 ${responseClassName}`}
-                        >
-                          <VoteIcon type={response} className="size-6" />
-                          {responseLabel}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+            return {
+              ...participant,
+              name: savedParticipant.name,
+              email: savedParticipant.email,
+              image: savedParticipant.image,
+              votedAt: savedParticipant.votedAt,
+              votes: savedParticipant.votes,
+              auxiliaryVotes: savedParticipant.auxiliaryVotes,
+            };
+          }}
+        />
       </div>
     </div>
   );

@@ -112,10 +112,67 @@ export function getPublicPollGroupResults(groupId: string) {
           participants: {
             where: { deleted: false },
             select: {
+              id: true,
               name: true,
               userId: true,
-              votes: { select: { optionId: true, type: true } },
+              user: { select: { image: true } },
+              votes: {
+                select: {
+                  optionId: true,
+                  type: true,
+                  createdAt: true,
+                  updatedAt: true,
+                },
+              },
+              auxiliaryVotes: {
+                select: {
+                  auxiliaryOptionId: true,
+                  type: true,
+                  createdAt: true,
+                  updatedAt: true,
+                },
+              },
             },
+          },
+          auxiliarySelection: {
+            select: {
+              name: true,
+              options: {
+                orderBy: { position: "asc" },
+                select: { id: true, label: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+export function getPollGroupResults({
+  groupId,
+  spaceId,
+}: {
+  groupId: string;
+  spaceId: AuthorizedSpaceId;
+}) {
+  return prisma.pollGroup.findFirst({
+    where: { id: groupId, spaceId },
+    include: {
+      polls: {
+        where: { deleted: false },
+        include: {
+          options: { orderBy: { startTime: "asc" } },
+          participants: {
+            where: { deleted: false },
+            include: {
+              votes: true,
+              auxiliaryVotes: true,
+              user: { select: { image: true } },
+            },
+          },
+          auxiliarySelection: {
+            include: { options: { orderBy: { position: "asc" } } },
           },
         },
       },
