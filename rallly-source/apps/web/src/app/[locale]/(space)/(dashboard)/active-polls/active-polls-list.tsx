@@ -67,6 +67,7 @@ function PublicResultsLink({ item }: { item: ActivePollOverviewItem }) {
   return (
     <div className="flex min-w-0 max-w-full items-center gap-1.5 text-sm">
       <SquareArrowOutUpRightIcon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="shrink-0 font-medium">Public Results:</span>
       <a
         href={href}
         target="_blank"
