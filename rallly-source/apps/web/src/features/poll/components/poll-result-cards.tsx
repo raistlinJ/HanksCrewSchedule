@@ -79,7 +79,7 @@ export function ResultsFilterInput({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="relative w-full md:w-80">
+    <div className="relative min-w-0 flex-1 md:w-80 md:flex-none">
       <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="search"
@@ -109,6 +109,7 @@ export function ResultsEditLockButton({
       aria-label={label}
       title={label}
       aria-pressed={unlocked}
+      className="shrink-0"
       onClick={() => onUnlockedChange(!unlocked)}
     >
       {unlocked ? <UnlockIcon /> : <LockIcon />}
@@ -207,7 +208,9 @@ export function PollResultCards({
   return (
     <section
       className={
-        title ? "space-y-4 rounded-2xl border bg-card p-4 sm:p-5" : "space-y-4"
+        title
+          ? "min-w-0 max-w-full space-y-4 rounded-2xl border bg-card p-4 sm:p-5"
+          : "min-w-0 max-w-full space-y-4"
       }
     >
       {title ? <h2 className="font-semibold text-xl">{title}</h2> : null}
@@ -256,7 +259,7 @@ export function PollResultCards({
             return (
               <li
                 key={participant.id}
-                className={`rounded-xl border p-4 ${presentation.card}`}
+                className={`min-w-0 rounded-xl border p-4 ${presentation.card}`}
               >
                 <div className="flex items-start gap-3">
                   <OptimizedAvatarImage
@@ -306,7 +309,9 @@ export function PollResultCards({
                             key={option.id}
                             className="flex items-center justify-between gap-3 rounded-lg bg-background/70 px-3 py-2 text-sm"
                           >
-                            <span>{option.label}</span>
+                            <span className="min-w-0 break-words">
+                              {option.label}
+                            </span>
                             <button
                               type="button"
                               disabled={isPending}
@@ -360,7 +365,9 @@ export function PollResultCards({
                             key={option.id}
                             className="flex items-center justify-between gap-3 rounded-lg bg-background/70 px-3 py-2 text-sm"
                           >
-                            <span>{option.label}</span>
+                            <span className="min-w-0 break-words">
+                              {option.label}
+                            </span>
                             {editable ? (
                               <button
                                 type="button"

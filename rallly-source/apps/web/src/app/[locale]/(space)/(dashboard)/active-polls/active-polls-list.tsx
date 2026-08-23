@@ -16,12 +16,14 @@ import {
   MapPinIcon,
   QrCodeIcon,
   ScanQrCodeIcon,
+  SquareArrowOutUpRightIcon,
   UserPlusIcon,
   UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeCanvas } from "qrcode.react";
 import React from "react";
+import { CopyLinkButton } from "@/components/copy-link-button";
 import type { ActivePollOverviewItem } from "@/features/poll/active-polls/utils";
 import { useDateTime } from "@/lib/datetime/client";
 
@@ -53,6 +55,28 @@ function ItemDetails({ item }: { item: ActivePollOverviewItem }) {
           <span className="truncate">{item.location}</span>
         </span>
       ) : null}
+    </div>
+  );
+}
+
+function PublicResultsLink({ item }: { item: ActivePollOverviewItem }) {
+  if (!item.publicResultsHref) return null;
+
+  const href = shortUrl(item.publicResultsHref);
+
+  return (
+    <div className="flex min-w-0 max-w-full items-center gap-1.5 text-sm">
+      <SquareArrowOutUpRightIcon className="size-4 shrink-0 text-muted-foreground" />
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        title={href}
+        className="min-w-0 truncate text-primary underline-offset-4 hover:underline"
+      >
+        {href}
+      </a>
+      <CopyLinkButton href={href} className="size-7 shrink-0" />
     </div>
   );
 }
@@ -170,6 +194,7 @@ export function ActivePollsList({
               </div>
 
               <ItemDetails item={item} />
+              <PublicResultsLink item={item} />
 
               <ItemActions item={item} onShowQr={() => setQrItem(item)} />
             </div>
@@ -203,6 +228,7 @@ export function ActivePollsList({
                 </span>
               </div>
               <ItemDetails item={item} />
+              <PublicResultsLink item={item} />
             </div>
             <ItemActions compact item={item} onShowQr={() => setQrItem(item)} />
           </li>

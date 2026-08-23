@@ -4,6 +4,7 @@ export type ActivePollOverviewSource = {
   description: string | null;
   location: string | null;
   isOnDemand: boolean;
+  publicResults: boolean;
   status: "open" | "scheduled" | "closed";
   createdAt: Date;
   options: { startTime: Date; duration: number }[];
@@ -14,6 +15,7 @@ export type ActivePollOverviewSource = {
     title: string;
     description: string | null;
     pollOrder: string[];
+    publicResults: boolean;
   } | null;
 };
 
@@ -32,6 +34,7 @@ export type ActivePollOverviewItem = {
   manualAddHref: string;
   resultsHref: string;
   publicHref: string;
+  publicResultsHref: string | null;
   polls: {
     id: string;
     title: string;
@@ -124,6 +127,9 @@ export function buildActivePollOverview(
         manualAddHref: `/poll/${poll.id}?manualAdd=1`,
         resultsHref: `/poll/${poll.id}/results`,
         publicHref: `/invite/${poll.id}`,
+        publicResultsHref: poll.publicResults
+          ? `/invite/${poll.id}/results`
+          : null,
         polls: [
           {
             id: poll.id,
@@ -191,6 +197,9 @@ export function buildActivePollOverview(
       manualAddHref: `/g/${poll.pollGroup.id}?manualAdd=1`,
       resultsHref: `/groups/${poll.pollGroup.id}/responses`,
       publicHref: `/g/${poll.pollGroup.id}`,
+      publicResultsHref: poll.pollGroup.publicResults
+        ? `/g/${poll.pollGroup.id}/results`
+        : null,
       polls: [groupPoll],
     });
   }

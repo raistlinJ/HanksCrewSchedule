@@ -120,8 +120,8 @@ export function PollResultsPage({
         ) : null}
       </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
+      <div className="min-w-0 max-w-full space-y-4">
+        <div className="flex w-full min-w-0 items-center gap-2">
           <ResultsFilterInput value={filter} onChange={setFilter} />
           {!publicView && poll.canManage ? (
             <ResultsEditLockButton

@@ -16,6 +16,7 @@ function poll(
     description: null,
     location: null,
     isOnDemand: false,
+    publicResults: false,
     status: "open",
     createdAt: new Date("2026-08-01T00:00:00Z"),
     options: [],
@@ -33,6 +34,7 @@ describe("buildActivePollOverview", () => {
       title: "Volunteer shifts",
       description: "Choose a shift",
       pollOrder: ["poll-2", "poll-1"],
+      publicResults: true,
     };
 
     const result = buildActivePollOverview(
@@ -73,6 +75,7 @@ describe("buildActivePollOverview", () => {
       scanHref: "/groups/group-1/scan",
       manualAddHref: "/g/group-1?manualAdd=1",
       resultsHref: "/groups/group-1/responses",
+      publicResultsHref: "/g/group-1/results",
     });
     expect(result[0]?.polls.map(({ id }) => id)).toEqual(["poll-2", "poll-1"]);
   });
@@ -174,5 +177,36 @@ describe("buildActivePollOverview", () => {
     );
 
     expect(result.map(({ id }) => id)).toEqual(["soon", "recent", "later"]);
+  });
+
+  it("includes a public results link only when public results are enabled", () => {
+    const result = buildActivePollOverview(
+      [
+        poll({
+          id: "public-poll",
+          title: "Public poll",
+          publicResults: true,
+          options: [
+            { startTime: new Date("2026-08-22T12:15:00Z"), duration: 60 },
+          ],
+        }),
+        poll({
+          id: "private-poll",
+          title: "Private poll",
+          options: [
+            { startTime: new Date("2026-08-22T12:30:00Z"), duration: 60 },
+          ],
+        }),
+      ],
+      defaultRange,
+      referenceTime,
+    );
+
+    expect(result.find(({ id }) => id === "public-poll")).toMatchObject({
+      publicResultsHref: "/invite/public-poll/results",
+    });
+    expect(result.find(({ id }) => id === "private-poll")).toMatchObject({
+      publicResultsHref: null,
+    });
   });
 });
