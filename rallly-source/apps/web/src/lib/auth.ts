@@ -30,7 +30,7 @@ import { getStripe } from "@/features/billing/service";
 import type { UserDTO } from "@/features/user/schema";
 import { getTranslation } from "@/i18n/server";
 import { getLocale } from "@/i18n/server/get-locale";
-import { SESSION_TTL_SECONDS } from "@/lib/auth-config";
+import { SESSION_TTL_SECONDS, TEST_MODE_EMAIL_OTP } from "@/lib/auth-config";
 import { hostOnlyCookieCleanup } from "@/lib/auth-plugins/host-only-cookie-cleanup";
 import { redis } from "@/lib/kv";
 import {
@@ -173,8 +173,14 @@ export const authLib = betterAuth({
       // verifies with verifyEmail, neither of which is gated by this flag.
       disableSignUp: false,
       expiresIn: 15 * 60,
-      resendStrategy: "reuse",
+      // Rotating in test mode replaces any random OTP left over from a recent
+      // live-mode request before the client immediately verifies 000000.
+      resendStrategy:
+        env.EMAIL_DELIVERY_DISABLED === "true" ? "rotate" : "reuse",
       overrideDefaultEmailVerification: true,
+      ...(env.EMAIL_DELIVERY_DISABLED === "true"
+        ? { generateOTP: () => TEST_MODE_EMAIL_OTP }
+        : {}),
       changeEmail: {
         enabled: true,
       },

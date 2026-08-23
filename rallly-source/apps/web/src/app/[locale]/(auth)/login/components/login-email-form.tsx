@@ -21,6 +21,7 @@ import { setVerificationEmail } from "@/app/[locale]/(auth)/login/actions";
 import { Turnstile } from "@/components/turnstile";
 import { Trans, useTranslation } from "@/i18n/client";
 import { authClient } from "@/lib/auth-client";
+import { TEST_MODE_EMAIL_OTP } from "@/lib/auth-config";
 import { useFeatureFlag } from "@/lib/feature-flags/client";
 import { validateRedirectUrl } from "@/lib/utils/redirect";
 import { trpc } from "@/trpc/client";
@@ -41,8 +42,10 @@ function useLoginWithEmailSchema() {
 
 export function LoginWithEmailForm({
   isRegistrationEnabled,
+  isTestMode,
 }: {
   isRegistrationEnabled: boolean;
+  isTestMode: boolean;
 }) {
   const isCaptchaEnabled = useFeatureFlag("captcha");
   const isTurnstileEnabled = isCaptchaEnabled && !!turnstileSiteKey;
@@ -112,7 +115,7 @@ export function LoginWithEmailForm({
       return;
     }
 
-    if (!showPasswordField) {
+    if (!showPasswordField && !isTestMode) {
       const res = await getLoginMethod.mutateAsync({
         email: identifier,
       });
@@ -194,6 +197,35 @@ export function LoginWithEmailForm({
             });
             break;
         }
+        return;
+      }
+
+      if (isTestMode) {
+        const verification = isRegistrationEnabled
+          ? await authClient.signIn.emailOtp({
+              email: identifier,
+              otp: TEST_MODE_EMAIL_OTP,
+            })
+          : await authClient.emailOtp.verifyEmail({
+              email: identifier,
+              otp: TEST_MODE_EMAIL_OTP,
+            });
+
+        if (verification.error) {
+          form.setError("root", {
+            message: verification.error.message,
+          });
+          return;
+        }
+
+        if (isRegistrationEnabled && !verification.data?.user?.name) {
+          window.location.href = validatedRedirectTo
+            ? `/setup?redirectTo=${encodeURIComponent(validatedRedirectTo)}`
+            : "/setup";
+          return;
+        }
+
+        window.location.href = validatedRedirectTo ?? "/";
         return;
       }
 
@@ -298,7 +330,9 @@ export function LoginWithEmailForm({
             className="w-full"
             variant="primary"
           >
-            {showPasswordField ? (
+            {isTestMode ? (
+              <Trans i18nKey="loginWithEmail" defaults="Login with email" />
+            ) : showPasswordField ? (
               isPasswordLogin ? (
                 <Trans
                   i18nKey="loginWithPassword"

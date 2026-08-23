@@ -129,7 +129,10 @@ export default async function LoginPage(props: {
       </AuthPageHeader>
       <AuthPageContent>
         {isEmailLoginEnabled && (
-          <LoginWithEmailForm isRegistrationEnabled={isRegistrationEnabled} />
+          <LoginWithEmailForm
+            isRegistrationEnabled={isRegistrationEnabled}
+            isTestMode={env.EMAIL_DELIVERY_DISABLED === "true"}
+          />
         )}
         {isEmailLoginEnabled && hasAlternateLoginMethods ? <OrDivider /> : null}
         <div className="grid gap-3">

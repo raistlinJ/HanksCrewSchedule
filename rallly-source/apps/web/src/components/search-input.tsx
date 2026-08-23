@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@rallly/ui";
 import { Icon } from "@rallly/ui/icon";
 import { Input } from "@rallly/ui/input";
 import debounce from "lodash/debounce";
@@ -7,7 +8,13 @@ import { SearchIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 
-export function SearchInput({ placeholder }: { placeholder: string }) {
+export function SearchInput({
+  placeholder,
+  className,
+}: {
+  placeholder: string;
+  className?: string;
+}) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -48,7 +55,7 @@ export function SearchInput({ placeholder }: { placeholder: string }) {
 
   return (
     <form
-      className="relative w-72"
+      className={cn("relative w-72", className)}
       onSubmit={(e) => {
         e.preventDefault();
         debouncedUpdateUrl.flush();

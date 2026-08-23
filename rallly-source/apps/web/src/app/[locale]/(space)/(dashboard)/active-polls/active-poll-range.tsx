@@ -4,7 +4,7 @@ import { Button } from "@rallly/ui/button";
 import { Input } from "@rallly/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@rallly/ui/popover";
 import { RotateCcwIcon, SlidersHorizontalIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 
 function toLocalInputValue(isoValue: string) {
@@ -25,6 +25,7 @@ export function ActivePollRange({
   isCustom: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [open, setOpen] = React.useState(false);
   const [startValue, setStartValue] = React.useState("");
   const [endValue, setEndValue] = React.useState("");
@@ -64,10 +65,9 @@ export function ActivePollRange({
             }
 
             setError(undefined);
-            const params = new URLSearchParams({
-              start: startDate.toISOString(),
-              end: endDate.toISOString(),
-            });
+            const params = new URLSearchParams(searchParams);
+            params.set("start", startDate.toISOString());
+            params.set("end", endDate.toISOString());
             startTransition(() => {
               router.push(`/active-polls?${params.toString()}`);
               setOpen(false);
@@ -113,7 +113,12 @@ export function ActivePollRange({
               disabled={!isCustom || isPending}
               onClick={() => {
                 startTransition(() => {
-                  router.push("/active-polls");
+                  const params = new URLSearchParams(searchParams);
+                  params.delete("start");
+                  params.delete("end");
+                  router.push(
+                    `/active-polls${params.size ? `?${params.toString()}` : ""}`,
+                  );
                   setOpen(false);
                 });
               }}

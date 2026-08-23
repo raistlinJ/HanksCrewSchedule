@@ -7,6 +7,7 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@/components/page-layout";
+import { SearchInput } from "@/components/search-input";
 import { loadActivePollOverview } from "@/features/poll/loaders";
 import { getTranslation } from "@/i18n/server";
 import { ActivePollRange } from "./active-poll-range";
@@ -41,20 +42,31 @@ export default async function ActivePollsPage({
         end: new Date(now.getTime() + ONE_WEEK_MS),
       };
   const items = await loadActivePollOverview(range);
+  const query = typeof params.q === "string" ? params.q.trim() : "";
+  const normalizedQuery = query.toLowerCase();
+  const filteredItems = normalizedQuery
+    ? items.filter(
+        (item) =>
+          item.title.toLowerCase().includes(normalizedQuery) ||
+          item.description?.toLowerCase().includes(normalizedQuery) ||
+          item.location?.toLowerCase().includes(normalizedQuery) ||
+          item.polls.some((poll) =>
+            poll.title.toLowerCase().includes(normalizedQuery),
+          ),
+      )
+    : items;
 
   return (
     <PageContainer>
-      <PageHeader>
+      <PageHeader className="flex-col md:flex-row">
         <PageHeaderContent>
           <PageTitle>Upcoming &amp; active polls</PageTitle>
-          <p className="text-muted-foreground text-sm">
-            {hasValidCustomRange
-              ? "Showing polls that overlap your custom range."
-              : "Showing polls through one week ahead and for four hours after their last end time."}{" "}
-            Polls in the same group share one card.
-          </p>
         </PageHeaderContent>
-        <PageHeaderActions>
+        <SearchInput
+          className="w-full md:w-72 md:shrink-0"
+          placeholder="Filter polls and groups..."
+        />
+        <PageHeaderActions className="w-full md:w-auto">
           <ActivePollRange
             start={range.start.toISOString()}
             end={range.end.toISOString()}
@@ -63,7 +75,7 @@ export default async function ActivePollsPage({
         </PageHeaderActions>
       </PageHeader>
       <PageContent>
-        <ActivePollsList items={items} />
+        <ActivePollsList items={filteredItems} search={query} />
       </PageContent>
     </PageContainer>
   );

@@ -105,8 +105,10 @@ function ItemActions({
 
 export function ActivePollsList({
   items,
+  search,
 }: {
   items: ActivePollOverviewItem[];
+  search?: string;
 }) {
   const [qrItem, setQrItem] = React.useState<ActivePollOverviewItem | null>(
     null,
@@ -116,10 +118,15 @@ export function ActivePollsList({
     return (
       <div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed p-8 text-center">
         <CalendarClockIcon className="mb-4 size-10 text-muted-foreground" />
-        <h2 className="font-semibold text-lg">No active or upcoming polls</h2>
+        <h2 className="font-semibold text-lg">
+          {search
+            ? `No polls match “${search}”`
+            : "No active or upcoming polls"}
+        </h2>
         <p className="mt-1 max-w-sm text-muted-foreground text-sm">
-          Polls and poll groups will appear here while they are open or after
-          they have been scheduled.
+          {search
+            ? "Try a different filter."
+            : "Polls and poll groups will appear here while they are open or after they have been scheduled."}
         </p>
       </div>
     );

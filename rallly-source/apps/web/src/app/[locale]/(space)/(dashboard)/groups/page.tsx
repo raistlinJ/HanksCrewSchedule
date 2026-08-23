@@ -558,9 +558,6 @@ export default function PollGroupsDashboardPage() {
           <SidebarTrigger className="mt-0.5 shrink-0 md:hidden" />
           <div className="min-w-0">
             <h1 className="text-3xl font-bold">Poll Groups</h1>
-            <p className="mt-1 text-muted-foreground">
-              Group multiple polls under a single link for non-member voters.
-            </p>
           </div>
         </div>
 

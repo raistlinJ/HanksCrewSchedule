@@ -144,26 +144,28 @@ export function PollsPage({
 
   return (
     <PageContainer>
-      <PageHeader>
+      <PageHeader className="flex-col md:flex-row">
         <PageHeaderContent>
           <PageTitle>
             {isOnDemand ? (
-              <Trans i18nKey="onDemandPolls" defaults="On-demand polls" />
+              <>
+                <span className="sm:hidden">On-demand</span>
+                <span className="hidden sm:inline">
+                  <Trans i18nKey="onDemandPolls" defaults="On-demand polls" />
+                </span>
+              </>
             ) : (
               <Trans i18nKey="polls" defaults="Polls" />
             )}
           </PageTitle>
         </PageHeaderContent>
-        <PageHeaderActions>
-          {!isOnDemand ? (
-            <Link href="/new?type=on-demand" className={buttonVariants()}>
-              <PlusIcon data-icon="inline-start" />
-              <Trans
-                i18nKey="createOnDemandPoll"
-                defaults="Create on-demand poll"
-              />
-            </Link>
-          ) : null}
+        <SearchInput
+          className="w-full md:w-72 md:shrink-0"
+          placeholder={t("filterPollsPlaceholder", {
+            defaultValue: "Filter polls by title...",
+          })}
+        />
+        <PageHeaderActions className="w-full flex-wrap md:w-auto md:flex-nowrap">
           <Link
             href={createHref}
             className={buttonVariants({ variant: "primary" })}
@@ -180,11 +182,6 @@ export function PollsPage({
       <PageContent>
         <PollsTabbedView counts={counts}>
           <div className="mb-6 flex gap-x-2">
-            <SearchInput
-              placeholder={t("searchPollsPlaceholder", {
-                defaultValue: "Search polls by title...",
-              })}
-            />
             <MemberSelector members={members} />
           </div>
           <PollsInfiniteList
