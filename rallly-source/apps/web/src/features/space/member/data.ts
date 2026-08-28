@@ -9,6 +9,8 @@ export async function getInvite(inviteId: string) {
     select: {
       id: true,
       spaceId: true,
+      email: true,
+      role: true,
     },
   });
 }

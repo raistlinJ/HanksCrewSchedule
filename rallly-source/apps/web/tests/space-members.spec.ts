@@ -335,6 +335,52 @@ test.describe("Space members", () => {
     }
   });
 
+  test("admin can override acceptance from a pending invite row", async ({
+    page,
+  }) => {
+    const owner = await createSpaceAdmin({
+      name: "Pending Override Owner",
+      seats: 3,
+    });
+    const memberEmail = `pending-override-${runId}@example.com`;
+    const member = await createUserInDb({
+      email: memberEmail,
+      name: "Pending Override Member",
+    });
+    createdUserIds.push(member.id);
+
+    await prisma.spaceMemberInvite.create({
+      data: {
+        spaceId: owner.space.id,
+        email: memberEmail,
+        role: "MEMBER",
+        inviterId: owner.user.id,
+      },
+    });
+
+    await gotoMembersSettings(page, owner.email);
+    const inviteRow = memberRow(page, memberEmail);
+    await inviteRow.getByRole("button", { name: "More options" }).click();
+    await page.getByRole("menuitem", { name: "Override accept" }).click();
+
+    await expect(memberRow(page, "Pending Override Member")).toBeVisible();
+    await expect(
+      prisma.spaceMember.findUnique({
+        where: {
+          spaceId_userId: {
+            spaceId: owner.space.id,
+            userId: member.id,
+          },
+        },
+      }),
+    ).resolves.not.toBeNull();
+    await expect(
+      prisma.spaceMemberInvite.findFirst({
+        where: { spaceId: owner.space.id, email: memberEmail },
+      }),
+    ).resolves.toBeNull();
+  });
+
   test("admin can cancel a pending invite", async ({ page }) => {
     const owner = await createSpaceAdmin({ name: "Cancel Owner", seats: 3 });
     const inviteeEmail = `cancel-invitee-${runId}@example.com`;

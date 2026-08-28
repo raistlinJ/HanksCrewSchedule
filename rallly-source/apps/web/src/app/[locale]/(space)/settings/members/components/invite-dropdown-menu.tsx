@@ -20,9 +20,12 @@ import {
 } from "@rallly/ui/dropdown-menu";
 import { Icon } from "@rallly/ui/icon";
 import { toast } from "@rallly/ui/sonner";
-import { MoreVerticalIcon, XIcon } from "lucide-react";
+import { MoreVerticalIcon, UserCheckIcon, XIcon } from "lucide-react";
 import { useSpace } from "@/features/space/client";
-import { cancelInviteAction } from "@/features/space/member/actions";
+import {
+  cancelInviteAction,
+  overridePendingInviteAction,
+} from "@/features/space/member/actions";
 import { Trans, useTranslation } from "@/i18n/client";
 import { useSafeAction } from "@/lib/safe-action/client";
 
@@ -48,10 +51,41 @@ export function InviteDropdownMenu({ invite }: { invite: SpaceMemberInvite }) {
       cancelInviteDialog.dismiss();
     },
   });
+  const overrideAccept = useSafeAction(overridePendingInviteAction, {
+    onSuccess: ({ data }) => {
+      if (!data) {
+        return;
+      }
 
-  const canCancelInvite = space
-    .getMemberAbility()
-    .can("delete", subject("SpaceMemberInvite", invite));
+      if (data.ok) {
+        toast.success(
+          t("overrideAcceptSuccess", {
+            defaultValue:
+              "Access granted. They will see this space when they log in.",
+          }),
+        );
+        return;
+      }
+
+      toast.error(
+        data.reason === "NOT_ENOUGH_SEATS"
+          ? t("inviteNotEnoughSeats", {
+              defaultValue:
+                "There are not enough seats available to add this member",
+            })
+          : t("alreadyMember", {
+              defaultValue: "This person is already a member of this space",
+            }),
+      );
+    },
+  });
+
+  const ability = space.getMemberAbility();
+  const canCancelInvite = ability.can(
+    "delete",
+    subject("SpaceMemberInvite", invite),
+  );
+  const canOverrideInvite = ability.can("create", "SpaceMemberInvite");
 
   return (
     <>
@@ -70,6 +104,15 @@ export function InviteDropdownMenu({ invite }: { invite: SpaceMemberInvite }) {
           </Icon>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={() => {
+              overrideAccept.execute({ inviteId: invite.id });
+            }}
+            disabled={!canOverrideInvite || overrideAccept.isExecuting}
+          >
+            <UserCheckIcon />
+            <Trans i18nKey="overrideAccept" defaults="Override accept" />
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
               cancelInviteDialog.trigger();

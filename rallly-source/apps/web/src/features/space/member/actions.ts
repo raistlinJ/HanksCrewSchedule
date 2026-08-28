@@ -18,8 +18,10 @@ import {
   cancelInviteSchema,
   changeMemberRoleSchema,
   inviteMemberSchema,
+  overridePendingInviteSchema,
   removeMemberSchema,
 } from "@/features/space/member/schema";
+import { fromDBRole } from "@/features/space/utils";
 import { AppError } from "@/lib/errors/app-error";
 import { identifyGroup, track } from "@/lib/posthog";
 import { authActionClient } from "@/lib/safe-action/server";
@@ -35,6 +37,41 @@ async function requireActiveSpace(user: { id: string }) {
   }
 
   return space;
+}
+
+function trackOverrideAccept({
+  actor,
+  spaceId,
+  result,
+}: {
+  actor: Parameters<typeof track>[0];
+  spaceId: string;
+  result: Awaited<ReturnType<typeof overrideAcceptInvite>>;
+}) {
+  if (!result.ok) {
+    return;
+  }
+
+  identifyGroup({
+    groupType: "space",
+    groupKey: spaceId,
+    properties: {
+      member_count: result.memberCount,
+    },
+  });
+
+  track(actor, {
+    event: "space_member_override_accept",
+    properties: {
+      member_count: result.memberCount,
+      added_member_user_id:
+        result.code === "MEMBER_ADDED" ? result.userId : undefined,
+      override_status: result.code,
+    },
+    groups: {
+      space: spaceId,
+    },
+  });
 }
 
 export const inviteMemberAction = authActionClient
@@ -115,28 +152,56 @@ export const overrideAcceptInviteAction = authActionClient
       inviterId: ctx.user.id,
     });
 
-    if (result.ok) {
-      identifyGroup({
-        groupType: "space",
-        groupKey: space.id,
-        properties: {
-          member_count: result.memberCount,
-        },
-      });
+    trackOverrideAccept({ actor: ctx.user, spaceId: space.id, result });
 
-      track(ctx.user, {
-        event: "space_member_override_accept",
-        properties: {
-          member_count: result.memberCount,
-          added_member_user_id:
-            result.code === "MEMBER_ADDED" ? result.userId : undefined,
-          override_status: result.code,
-        },
-        groups: {
-          space: space.id,
-        },
+    return result;
+  });
+
+export const overridePendingInviteAction = authActionClient
+  .metadata({ actionName: "override_pending_invite" })
+  .inputSchema(overridePendingInviteSchema)
+  .action(async ({ ctx, parsedInput }) => {
+    const space = await requireActiveSpace(ctx.user);
+    const invite = await getInvite(parsedInput.inviteId);
+
+    if (!invite) {
+      throw new AppError({
+        code: "NOT_FOUND",
+        message: "Invite not found",
       });
     }
+
+    if (invite.spaceId !== space.id) {
+      throw new AppError({
+        code: "FORBIDDEN",
+        message: "You do not have access to this invite",
+      });
+    }
+
+    if (defineAbilityForSpace(space).cannot("invite", "Member")) {
+      throw new AppError({
+        code: "PAYMENT_REQUIRED",
+        message: "You need a Pro subscription to add members to this space",
+      });
+    }
+
+    const ability = defineAbilityForMember({ user: ctx.user, space });
+
+    if (ability.cannot("create", "SpaceMemberInvite")) {
+      throw new AppError({
+        code: "FORBIDDEN",
+        message: "You do not have permission to add members",
+      });
+    }
+
+    const result = await overrideAcceptInvite({
+      spaceId: space.id,
+      email: invite.email,
+      role: fromDBRole(invite.role),
+      inviterId: ctx.user.id,
+    });
+
+    trackOverrideAccept({ actor: ctx.user, spaceId: space.id, result });
 
     return result;
   });

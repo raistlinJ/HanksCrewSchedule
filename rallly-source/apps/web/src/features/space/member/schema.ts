@@ -10,6 +10,10 @@ export const cancelInviteSchema = z.object({
   inviteId: z.string(),
 });
 
+export const overridePendingInviteSchema = z.object({
+  inviteId: z.string(),
+});
+
 export const removeMemberSchema = z.object({
   memberId: z.string(),
 });
