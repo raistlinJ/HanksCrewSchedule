@@ -3,6 +3,7 @@
 // https://nextjs.org/docs/api-reference/next.config.js/introduction
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
+import { createHash } from "node:crypto";
 import path from "node:path";
 import createBundleAnalyzer from "@next/bundle-analyzer";
 import { withSentryConfig } from "@sentry/nextjs";
@@ -12,13 +13,18 @@ const withBundleAnalyzer = createBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 });
 
+const appVersion = process.env.NEXT_PUBLIC_APP_VERSION;
+const deploymentId = appVersion
+  ? createHash("sha256").update(appVersion).digest("hex").slice(0, 16)
+  : undefined;
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: [process.env.DEV_DOMAIN ?? "web.rallly.test"],
   // Docker images already receive a unique app version at build time. Using
   // it as the deployment ID lets Next detect a browser that still has assets
   // or Server Action references from the previous image and force a hard
   // navigation instead of surfacing a misleading 404.
-  deploymentId: process.env.NEXT_PUBLIC_APP_VERSION,
+  deploymentId,
   experimental: {
     workerThreads: false,
     cpus: 1,
