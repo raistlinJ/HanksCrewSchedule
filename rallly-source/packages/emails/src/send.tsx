@@ -44,18 +44,30 @@ type DispatchOptions = {
   errorLabel: string;
 };
 
-async function dispatch(options: DispatchOptions) {
+export type EmailDispatchResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason:
+        | "DELIVERY_DISABLED"
+        | "SUPPORT_EMAIL_NOT_CONFIGURED"
+        | "TRANSPORT_ERROR";
+    };
+
+async function dispatch(
+  options: DispatchOptions,
+): Promise<EmailDispatchResult> {
   if (process.env.EMAIL_DELIVERY_DISABLED === "true") {
     logger.info(
       { recipient: options.to, subject: options.subject },
       "Email test mode enabled - skipping email send",
     );
-    return;
+    return { ok: false, reason: "DELIVERY_DISABLED" };
   }
 
   if (!process.env.SUPPORT_EMAIL) {
     logger.info("SUPPORT_EMAIL not configured - skipping email send");
-    return;
+    return { ok: false, reason: "SUPPORT_EMAIL_NOT_CONFIGURED" };
   }
 
   try {
@@ -69,14 +81,16 @@ async function dispatch(options: DispatchOptions) {
       attachments: options.attachments,
       icalEvent: options.icalEvent,
     });
+    return { ok: true };
   } catch (e) {
-    // Operational (SMTP/transport) failures are logged, not thrown — sending is
-    // fire-and-forget. Render/template (code) errors are NOT caught here, so they
+    // Operational failures are logged and returned as a status rather than
+    // thrown. Render/template errors are not caught here, so they still
     // propagate to the caller's error reporting (Sentry via onRequestError).
     logger.error(
       { error: e, recipient: options.to, subject: options.subject },
       `Failed to send email: ${options.errorLabel}`,
     );
+    return { ok: false, reason: "TRANSPORT_ERROR" };
   }
 }
 
@@ -98,7 +112,7 @@ export async function sendRenderedEmail(options: {
     render(options.element, { plainText: true }),
   ]);
 
-  await dispatch({
+  return dispatch({
     to: options.to,
     from: options.from,
     replyTo: options.replyTo,
@@ -127,5 +141,5 @@ export type SendRawEmailOptions = {
  * For the rare app-specific cases that don't warrant a React template.
  */
 export async function sendRawEmail(options: SendRawEmailOptions) {
-  await dispatch({ ...options, errorLabel: options.subject });
+  return dispatch({ ...options, errorLabel: options.subject });
 }

@@ -98,7 +98,7 @@ export async function sendSpaceInviteEmail({
   ...rest
 }: SendArgs<SpaceInviteEmailProps>) {
   const { t } = await createEmailI18n(locale);
-  await sendRenderedEmail({
+  return sendRenderedEmail({
     to,
     subject: t("spaceInvite_subject", {
       defaultValue: "You're invited to join {spaceName}",

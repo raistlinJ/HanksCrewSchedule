@@ -76,8 +76,9 @@ export async function inviteMember({
     },
   });
 
+  let delivery: Awaited<ReturnType<typeof sendSpaceInviteEmail>>;
   try {
-    await sendSpaceInviteEmail({
+    delivery = await sendSpaceInviteEmail({
       to: email,
       locale: existingUser?.locale ?? inviter.locale,
       branding: await getInstanceBranding(),
@@ -88,7 +89,20 @@ export async function inviteMember({
         inviteUrl: absoluteUrl(`/accept-invite/${invite.id}`),
       },
     });
-  } catch {
+  } catch (error) {
+    logger.error(
+      { error, inviteId: invite.id },
+      "Failed to render space invitation email",
+    );
+    await prisma.spaceMemberInvite.delete({ where: { id: invite.id } });
+    return { ok: false as const, reason: "INVITE_FAILED" as const };
+  }
+
+  if (!delivery.ok) {
+    logger.warn(
+      { inviteId: invite.id, reason: delivery.reason },
+      "Space invitation email was not delivered",
+    );
     await prisma.spaceMemberInvite.delete({ where: { id: invite.id } });
     return { ok: false as const, reason: "INVITE_FAILED" as const };
   }
