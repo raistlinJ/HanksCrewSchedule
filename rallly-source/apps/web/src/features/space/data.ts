@@ -287,6 +287,20 @@ export const getOwnedSpace = cache(async (userId: string) => {
   });
 });
 
+/**
+ * Returns any space membership, including one that is temporarily
+ * ineffective because of billing. Onboarding uses this to decide whether a
+ * user already has a space; creating a Personal space must not be the side
+ * effect of an existing member completing a missing profile field.
+ */
+export const getAnySpaceMembership = cache(async (userId: string) => {
+  return prisma.spaceMember.findFirst({
+    where: { userId },
+    orderBy: { lastSelectedAt: "desc" },
+    select: { spaceId: true },
+  });
+});
+
 export const listSpacesForUser = cache(async (userId: string) => {
   const result = await prisma.spaceMember.findMany({
     where: effectiveSpaceMemberWhere({ userId }),

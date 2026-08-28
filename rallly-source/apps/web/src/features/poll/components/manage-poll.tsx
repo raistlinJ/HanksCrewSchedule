@@ -13,6 +13,7 @@ import {
   CopyIcon,
   DownloadIcon,
   ExternalLinkIcon,
+  MailIcon,
   PencilIcon,
   PlayIcon,
   TrashIcon,
@@ -27,6 +28,7 @@ import { usePoll } from "@/features/poll/client";
 import { Trans } from "@/i18n/client";
 import { trpc } from "@/trpc/client";
 import { DeletePollDialog } from "./manage-poll/delete-poll-dialog";
+import { EmailReminderDialog } from "./manage-poll/email-reminder-dialog";
 import { useCsvExporter } from "./manage-poll/use-csv-exporter";
 
 function OpenCloseToggle() {
@@ -112,6 +114,8 @@ const ManagePoll: React.FunctionComponent<{
   const poll = usePoll();
 
   const [showDeletePollDialog, setShowDeletePollDialog] = React.useState(false);
+  const [showEmailReminderDialog, setShowEmailReminderDialog] =
+    React.useState(false);
   const duplicateDialog = useDialog();
   const isFree = useIsFree();
   const { exportToCsv } = useCsvExporter();
@@ -153,6 +157,10 @@ const ManagePoll: React.FunctionComponent<{
             </>
           )}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setShowEmailReminderDialog(true)}>
+            <MailIcon />
+            Email reminder
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={exportToCsv}>
             <DownloadIcon />
             <Trans i18nKey="exportToCsv" defaults="Export to CSV" />
@@ -190,6 +198,12 @@ const ManagePoll: React.FunctionComponent<{
         urlId={poll.id}
         open={showDeletePollDialog}
         onOpenChange={setShowDeletePollDialog}
+      />
+      <EmailReminderDialog
+        pollId={poll.id}
+        pollTitle={poll.title}
+        open={showEmailReminderDialog}
+        onOpenChange={setShowEmailReminderDialog}
       />
       <DuplicateDialog
         pollId={poll.id}

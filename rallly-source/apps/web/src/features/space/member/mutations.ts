@@ -110,6 +110,127 @@ export async function inviteMember({
   return { ok: true as const, code: "INVITE_SENT" as const };
 }
 
+/**
+ * Adds an existing account directly to a space, or marks an invitation for
+ * automatic acceptance when the account is created. In either case the user
+ * can use the normal login page without opening an invitation link.
+ */
+export async function overrideAcceptInvite({
+  spaceId,
+  email,
+  role,
+  inviterId,
+}: {
+  spaceId: string;
+  email: string;
+  role: MemberRole;
+  inviterId: string;
+}) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true },
+  });
+
+  const result = await prisma.$transaction(async (tx) => {
+    if (user) {
+      const existingMember = await tx.spaceMember.findUnique({
+        where: {
+          spaceId_userId: { spaceId, userId: user.id },
+        },
+        select: { id: true },
+      });
+
+      if (existingMember) {
+        return { ok: false as const, reason: "ALREADY_MEMBER" as const };
+      }
+    }
+
+    const [usedSeats, totalSeats] = await Promise.all([
+      tx.spaceMember.count({ where: { spaceId } }),
+      getTotalSeatsForSpace(spaceId),
+    ]);
+
+    if (usedSeats >= totalSeats) {
+      return { ok: false as const, reason: "NOT_ENOUGH_SEATS" as const };
+    }
+
+    if (!user) {
+      const existingInvite = await tx.spaceMemberInvite.findFirst({
+        where: {
+          spaceId,
+          email: { equals: normalizedEmail, mode: "insensitive" },
+        },
+        select: { id: true },
+      });
+
+      if (existingInvite) {
+        await tx.spaceMemberInvite.update({
+          where: { id: existingInvite.id },
+          data: {
+            role: toDBRole(role),
+            inviterId,
+            autoAccept: true,
+          },
+        });
+      } else {
+        await tx.spaceMemberInvite.create({
+          data: {
+            spaceId,
+            email: normalizedEmail,
+            role: toDBRole(role),
+            inviterId,
+            autoAccept: true,
+          },
+        });
+      }
+
+      return {
+        ok: true as const,
+        code: "AUTO_ACCEPT_PENDING" as const,
+        memberCount: usedSeats,
+      };
+    }
+
+    await tx.spaceMember.create({
+      data: { spaceId, userId: user.id, role: toDBRole(role) },
+    });
+
+    // Clear an earlier email invitation, including one whose casing differs
+    // from the normalized account email.
+    await tx.spaceMemberInvite.deleteMany({
+      where: {
+        spaceId,
+        email: { equals: normalizedEmail, mode: "insensitive" },
+      },
+    });
+
+    return {
+      ok: true as const,
+      code: "MEMBER_ADDED" as const,
+      memberCount: usedSeats + 1,
+      userId: user.id,
+    };
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  if (result.code === "MEMBER_ADDED") {
+    try {
+      await setActiveSpace({ userId: result.userId, spaceId });
+    } catch (error) {
+      logger.warn(
+        { error, spaceId, userId: result.userId },
+        "Failed to activate space after overriding invite acceptance",
+      );
+    }
+  }
+
+  return result;
+}
+
 export async function acceptInvite({
   spaceId,
   user,

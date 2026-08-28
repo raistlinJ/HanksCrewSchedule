@@ -2,41 +2,65 @@
 
 import * as z from "zod";
 import { adoptOrphanedPolls } from "@/features/poll/mutations";
-import { getOwnedSpace } from "@/features/space/data";
+import { getAnySpaceMembership, getOwnedSpace } from "@/features/space/data";
+import { listPendingSpaceInvites } from "@/features/space/member/data";
 import { createSpace } from "@/features/space/mutations";
+import { AppError } from "@/lib/errors/app-error";
 import { identifyGroup, track } from "@/lib/posthog";
 import { authActionClient } from "@/lib/safe-action/server";
 
-const setupSpaceSchema = z.discriminatedUnion("spaceType", [
-  z.object({ spaceType: z.literal("personal") }),
+const setupSpaceSchema = z.union([
+  z.object({ createSpace: z.literal(false) }),
   z.object({
+    createSpace: z.literal(true),
+    spaceType: z.literal("personal"),
+  }),
+  z.object({
+    createSpace: z.literal(true),
     spaceType: z.literal("work"),
     organizationName: z.string().min(1).max(100),
   }),
 ]);
 
 /**
- * Creates the user's space at the end of onboarding — registration doesn't
- * create one, so this is where every account gets theirs. Accounts that
- * already own a space (pre-existing accounts sent through setup to backfill
- * profile fields, or a re-submit) only retry poll adoption: setup never
- * renames or duplicates an existing space.
+ * Completes space onboarding. Existing members and users with a pending
+ * invitation do not get a Personal space as a side effect of completing
+ * their profile. A user with neither must explicitly choose the first space
+ * to create.
  */
 export const setupSpaceAction = authActionClient
   .metadata({ actionName: "setup_space" })
   .inputSchema(setupSpaceSchema)
   .action(async ({ ctx, parsedInput }) => {
-    const ownedSpace = await getOwnedSpace(ctx.user.id);
+    const [ownedSpace, membership, pendingInvites] = await Promise.all([
+      getOwnedSpace(ctx.user.id),
+      getAnySpaceMembership(ctx.user.id),
+      listPendingSpaceInvites(ctx.user.email),
+    ]);
+    const existingSpaceId = ownedSpace?.id ?? membership?.spaceId;
 
-    if (ownedSpace) {
+    if (existingSpaceId) {
       // Create and adopt aren't atomic: a previous submit may have created
       // the space and failed before adoption, so retries still pull
       // orphaned polls in (a no-op when there are none).
       await adoptOrphanedPolls({
         userId: ctx.user.id,
-        spaceId: ownedSpace.id,
+        spaceId: existingSpaceId,
       });
       return;
+    }
+
+    if (pendingInvites.length > 0) {
+      return;
+    }
+
+    // Do not trust the client to decide that it can skip space creation. An
+    // invitation may have been cancelled after the setup page rendered.
+    if (!parsedInput.createSpace) {
+      throw new AppError({
+        code: "SETUP_REQUIRED",
+        message: "Create a space before continuing",
+      });
     }
 
     const name =

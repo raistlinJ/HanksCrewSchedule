@@ -208,13 +208,20 @@ export function MembersSettingsPageClient({
                                 </div>
                               </div>
                               <div className="text-muted-foreground text-sm">
-                                <Trans
-                                  i18nKey="memberInvitedBy"
-                                  defaults="Invited by {inviterName}"
-                                  values={{
-                                    inviterName: invite.invitedBy.name,
-                                  }}
-                                />
+                                {invite.autoAccept ? (
+                                  <Trans
+                                    i18nKey="memberAutoAcceptPending"
+                                    defaults="Will join automatically on login"
+                                  />
+                                ) : (
+                                  <Trans
+                                    i18nKey="memberInvitedBy"
+                                    defaults="Invited by {inviterName}"
+                                    values={{
+                                      inviterName: invite.invitedBy.name,
+                                    }}
+                                  />
+                                )}
                               </div>
                             </div>
                           </div>

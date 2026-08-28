@@ -5,17 +5,19 @@ import { sendNewPollEmail } from "@rallly/emails/templates/new-poll";
 import { absoluteUrl, shortUrl } from "@rallly/utils/absolute-url";
 import { nanoid } from "@rallly/utils/nanoid";
 import { TRPCError } from "@trpc/server";
-import { duplicateAuxiliarySelection } from "@/features/poll/auxiliary-selection/utils";
 import { after } from "next/server";
 import * as z from "zod";
 import { getInstanceBranding, getSpaceBranding } from "@/emails/branding";
 import { moderateContent } from "@/features/moderation/mutations";
+import { duplicateAuxiliarySelection } from "@/features/poll/auxiliary-selection/utils";
 import {
   canUserManagePoll,
   getPolls,
   hasPollAdminAccess,
 } from "@/features/poll/data";
 import { getEffectivePollEmailSettings } from "@/features/poll/email-access/utils";
+import { getPollReminderRecipients } from "@/features/poll/email-reminders/data";
+import { sendPollReminderEmails as sendPollReminderEmailsMutation } from "@/features/poll/email-reminders/mutations";
 import { markUserYesForPoll } from "@/features/poll/mutations";
 import { MAX_POLL_DESCRIPTION_LENGTH } from "@/features/poll/schema";
 import { assertYesCapacity } from "@/features/poll/yes-capacity/mutations";
@@ -263,6 +265,38 @@ export const polls = router({
       orderBy: { createdAt: "desc" },
     });
   }),
+
+  getReminderRecipients: spaceProcedure
+    .input(z.object({ pollId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const recipients = await getPollReminderRecipients({
+        pollId: input.pollId,
+        spaceId: ctx.space.id,
+      });
+      if (!recipients) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Poll not found" });
+      }
+      return recipients;
+    }),
+
+  sendReminderEmails: spaceProcedure
+    .input(
+      z.object({
+        pollId: z.string(),
+        subject: z.string().trim().min(1).max(200),
+        body: z.string().trim().min(1).max(10_000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await sendPollReminderEmailsMutation({
+        ...input,
+        spaceId: ctx.space.id,
+      });
+      if (!result) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Poll not found" });
+      }
+      return result;
+    }),
 
   infiniteChronological: spaceProcedure
     .input(

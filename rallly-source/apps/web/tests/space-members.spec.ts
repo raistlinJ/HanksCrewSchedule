@@ -142,6 +142,117 @@ test.describe("Space members", () => {
     ).toBeVisible();
   });
 
+  test("admin can override acceptance for an existing account", async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+
+    const owner = await createSpaceAdmin({ name: "Override Owner", seats: 3 });
+    const memberEmail = `override-member-${runId}@example.com`;
+    const member = await createUserInDb({
+      email: memberEmail,
+      name: "Override Member",
+    });
+    createdUserIds.push(member.id);
+
+    await gotoMembersSettings(page, owner.email);
+    await page.getByRole("button", { name: "Invite member" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Email").fill(memberEmail);
+    await dialog.getByRole("button", { name: "Override accept" }).click();
+
+    await expect(
+      page.getByText(
+        "Access granted. They will see this space when they log in.",
+      ),
+    ).toBeVisible();
+    await expect(memberRow(page, "Override Member")).toBeVisible();
+
+    await expect(
+      prisma.spaceMember.findUnique({
+        where: {
+          spaceId_userId: {
+            spaceId: owner.space.id,
+            userId: member.id,
+          },
+        },
+      }),
+    ).resolves.not.toBeNull();
+    await expect(
+      prisma.spaceMemberInvite.count({
+        where: { spaceId: owner.space.id, email: memberEmail },
+      }),
+    ).resolves.toBe(0);
+
+    const memberContext = await browser.newContext();
+    const memberPage = await memberContext.newPage();
+    try {
+      await loginWithEmail(memberPage, { email: memberEmail });
+      await expect(memberPage.getByText(owner.space.name)).toBeVisible();
+    } finally {
+      await memberContext.close();
+    }
+  });
+
+  test("override acceptance is claimed by a brand-new account on login", async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+
+    const owner = await createSpaceAdmin({
+      name: "New Override Owner",
+      seats: 3,
+    });
+    const memberEmail = `new-override-member-${runId}@example.com`;
+
+    await gotoMembersSettings(page, owner.email);
+    await page.getByRole("button", { name: "Invite member" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Email").fill(memberEmail);
+    await dialog.getByRole("button", { name: "Override accept" }).click();
+
+    await expect(
+      prisma.spaceMemberInvite.findFirst({
+        where: { spaceId: owner.space.id, email: memberEmail },
+        select: { autoAccept: true },
+      }),
+    ).resolves.toEqual({ autoAccept: true });
+    await expect(
+      memberRow(page, memberEmail).getByText(
+        "Will join automatically on login",
+      ),
+    ).toBeVisible();
+
+    const memberContext = await browser.newContext();
+    const memberPage = await memberContext.newPage();
+    try {
+      const registerPage = new RegisterPage(memberPage);
+      await registerPage.goto();
+      await registerPage.register({
+        name: "New Override Member",
+        email: memberEmail,
+        verifyProfile: false,
+        expectsProfileOnlySetup: true,
+      });
+
+      await expect(memberPage).toHaveURL("/");
+      await expect(memberPage.getByText(owner.space.name)).toBeVisible();
+
+      const member = await prisma.user.findUniqueOrThrow({
+        where: { email: memberEmail },
+        include: { spaces: true, memberOf: true },
+      });
+      expect(member.spaces).toHaveLength(0);
+      expect(member.memberOf).toHaveLength(1);
+      expect(member.memberOf[0]?.spaceId).toBe(owner.space.id);
+    } finally {
+      await memberContext.close();
+      await prisma.user.deleteMany({ where: { email: memberEmail } });
+    }
+  });
+
   test("brand-new invitee returns to the invite after registration", async ({
     page,
     browser,
@@ -174,7 +285,22 @@ test.describe("Space members", () => {
         name: "Brand New Invitee",
         email: inviteeEmail,
         verifyProfile: false,
+        expectsProfileOnlySetup: true,
       });
+
+      const inviteeBeforeAccept = await prisma.user.findUniqueOrThrow({
+        where: { email: inviteeEmail },
+        select: {
+          _count: {
+            select: {
+              spaces: true,
+              memberOf: true,
+            },
+          },
+        },
+      });
+      expect(inviteeBeforeAccept._count.spaces).toBe(0);
+      expect(inviteeBeforeAccept._count.memberOf).toBe(0);
 
       await expect(
         inviteePage.getByRole("button", { name: "Accept invite" }),
@@ -186,6 +312,10 @@ test.describe("Space members", () => {
 
       const invitee = await prisma.user.findUniqueOrThrow({
         where: { email: inviteeEmail },
+        include: {
+          spaces: true,
+          memberOf: true,
+        },
       });
       const membership = await prisma.spaceMember.findUnique({
         where: {
@@ -196,6 +326,9 @@ test.describe("Space members", () => {
         },
       });
       expect(membership).not.toBeNull();
+      expect(invitee.spaces).toHaveLength(0);
+      expect(invitee.memberOf).toHaveLength(1);
+      expect(invitee.memberOf[0]?.spaceId).toBe(owner.space.id);
     } finally {
       await inviteeContext.close();
       await prisma.user.deleteMany({ where: { email: inviteeEmail } });

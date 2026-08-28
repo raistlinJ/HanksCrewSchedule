@@ -10,6 +10,7 @@ import {
   cancelInvite,
   changeMemberRole,
   inviteMember,
+  overrideAcceptInvite,
   removeMember,
 } from "@/features/space/member/mutations";
 import {
@@ -75,6 +76,61 @@ export const inviteMemberAction = authActionClient
         event: "space_member_invite",
         properties: {
           role: parsedInput.role,
+        },
+        groups: {
+          space: space.id,
+        },
+      });
+    }
+
+    return result;
+  });
+
+export const overrideAcceptInviteAction = authActionClient
+  .metadata({ actionName: "override_accept_invite" })
+  .inputSchema(inviteMemberSchema)
+  .action(async ({ ctx, parsedInput }) => {
+    const space = await requireActiveSpace(ctx.user);
+
+    if (defineAbilityForSpace(space).cannot("invite", "Member")) {
+      throw new AppError({
+        code: "PAYMENT_REQUIRED",
+        message: "You need a Pro subscription to add members to this space",
+      });
+    }
+
+    const ability = defineAbilityForMember({ user: ctx.user, space });
+
+    if (ability.cannot("create", "SpaceMemberInvite")) {
+      throw new AppError({
+        code: "FORBIDDEN",
+        message: "You do not have permission to add members",
+      });
+    }
+
+    const result = await overrideAcceptInvite({
+      spaceId: space.id,
+      email: parsedInput.email,
+      role: parsedInput.role,
+      inviterId: ctx.user.id,
+    });
+
+    if (result.ok) {
+      identifyGroup({
+        groupType: "space",
+        groupKey: space.id,
+        properties: {
+          member_count: result.memberCount,
+        },
+      });
+
+      track(ctx.user, {
+        event: "space_member_override_accept",
+        properties: {
+          member_count: result.memberCount,
+          added_member_user_id:
+            result.code === "MEMBER_ADDED" ? result.userId : undefined,
+          override_status: result.code,
         },
         groups: {
           space: space.id,

@@ -5,6 +5,7 @@ import {
   deleteStripeCustomer,
 } from "@/features/billing/mutations";
 import { getSpaceSeatAvailability } from "@/features/space/data";
+import { getAvailableSpaceMembership } from "@/features/space/member/data";
 import {
   getUserByEmail,
   getUserCleanupCandidates,
@@ -15,6 +16,7 @@ import {
 import {
   createUser,
   hardDeleteUser,
+  setActiveSpace,
   syncPollRespondentsToUsers,
   updateUserPollAuxiliaryResponse,
   updateUserPollResponse,
@@ -212,6 +214,29 @@ export const syncPollRespondentsAction = adminActionClient
   .metadata({ actionName: "sync_poll_respondents" })
   .inputSchema(z.object({}))
   .action(async () => syncPollRespondentsToUsers());
+
+export const setUserDefaultSpaceAction = adminActionClient
+  .metadata({ actionName: "set_user_default_space" })
+  .inputSchema(
+    z.object({
+      userId: z.string(),
+      spaceId: z.string(),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    const membership = await getAvailableSpaceMembership(parsedInput);
+
+    if (!membership) {
+      throw new AppError({
+        code: "NOT_FOUND",
+        message: "User does not have access to this space",
+      });
+    }
+
+    await setActiveSpace(parsedInput);
+
+    return { success: true } as const;
+  });
 
 export const findUserCleanupCandidatesAction = adminActionClient
   .metadata({ actionName: "find_user_cleanup_candidates" })

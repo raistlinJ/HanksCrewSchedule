@@ -19,6 +19,7 @@ vi.mock("next/navigation", () => ({
 
 const mockGetSessionState = vi.fn();
 const mockGetActiveSpaceForUser = vi.fn();
+const mockGetAnySpaceMembership = vi.fn();
 const mockGetOwnedSpace = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
@@ -27,6 +28,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/features/space/data", () => ({
   getActiveSpaceForUser: (userId: string) => mockGetActiveSpaceForUser(userId),
+  getAnySpaceMembership: (userId: string) => mockGetAnySpaceMembership(userId),
   getOwnedSpace: (userId: string) => mockGetOwnedSpace(userId),
   getSpaceSeatCount: vi.fn(),
   getTotalSeatsForSpace: vi.fn(),
@@ -82,6 +84,7 @@ describe("getActiveSpace", () => {
     authenticatedAs(completeUser);
     mockGetActiveSpaceForUser.mockResolvedValue(null);
     mockGetOwnedSpace.mockResolvedValue(null);
+    mockGetAnySpaceMembership.mockResolvedValue(null);
 
     const gate = await loadGate();
 
@@ -97,6 +100,19 @@ describe("getActiveSpace", () => {
     authenticatedAs(completeUser);
     mockGetActiveSpaceForUser.mockResolvedValue(null);
     mockGetOwnedSpace.mockResolvedValue({ id: "space-1" });
+
+    const gate = await loadGate();
+
+    await expect(gate()).rejects.toThrow(NOT_FOUND);
+    expect(mockNotFound).toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("renders not-found when the user has an ineffective membership", async () => {
+    authenticatedAs(completeUser);
+    mockGetActiveSpaceForUser.mockResolvedValue(null);
+    mockGetOwnedSpace.mockResolvedValue(null);
+    mockGetAnySpaceMembership.mockResolvedValue({ spaceId: "space-1" });
 
     const gate = await loadGate();
 

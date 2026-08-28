@@ -17,6 +17,14 @@ import {
 } from "@rallly/ui/dropdown-menu";
 import { Icon } from "@rallly/ui/icon";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@rallly/ui/select";
+import { toast } from "@rallly/ui/sonner";
+import {
   BanIcon,
   MoreHorizontal,
   QrCodeIcon,
@@ -26,13 +34,14 @@ import {
   VoteIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { StackedListItem } from "@/components/stacked-list";
 import { changeRoleAction, unbanUserAction } from "@/features/user/actions";
 import { userRoleSchema } from "@/features/user/schema";
 import { Trans, useTranslation } from "@/i18n/client";
 import { useSafeAction } from "@/lib/safe-action/client";
+import { setUserDefaultSpaceAction } from "./actions";
 import { BanUserDialog } from "./dialogs/ban-user-dialog";
 import { DeleteUserDialog } from "./dialogs/delete-user-dialog";
 import { UserQrCodeDialog } from "./user-qr-code-dialog";
@@ -49,6 +58,8 @@ export function UserRow({
   canChangeRole,
   canBan,
   canDelete,
+  defaultSpaceId,
+  availableSpaces,
   selected,
   onSelectedChange,
 }: {
@@ -63,12 +74,30 @@ export function UserRow({
   canChangeRole: boolean;
   canBan: boolean;
   canDelete: boolean;
+  defaultSpaceId?: string;
+  availableSpaces: { id: string; name: string }[];
   selected: boolean;
   onSelectedChange: (selected: boolean) => void;
 }) {
   const { t } = useTranslation();
   const changeRole = useSafeAction(changeRoleAction);
   const unbanUser = useSafeAction(unbanUserAction);
+  const [selectedDefaultSpaceId, setSelectedDefaultSpaceId] =
+    useState(defaultSpaceId);
+  const setDefaultSpace = useSafeAction(setUserDefaultSpaceAction, {
+    onSuccess: () => {
+      toast.success(
+        t("defaultSpaceUpdated", {
+          defaultValue: "Default space updated",
+        }),
+      );
+    },
+    onError: () => setSelectedDefaultSpaceId(defaultSpaceId),
+  });
+
+  useEffect(() => {
+    setSelectedDefaultSpaceId(defaultSpaceId);
+  }, [defaultSpaceId]);
 
   const [isPending, startTransition] = useTransition();
   const deleteDialog = useDialog();
@@ -113,6 +142,49 @@ export function UserRow({
             </Badge>
           ) : null}
           <span className="capitalize">{role}</span>
+          <div className="w-44">
+            <div className="mb-1 text-muted-foreground text-xs">
+              <Trans i18nKey="defaultSpace" defaults="Default space" />
+            </div>
+            <Select
+              items={availableSpaces.map((space) => ({
+                value: space.id,
+                label: space.name,
+              }))}
+              value={selectedDefaultSpaceId}
+              disabled={availableSpaces.length === 0 || isPending}
+              onValueChange={(spaceId) => {
+                if (!spaceId || spaceId === selectedDefaultSpaceId) {
+                  return;
+                }
+                setSelectedDefaultSpaceId(spaceId);
+                startTransition(async () => {
+                  await setDefaultSpace.executeAsync({ userId, spaceId });
+                });
+              }}
+            >
+              <SelectTrigger
+                className="w-full justify-between"
+                aria-label={t("selectDefaultSpace", {
+                  defaultValue: "Select default space for {name}",
+                  name,
+                })}
+              >
+                <SelectValue
+                  placeholder={t("noSpacesAvailable", {
+                    defaultValue: "No spaces available",
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {availableSpaces.map((space) => (
+                  <SelectItem key={space.id} value={space.id}>
+                    {space.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={

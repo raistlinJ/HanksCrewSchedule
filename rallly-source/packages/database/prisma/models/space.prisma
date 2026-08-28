@@ -60,13 +60,14 @@ model SpaceMember {
 }
 
 model SpaceMemberInvite {
-  id        String          @id @default(uuid())
-  spaceId   String          @map("space_id")
-  email     String
-  createdAt DateTime        @default(now()) @map("created_at")
-  updatedAt DateTime        @updatedAt @map("updated_at")
-  role      SpaceMemberRole @default(MEMBER)
-  inviterId String          @map("inviter_id")
+  id         String          @id @default(uuid())
+  spaceId    String          @map("space_id")
+  email      String
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+  role       SpaceMemberRole @default(MEMBER)
+  inviterId  String          @map("inviter_id")
+  autoAccept Boolean         @default(false) @map("auto_accept")
 
   invitedBy User  @relation(fields: [inviterId], references: [id], onDelete: Cascade)
   space     Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)

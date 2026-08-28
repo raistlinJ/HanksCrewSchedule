@@ -44,6 +44,7 @@ import {
   CheckIcon,
   CircleStopIcon,
   GripVertical,
+  MailIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlayIcon,
@@ -60,6 +61,7 @@ import { HoverPrefetchLink } from "@/components/hover-prefetch-link";
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
 import { Spinner } from "@/components/spinner";
 import { StackedList, StackedListItem } from "@/components/stacked-list";
+import { EmailReminderDialog } from "@/features/poll/components/manage-poll/email-reminder-dialog";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import type { PollClosedReason, PollStatus } from "@/features/poll/schema";
 import { Trans, useTranslation } from "@/i18n/client";
@@ -114,6 +116,8 @@ function PollListItem({
   const router = useRouter();
   const pathname = usePathname();
   const deletePollDialog = useDialog();
+  const [showEmailReminderDialog, setShowEmailReminderDialog] =
+    React.useState(false);
   // Refresh server components so server-fetched data that depends on poll
   // status (e.g. the status tab counts) stays in sync with the list.
   const refresh = { onSuccess: () => router.refresh() };
@@ -266,6 +270,14 @@ function PollListItem({
                   </Icon>
                   <Trans i18nKey="responses" defaults="Responses" />
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowEmailReminderDialog(true)}
+                >
+                  <Icon>
+                    <MailIcon />
+                  </Icon>
+                  Email reminder
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {status === "open" && (
                   <DropdownMenuItem
@@ -367,6 +379,12 @@ function PollListItem({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <EmailReminderDialog
+        pollId={id}
+        pollTitle={title}
+        open={showEmailReminderDialog}
+        onOpenChange={setShowEmailReminderDialog}
+      />
     </div>
   );
 }

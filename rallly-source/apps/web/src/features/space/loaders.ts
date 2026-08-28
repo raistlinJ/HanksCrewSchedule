@@ -7,6 +7,7 @@ import { getUpcomingEventCount } from "@/features/scheduled-event/data";
 import {
   getActiveSpaceForUser,
   getAllSpaceCount,
+  getAnySpaceMembership,
   getOwnedSpace,
   getSpaceSeatCount,
   getTotalSeatsForSpace,
@@ -82,7 +83,12 @@ export const getActiveSpace = cache(async () => {
     // than a thrown AppError: nothing adapts AppError for server
     // components, so it would reach the error boundary as an unexpected
     // error, showing "Something went wrong" and reporting to Sentry.
-    if (await getOwnedSpace(user.id)) {
+    const [ownedSpace, membership] = await Promise.all([
+      getOwnedSpace(user.id),
+      getAnySpaceMembership(user.id),
+    ]);
+
+    if (ownedSpace || membership) {
       notFound();
     }
 

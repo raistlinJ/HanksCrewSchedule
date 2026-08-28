@@ -11,6 +11,7 @@ import {
   SettingsPageHeader,
   SettingsPageTitle,
 } from "@/components/settings-layout";
+import { isBillingEnabled } from "@/features/billing/constants";
 import { defineAbilityFor } from "@/features/user/ability";
 import { requireAdmin } from "@/features/user/loaders";
 import { Trans } from "@/i18n/client";
@@ -69,6 +70,21 @@ async function loadData({
         banned: true,
         createdAt: true,
         qrCodeToken: true,
+        memberOf: {
+          select: {
+            spaceId: true,
+            lastSelectedAt: true,
+            space: {
+              select: {
+                id: true,
+                name: true,
+                ownerId: true,
+                tier: true,
+              },
+            },
+          },
+          orderBy: { lastSelectedAt: "desc" },
+        },
       },
       take: pageSize,
       skip: (page - 1) * pageSize,
@@ -99,13 +115,25 @@ async function loadData({
 
   return {
     adminUser: user,
-    allUsers: allUsers.map((u) => ({
-      ...u,
-      image: u.image ?? undefined,
-      canChangeRole: ability.can("update", subject("User", u), "role"),
-      canBan: ability.can("update", subject("User", u), "banned"),
-      canDelete: ability.can("delete", subject("User", u)),
-    })),
+    allUsers: allUsers.map(({ memberOf, ...u }) => {
+      const memberships = memberOf.filter(
+        ({ space }) =>
+          !isBillingEnabled || space.tier === "pro" || space.ownerId === u.id,
+      );
+
+      return {
+        ...u,
+        image: u.image ?? undefined,
+        defaultSpaceId: memberships[0]?.spaceId,
+        availableSpaces: memberships.map(({ space }) => ({
+          id: space.id,
+          name: space.name,
+        })),
+        canChangeRole: ability.can("update", subject("User", u), "role"),
+        canBan: ability.can("update", subject("User", u), "banned"),
+        canDelete: ability.can("delete", subject("User", u)),
+      };
+    }),
     totalUsers,
     spaces,
   };

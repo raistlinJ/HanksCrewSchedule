@@ -20,10 +20,12 @@ export class RegisterPage {
     name,
     email,
     verifyProfile = true,
+    expectsProfileOnlySetup = false,
   }: {
     name: string;
     email: string;
     verifyProfile?: boolean;
+    expectsProfileOnlySetup?: boolean;
   }) {
     // The login form is visible before React has hydrated it, so input that
     // lands too early can be silently lost. Retry until the next screen
@@ -50,10 +52,15 @@ export class RegisterPage {
     const code = await getCode(email);
     await this.page.getByLabel("Enter your 6-digit code").fill(code);
 
-    // New accounts have no name and go through onboarding. The space name
-    // is prefilled, so only the name needs to be entered.
+    // New accounts have no name and go through onboarding. Ordinary signups
+    // must create their first space; pending invitees complete profile fields
+    // only and continue back to the invitation.
     await this.page
-      .getByRole("heading", { name: "Set up your account" })
+      .getByRole("heading", {
+        name: expectsProfileOnlySetup
+          ? "Set up your account"
+          : "Create your first space",
+      })
       .waitFor();
 
     // The setup page is reached via a full page load, so like the login

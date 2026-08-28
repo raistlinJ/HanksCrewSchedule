@@ -27,6 +27,7 @@ import { env } from "@/env";
 import { linkAnonymousUser } from "@/features/auth/mutations";
 import { isEmailBlocked, isTemporaryEmail } from "@/features/auth/utils";
 import { getStripe } from "@/features/billing/service";
+import { claimAutoAcceptedSpaceInvites } from "@/features/space/member/auto-accept/mutations";
 import type { UserDTO } from "@/features/user/schema";
 import { getTranslation } from "@/i18n/server";
 import { getLocale } from "@/i18n/server/get-locale";
@@ -45,6 +46,22 @@ const kv = redis;
 const baseURL = absoluteUrl("/api/better-auth");
 
 const logger = createLogger("auth");
+
+async function claimOverrideInvites(user: { id: string; email: string }) {
+  try {
+    await claimAutoAcceptedSpaceInvites({
+      userId: user.id,
+      email: user.email,
+    });
+  } catch (error) {
+    // Membership claiming should not make registration or login unavailable.
+    // A later session will retry while the auto-accept invite remains pending.
+    logger.error(
+      { error, userId: user.id },
+      "Failed to claim auto-accepted space invites",
+    );
+  }
+}
 
 if (env.OIDC_ISSUER_URL) {
   logger.info(
@@ -477,6 +494,7 @@ export const authLib = betterAuth({
           if (user.isAnonymous) {
             return;
           }
+          await claimOverrideInvites(user);
           // No space is created here — /setup owns space creation, and the
           // active-space gate keeps redirecting there until it happens.
           track(
@@ -501,6 +519,18 @@ export const authLib = betterAuth({
     session: {
       create: {
         after: async (session) => {
+          const sessionUser = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { email: true, isAnonymous: true },
+          });
+
+          if (sessionUser && !sessionUser.isAnonymous) {
+            await claimOverrideInvites({
+              id: session.userId,
+              email: sessionUser.email,
+            });
+          }
+
           after(async () => {
             const user = await prisma.user
               .update({

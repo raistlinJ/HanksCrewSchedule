@@ -46,6 +46,8 @@ export type UsersListUser = {
   canChangeRole: boolean;
   canBan: boolean;
   canDelete: boolean;
+  defaultSpaceId?: string;
+  availableSpaces: { id: string; name: string }[];
 };
 
 function safeFileName(value: string) {
@@ -250,6 +252,8 @@ export function UsersList({
                   canChangeRole={user.canChangeRole}
                   canBan={user.canBan}
                   canDelete={user.canDelete}
+                  defaultSpaceId={user.defaultSpaceId}
+                  availableSpaces={user.availableSpaces}
                   selected={selectedIds.has(user.id)}
                   onSelectedChange={(selected) => {
                     setSelectedIds((current) => {

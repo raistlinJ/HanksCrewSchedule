@@ -34,7 +34,10 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { SpaceRole } from "@/features/space/components/space-role";
-import { inviteMemberAction } from "@/features/space/member/actions";
+import {
+  inviteMemberAction,
+  overrideAcceptInviteAction,
+} from "@/features/space/member/actions";
 import { memberRoleSchema } from "@/features/space/schema";
 import { Trans, useTranslation } from "@/i18n/client";
 import { useSafeAction } from "@/lib/safe-action/client";
@@ -129,6 +132,45 @@ export function InviteMemberForm({ onSuccess }: { onSuccess?: () => void }) {
             });
             break;
         }
+      }
+    },
+  });
+  const overrideAccept = useSafeAction(overrideAcceptInviteAction, {
+    onSuccess: ({ data }) => {
+      if (!data) {
+        return;
+      }
+
+      if (data.ok) {
+        toast.success(
+          t("overrideAcceptSuccess", {
+            defaultValue:
+              "Access granted. They will see this space when they log in.",
+          }),
+        );
+        form.reset();
+        onSuccess?.();
+        return;
+      }
+
+      switch (data.reason) {
+        case "ALREADY_MEMBER":
+          form.setError("email", {
+            type: "manual",
+            message: t("alreadyMember", {
+              defaultValue: "This person is already a member of this space",
+            }),
+          });
+          break;
+        case "NOT_ENOUGH_SEATS":
+          form.setError("root", {
+            type: "manual",
+            message: t("inviteNotEnoughSeats", {
+              defaultValue:
+                "There are not enough seats available to add this member",
+            }),
+          });
+          break;
       }
     },
   });
@@ -232,13 +274,22 @@ export function InviteMemberForm({ onSuccess }: { onSuccess?: () => void }) {
           />
           <FormMessage />
         </div>
-        <div className="mt-4 flex">
+        <div className="mt-4 flex gap-2">
           <Button
             variant="primary"
             loading={inviteMember.isExecuting}
+            disabled={overrideAccept.isExecuting}
             type="submit"
           >
             <Trans i18nKey="inviteMemberFormSubmit" defaults="Send invite" />
+          </Button>
+          <Button
+            loading={overrideAccept.isExecuting}
+            disabled={inviteMember.isExecuting}
+            type="button"
+            onClick={form.handleSubmit((data) => overrideAccept.execute(data))}
+          >
+            <Trans i18nKey="overrideAccept" defaults="Override accept" />
           </Button>
         </div>
       </form>

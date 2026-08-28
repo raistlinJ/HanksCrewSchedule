@@ -27,7 +27,7 @@ import { useLocale } from "@/lib/locale/client";
 import { useSafeAction } from "@/lib/safe-action/client";
 import { getBrowserTimeZone } from "@/lib/utils/date-time-utils";
 
-function useSetupFormSchema() {
+function useSetupFormSchema(requiresSpace: boolean) {
   const { t } = useTranslation();
   return React.useMemo(() => {
     return z
@@ -40,6 +40,7 @@ function useSetupFormSchema() {
       })
       .refine(
         (data) =>
+          !requiresSpace ||
           data.spaceType === "personal" ||
           data.organizationName.trim().length > 0,
         {
@@ -49,7 +50,7 @@ function useSetupFormSchema() {
           }),
         },
       );
-  }, [t]);
+  }, [requiresSpace, t]);
 }
 
 function SpaceTypeOption({
@@ -80,14 +81,16 @@ export function SetupForm({
   defaultName,
   defaultTimeZone,
   defaultTimeFormat,
+  requiresSpace,
 }: {
   defaultName: string;
   defaultTimeZone?: string;
   defaultTimeFormat?: TimeFormat;
+  requiresSpace: boolean;
 }) {
   const { t } = useTranslation();
   const { locale } = useLocale();
-  const schema = useSetupFormSchema();
+  const schema = useSetupFormSchema(requiresSpace);
   const setupSpace = useSafeAction(setupSpaceAction);
 
   const form = useForm({
@@ -133,9 +136,15 @@ export function SetupForm({
             // retry. On success the hook refreshes the router and the page
             // redirects onward while the button stays loading.
             await setupSpace.executeAsync(
-              spaceType === "work"
-                ? { spaceType, organizationName: organizationName.trim() }
-                : { spaceType },
+              !requiresSpace
+                ? { createSpace: false }
+                : spaceType === "work"
+                  ? {
+                      createSpace: true,
+                      spaceType,
+                      organizationName: organizationName.trim(),
+                    }
+                  : { createSpace: true, spaceType },
             );
           },
         )}
@@ -216,45 +225,47 @@ export function SetupForm({
             )}
           />
         </div>
-        <FormField
-          control={form.control}
-          name="spaceType"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                <Trans
-                  i18nKey="spaceTypeLabel"
-                  defaults="What will you be using it for?"
-                />
-              </FormLabel>
-              <FormControl>
-                <RadioGroup
-                  value={field.value}
-                  onValueChange={(value) => {
-                    field.onChange(value);
-                    form.clearErrors("organizationName");
-                  }}
-                  className="grid grid-cols-2 gap-2"
-                >
-                  <SpaceTypeOption
-                    value="personal"
-                    icon={<UserIcon className="size-4" />}
-                    label={t("spaceTypePersonal", {
-                      defaultValue: "Personal",
-                    })}
+        {requiresSpace ? (
+          <FormField
+            control={form.control}
+            name="spaceType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  <Trans
+                    i18nKey="spaceTypeLabel"
+                    defaults="What will you be using it for?"
                   />
-                  <SpaceTypeOption
-                    value="work"
-                    icon={<BriefcaseIcon className="size-4" />}
-                    label={t("spaceTypeWork", { defaultValue: "Work" })}
-                  />
-                </RadioGroup>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {spaceType === "work" ? (
+                </FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    value={field.value}
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      form.clearErrors("organizationName");
+                    }}
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    <SpaceTypeOption
+                      value="personal"
+                      icon={<UserIcon className="size-4" />}
+                      label={t("spaceTypePersonal", {
+                        defaultValue: "Personal",
+                      })}
+                    />
+                    <SpaceTypeOption
+                      value="work"
+                      icon={<BriefcaseIcon className="size-4" />}
+                      label={t("spaceTypeWork", { defaultValue: "Work" })}
+                    />
+                  </RadioGroup>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        ) : null}
+        {requiresSpace && spaceType === "work" ? (
           <FormField
             control={form.control}
             name="organizationName"

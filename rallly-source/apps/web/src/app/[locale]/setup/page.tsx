@@ -4,7 +4,8 @@ import { SetupFooter } from "@/app/[locale]/setup/components/setup-footer";
 import { SetupForm } from "@/app/[locale]/setup/components/setup-form";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Logo } from "@/features/branding/components/logo";
-import { getOwnedSpace } from "@/features/space/data";
+import { getAnySpaceMembership, getOwnedSpace } from "@/features/space/data";
+import { listPendingSpaceInvites } from "@/features/space/member/data";
 import { getCurrentUser, requireUser } from "@/features/user/loaders";
 import { Trans } from "@/i18n/client";
 import { getTranslation } from "@/i18n/server";
@@ -24,18 +25,32 @@ export default async function SetupPage(props: {
   }
   const searchParams = await props.searchParams;
 
-  // Whether onboarding is done is "does a space exist", not "is one
-  // active": getActiveSpaceForUser hides memberships in hobby spaces the
-  // user doesn't own, so gating on it sent established accounts back here
-  // and had them create a second space.
-  const space = await getOwnedSpace(user.id);
+  // Use all memberships rather than only effective/active ones: completing a
+  // profile must never create a second space for an existing member. Pending
+  // invitees also complete only their profile before returning to the invite.
+  const [ownedSpace, membership, pendingInvites] = await Promise.all([
+    getOwnedSpace(user.id),
+    getAnySpaceMembership(user.id),
+    listPendingSpaceInvites(user.email),
+  ]);
+  const hasSpace = Boolean(ownedSpace ?? membership);
+  const safeRedirect = validateRedirectUrl(searchParams?.redirectTo);
 
-  // Mirrors the gate in features/space/loaders.ts: name and a space are
-  // required, timezone and time format are not. The two conditions have to
-  // agree or the user ping-pongs between here and the app.
-  if (user.name && space) {
-    redirect(validateRedirectUrl(searchParams?.redirectTo) ?? "/");
+  if (user.name && hasSpace) {
+    redirect(safeRedirect ?? "/");
   }
+
+  if (user.name && pendingInvites.length > 0) {
+    const requestedInvite = pendingInvites.find(
+      ({ id }) => safeRedirect === `/accept-invite/${id}`,
+    );
+    const nextInvite = requestedInvite ?? pendingInvites[0];
+    if (nextInvite) {
+      redirect(`/accept-invite/${nextInvite.id}`);
+    }
+  }
+
+  const requiresSpace = !hasSpace && pendingInvites.length === 0;
 
   // Prefill from the device: the timeZone cookie tracks the browser's zone
   // on every visit, and the format cookie holds a per-device choice.
@@ -56,14 +71,28 @@ export default async function SetupPage(props: {
           <header>
             <h1 className="font-bold text-2xl">
               <Trans
-                i18nKey="setupAccountTitle"
-                defaults="Set up your account"
+                i18nKey={
+                  requiresSpace ? "createFirstSpaceTitle" : "setupAccountTitle"
+                }
+                defaults={
+                  requiresSpace
+                    ? "Create your first space"
+                    : "Set up your account"
+                }
               />
             </h1>
             <p className="mt-1 text-muted-foreground">
               <Trans
-                i18nKey="setupAccountDescription"
-                defaults="Tell us a bit about yourself."
+                i18nKey={
+                  requiresSpace
+                    ? "createFirstSpaceDescription"
+                    : "setupAccountDescription"
+                }
+                defaults={
+                  requiresSpace
+                    ? "Create a space before getting started."
+                    : "Tell us a bit about yourself."
+                }
               />
             </p>
           </header>
@@ -72,6 +101,7 @@ export default async function SetupPage(props: {
               defaultName={user.name}
               defaultTimeZone={user.timeZone ?? device.timeZone}
               defaultTimeFormat={user.timeFormat ?? device.timeFormat}
+              requiresSpace={requiresSpace}
             />
           </div>
         </article>
