@@ -13,7 +13,6 @@ import { getTranslation } from "@/i18n/server";
 import { ActivePollRange } from "./active-poll-range";
 import { ActivePollsList } from "./active-polls-list";
 
-const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function parseDateParam(value: string | string[] | undefined) {
@@ -38,7 +37,7 @@ export default async function ActivePollsPage({
   const range = hasValidCustomRange
     ? { start: requestedStart, end: requestedEnd }
     : {
-        start: new Date(now.getTime() - FOUR_HOURS_MS),
+        start: now,
         end: new Date(now.getTime() + ONE_WEEK_MS),
       };
   const items = await loadActivePollOverview(range);

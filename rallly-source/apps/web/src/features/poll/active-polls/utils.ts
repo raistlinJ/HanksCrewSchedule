@@ -63,6 +63,14 @@ function getPollTiming(
     const durationMs =
       option.duration > 0 ? option.duration * 60 * 1000 : ALL_DAY_DURATION_MS;
     const optionEnd = new Date(option.startTime.getTime() + durationMs);
+
+    // Options are separate choices, not one continuous interval from the
+    // poll's earliest start to its latest end. Ignore an option unless that
+    // specific interval overlaps the requested window.
+    if (optionEnd <= range.start || option.startTime > range.end) {
+      continue;
+    }
+
     if (!firstStart || option.startTime < firstStart) {
       firstStart = option.startTime;
     }
@@ -97,11 +105,7 @@ export function buildActivePollOverview(
 
   for (const poll of polls) {
     const timing = getPollTiming(poll.options, range);
-    if (
-      !timing ||
-      timing.lastEnd < range.start ||
-      timing.firstStart > range.end
-    ) {
+    if (!timing) {
       continue;
     }
     const nextStart = timing.displayStart;

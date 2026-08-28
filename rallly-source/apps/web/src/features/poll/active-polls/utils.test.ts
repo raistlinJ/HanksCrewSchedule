@@ -3,7 +3,7 @@ import type { ActivePollOverviewSource } from "./utils";
 import { buildActivePollOverview } from "./utils";
 
 const defaultRange = {
-  start: new Date("2026-08-22T08:00:00Z"),
+  start: new Date("2026-08-22T12:00:00Z"),
   end: new Date("2026-08-29T12:00:00Z"),
 };
 const referenceTime = new Date("2026-08-22T12:00:00Z");
@@ -99,22 +99,22 @@ describe("buildActivePollOverview", () => {
     expect(result).toEqual([]);
   });
 
-  it("keeps only polls overlapping the hard date range", () => {
+  it("keeps only polls with an option overlapping the hard date range", () => {
     const result = buildActivePollOverview(
       [
         poll({
-          id: "recent",
-          title: "Recently ended",
+          id: "ended",
+          title: "Just ended",
           status: "closed",
           options: [
-            { startTime: new Date("2026-08-22T07:00:00Z"), duration: 60 },
+            { startTime: new Date("2026-08-22T11:00:00Z"), duration: 60 },
           ],
         }),
         poll({
-          id: "stale",
-          title: "Too old",
+          id: "active",
+          title: "Still active",
           options: [
-            { startTime: new Date("2026-08-22T06:59:00Z"), duration: 60 },
+            { startTime: new Date("2026-08-22T11:30:00Z"), duration: 60 },
           ],
         }),
         poll({
@@ -136,15 +136,93 @@ describe("buildActivePollOverview", () => {
       referenceTime,
     );
 
-    expect(result.map(({ id }) => id)).toEqual(["recent", "future"]);
+    expect(result.map(({ id }) => id)).toEqual(["active", "future"]);
     expect(result[0]).toMatchObject({
       kind: "poll",
-      status: "closed",
-      scanHref: "/poll/recent/scan",
-      manualAddHref: "/poll/recent?manualAdd=1",
-      resultsHref: "/poll/recent/results",
-      publicHref: "/invite/recent",
+      status: "open",
+      scanHref: "/poll/active/scan",
+      manualAddHref: "/poll/active?manualAdd=1",
+      resultsHref: "/poll/active/results",
+      publicHref: "/invite/active",
     });
+  });
+
+  it("does not treat gaps between options as active time", () => {
+    const result = buildActivePollOverview(
+      [
+        poll({
+          id: "split-options",
+          title: "No nearby choices",
+          options: [
+            { startTime: new Date("2026-08-20T12:00:00Z"), duration: 60 },
+            { startTime: new Date("2026-09-01T12:00:00Z"), duration: 60 },
+          ],
+        }),
+      ],
+      defaultRange,
+      referenceTime,
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it("shows only nearby group questions unless the range start is moved", () => {
+    const group = {
+      id: "group-1",
+      title: "Crew questions",
+      description: null,
+      pollOrder: ["passed", "near", "far"],
+      publicResults: false,
+    };
+    const questions = [
+      poll({
+        id: "passed",
+        title: "Passed question",
+        pollGroupId: group.id,
+        pollGroup: group,
+        options: [
+          { startTime: new Date("2026-08-22T09:00:00Z"), duration: 60 },
+        ],
+      }),
+      poll({
+        id: "near",
+        title: "Nearby question",
+        pollGroupId: group.id,
+        pollGroup: group,
+        options: [
+          { startTime: new Date("2026-08-23T09:00:00Z"), duration: 60 },
+        ],
+      }),
+      poll({
+        id: "far",
+        title: "Far question",
+        pollGroupId: group.id,
+        pollGroup: group,
+        options: [
+          { startTime: new Date("2026-09-01T09:00:00Z"), duration: 60 },
+        ],
+      }),
+    ];
+
+    const defaultResult = buildActivePollOverview(
+      questions,
+      defaultRange,
+      referenceTime,
+    );
+    expect(defaultResult[0]?.polls.map(({ id }) => id)).toEqual(["near"]);
+
+    const movedStartResult = buildActivePollOverview(
+      questions,
+      {
+        start: new Date("2026-08-22T08:00:00Z"),
+        end: defaultRange.end,
+      },
+      referenceTime,
+    );
+    expect(movedStartResult[0]?.polls.map(({ id }) => id)).toEqual([
+      "passed",
+      "near",
+    ]);
   });
 
   it("orders items by their distance from the current date and time", () => {
