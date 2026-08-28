@@ -51,7 +51,7 @@ const ALL_DAY_DURATION_MS = 24 * 60 * 60 * 1000;
 
 function getPollTiming(
   options: { startTime: Date; duration: number }[],
-  range: ActivePollRange,
+  range?: ActivePollRange,
 ) {
   if (options.length === 0) return null;
 
@@ -67,7 +67,7 @@ function getPollTiming(
     // Options are separate choices, not one continuous interval from the
     // poll's earliest start to its latest end. Ignore an option unless that
     // specific interval overlaps the requested window.
-    if (optionEnd <= range.start || option.startTime > range.end) {
+    if (range && (optionEnd <= range.start || option.startTime > range.end)) {
       continue;
     }
 
@@ -78,6 +78,7 @@ function getPollTiming(
       lastEnd = optionEnd;
     }
     if (
+      range &&
       option.startTime >= range.start &&
       option.startTime <= range.end &&
       (!firstStartInRange || option.startTime < firstStartInRange)
@@ -95,136 +96,160 @@ function getPollTiming(
   };
 }
 
+function timingOverlapsRange(
+  timing: NonNullable<ReturnType<typeof getPollTiming>>,
+  range: ActivePollRange,
+) {
+  return timing.lastEnd > range.start && timing.firstStart <= range.end;
+}
+
+function getGroupStatus(
+  timing: NonNullable<ReturnType<typeof getPollTiming>>,
+  referenceTime: Date,
+): ActivePollOverviewItem["status"] {
+  if (referenceTime < timing.firstStart) return "scheduled";
+  if (referenceTime < timing.lastEnd) return "open";
+  return "closed";
+}
+
 export function buildActivePollOverview(
   polls: ActivePollOverviewSource[],
   range: ActivePollRange,
   referenceTime = new Date(),
 ): ActivePollOverviewItem[] {
   const items = new Map<string, ActivePollOverviewItem>();
-  const groupYesRespondents = new Map<string, Set<string>>();
+  const groupedPolls = new Map<
+    string,
+    {
+      group: NonNullable<ActivePollOverviewSource["pollGroup"]>;
+      polls: [ActivePollOverviewSource, ...ActivePollOverviewSource[]];
+    }
+  >();
 
   for (const poll of polls) {
+    if (poll.pollGroup) {
+      const grouped = groupedPolls.get(poll.pollGroup.id);
+      if (grouped) {
+        grouped.polls.push(poll);
+      } else {
+        groupedPolls.set(poll.pollGroup.id, {
+          group: poll.pollGroup,
+          polls: [poll],
+        });
+      }
+      continue;
+    }
+
     const timing = getPollTiming(poll.options, range);
     if (!timing) {
       continue;
     }
     const nextStart = timing.displayStart;
 
-    if (!poll.pollGroup) {
-      // Never fall back to a standalone card when the poll has group
-      // membership but its group details are unavailable.
-      if (poll.pollGroupId) {
-        continue;
-      }
-      items.set(`poll:${poll.id}`, {
-        kind: "poll",
-        id: poll.id,
-        title: poll.title,
-        description: poll.description,
-        location: poll.location,
-        isOnDemand: poll.isOnDemand,
-        status: poll.status,
-        yesResponseCount: new Set(poll.yesRespondentIds).size,
-        nextStart,
-        createdAt: poll.createdAt,
-        scanHref: `/poll/${poll.id}/scan`,
-        manualAddHref: `/poll/${poll.id}?manualAdd=1`,
-        resultsHref: `/poll/${poll.id}/results`,
-        publicHref: `/invite/${poll.id}`,
-        publicResultsHref: poll.publicResults
-          ? `/invite/${poll.id}/results`
-          : null,
-        polls: [
-          {
-            id: poll.id,
-            title: poll.title,
-            yesResponseCount: new Set(poll.yesRespondentIds).size,
-            status: poll.status,
-            nextStart,
-            scanHref: `/poll/${poll.id}/scan`,
-          },
-        ],
-      });
+    // Never fall back to a standalone card when the poll has group membership
+    // but its group details are unavailable.
+    if (poll.pollGroupId) {
       continue;
     }
 
-    const key = `group:${poll.pollGroup.id}`;
-    const existing = items.get(key);
-    const yesRespondents = groupYesRespondents.get(key) ?? new Set<string>();
-    for (const respondentId of poll.yesRespondentIds) {
-      yesRespondents.add(respondentId);
-    }
-    groupYesRespondents.set(key, yesRespondents);
-    const groupPoll = {
+    items.set(`poll:${poll.id}`, {
+      kind: "poll",
       id: poll.id,
       title: poll.title,
-      yesResponseCount: new Set(poll.yesRespondentIds).size,
-      status: poll.status,
-      nextStart,
-      scanHref: `/groups/${poll.pollGroup.id}/polls/${poll.id}/scan`,
-    };
-
-    if (existing) {
-      existing.polls.push(groupPoll);
-      existing.yesResponseCount = yesRespondents.size;
-      existing.isOnDemand = existing.isOnDemand || poll.isOnDemand;
-      if (
-        poll.status === "open" ||
-        (poll.status === "scheduled" && existing.status === "closed")
-      ) {
-        existing.status = poll.status;
-      }
-      if (
-        nextStart &&
-        (!existing.nextStart || nextStart < existing.nextStart)
-      ) {
-        existing.nextStart = nextStart;
-      }
-      if (poll.createdAt > existing.createdAt) {
-        existing.createdAt = poll.createdAt;
-      }
-      continue;
-    }
-
-    items.set(key, {
-      kind: "group",
-      id: poll.pollGroup.id,
-      title: poll.pollGroup.title,
-      description: poll.pollGroup.description,
-      location: null,
+      description: poll.description,
+      location: poll.location,
       isOnDemand: poll.isOnDemand,
       status: poll.status,
-      yesResponseCount: yesRespondents.size,
+      yesResponseCount: new Set(poll.yesRespondentIds).size,
       nextStart,
       createdAt: poll.createdAt,
-      scanHref: `/groups/${poll.pollGroup.id}/scan`,
-      manualAddHref: `/g/${poll.pollGroup.id}?manualAdd=1`,
-      resultsHref: `/groups/${poll.pollGroup.id}/responses`,
-      publicHref: `/g/${poll.pollGroup.id}`,
-      publicResultsHref: poll.pollGroup.publicResults
-        ? `/g/${poll.pollGroup.id}/results`
+      scanHref: `/poll/${poll.id}/scan`,
+      manualAddHref: `/poll/${poll.id}?manualAdd=1`,
+      resultsHref: `/poll/${poll.id}/results`,
+      publicHref: `/invite/${poll.id}`,
+      publicResultsHref: poll.publicResults
+        ? `/invite/${poll.id}/results`
         : null,
-      polls: [groupPoll],
+      polls: [
+        {
+          id: poll.id,
+          title: poll.title,
+          yesResponseCount: new Set(poll.yesRespondentIds).size,
+          status: poll.status,
+          nextStart,
+          scanHref: `/poll/${poll.id}/scan`,
+        },
+      ],
     });
   }
 
-  for (const item of items.values()) {
-    if (item.kind !== "group") {
+  for (const { group, polls: groupSourcePolls } of groupedPolls.values()) {
+    // A poll group is one continuous active/upcoming window from the earliest
+    // option in any child poll through the latest option end in any child poll.
+    const groupTiming = getPollTiming(
+      groupSourcePolls.flatMap((poll) => poll.options),
+    );
+    if (!groupTiming || !timingOverlapsRange(groupTiming, range)) {
       continue;
     }
-    const group = polls.find(
-      (poll) => poll.pollGroup?.id === item.id,
-    )?.pollGroup;
-    if (!group) {
-      continue;
-    }
-    item.polls.sort((a, b) => {
+
+    const yesRespondents = new Set(
+      groupSourcePolls.flatMap((poll) => poll.yesRespondentIds),
+    );
+    const visiblePolls = groupSourcePolls.flatMap((poll) => {
+      const timing = getPollTiming(poll.options, range);
+      if (!timing) return [];
+
+      return [
+        {
+          id: poll.id,
+          title: poll.title,
+          yesResponseCount: new Set(poll.yesRespondentIds).size,
+          status: poll.status,
+          nextStart: timing.displayStart,
+          scanHref: `/groups/${group.id}/polls/${poll.id}/scan`,
+        },
+      ];
+    });
+
+    visiblePolls.sort((a, b) => {
       const aIndex = group.pollOrder.indexOf(a.id);
       const bIndex = group.pollOrder.indexOf(b.id);
       if (aIndex === -1 && bIndex === -1) return a.title.localeCompare(b.title);
       if (aIndex === -1) return 1;
       if (bIndex === -1) return -1;
       return aIndex - bIndex;
+    });
+
+    const createdAt = groupSourcePolls.reduce(
+      (latest, poll) => (poll.createdAt > latest ? poll.createdAt : latest),
+      groupSourcePolls[0].createdAt,
+    );
+    const nextStart = visiblePolls.reduce<Date | null>(
+      (earliest, poll) =>
+        poll.nextStart && (!earliest || poll.nextStart < earliest)
+          ? poll.nextStart
+          : earliest,
+      null,
+    );
+
+    items.set(`group:${group.id}`, {
+      kind: "group",
+      id: group.id,
+      title: group.title,
+      description: group.description,
+      location: null,
+      isOnDemand: groupSourcePolls.some((poll) => poll.isOnDemand),
+      status: getGroupStatus(groupTiming, referenceTime),
+      yesResponseCount: yesRespondents.size,
+      nextStart,
+      createdAt,
+      scanHref: `/groups/${group.id}/scan`,
+      manualAddHref: `/g/${group.id}?manualAdd=1`,
+      resultsHref: `/groups/${group.id}/responses`,
+      publicHref: `/g/${group.id}`,
+      publicResultsHref: group.publicResults ? `/g/${group.id}/results` : null,
+      polls: visiblePolls,
     });
   }
 

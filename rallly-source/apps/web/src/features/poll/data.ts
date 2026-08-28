@@ -21,7 +21,6 @@ export async function getActivePollOverview({
         { status: { in: ["open", "scheduled"] } },
         { status: "closed", closedReason: "auto" },
       ],
-      options: { some: { startTime: { lte: range.end } } },
     },
     select: {
       id: true,

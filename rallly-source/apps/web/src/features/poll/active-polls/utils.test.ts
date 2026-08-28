@@ -70,7 +70,7 @@ describe("buildActivePollOverview", () => {
       kind: "group",
       id: "group-1",
       yesResponseCount: 3,
-      status: "open",
+      status: "scheduled",
       nextStart: new Date("2026-08-23T17:00:00Z"),
       scanHref: "/groups/group-1/scan",
       manualAddHref: "/g/group-1?manualAdd=1",
@@ -164,6 +164,53 @@ describe("buildActivePollOverview", () => {
     );
 
     expect(result).toEqual([]);
+  });
+
+  it("treats a poll group as active from its earliest start through its latest end", () => {
+    const group = {
+      id: "group-1",
+      title: "Season schedule",
+      description: null,
+      pollOrder: ["past", "future"],
+      publicResults: false,
+    };
+
+    const result = buildActivePollOverview(
+      [
+        poll({
+          id: "past",
+          title: "Past question",
+          yesRespondentIds: ["user-1"],
+          pollGroupId: group.id,
+          pollGroup: group,
+          options: [
+            { startTime: new Date("2026-08-20T12:00:00Z"), duration: 60 },
+          ],
+        }),
+        poll({
+          id: "future",
+          title: "Future question",
+          yesRespondentIds: ["user-2"],
+          pollGroupId: group.id,
+          pollGroup: group,
+          options: [
+            { startTime: new Date("2026-09-01T12:00:00Z"), duration: 60 },
+          ],
+        }),
+      ],
+      defaultRange,
+      referenceTime,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      kind: "group",
+      id: "group-1",
+      status: "open",
+      yesResponseCount: 2,
+      nextStart: null,
+      polls: [],
+    });
   });
 
   it("shows only nearby group questions unless the range start is moved", () => {
