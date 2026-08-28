@@ -17,6 +17,7 @@ test("unauthenticated visitor gets a working, hydrated login page", async ({
   await page.goto("/login");
 
   await expect(page.getByText("Welcome")).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-dpl-id", /.+/);
 
   // Filling the form proves client JS booted and hydrated — a crashed
   // bundle leaves the error boundary in place of the form.

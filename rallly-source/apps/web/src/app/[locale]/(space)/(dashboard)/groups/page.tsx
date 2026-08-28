@@ -581,8 +581,8 @@ export default function PollGroupsDashboardPage() {
             Export All
           </a>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger asChild>
-              <Button>+ Create Poll Group</Button>
+            <DialogTrigger render={<Button />}>
+              + Create Poll Group
             </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -763,10 +763,10 @@ export default function PollGroupsDashboardPage() {
                                 </span>
                               ) : null}
                               <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
+                                <DropdownMenuTrigger
+                                  render={<Button size="sm" className="h-8 w-8 p-0" />}
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => handleOpenEdit(group)} className="cursor-pointer flex items-center gap-2">
@@ -775,11 +775,18 @@ export default function PollGroupsDashboardPage() {
                                   
                                   <DropdownMenuSeparator />
 
-                                  <DropdownMenuItem asChild className="cursor-pointer">
-                                    <a href={`/g/${group.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 w-full">
-                                      <ExternalLink className="w-4 h-4" />
-                                      View public page
-                                    </a>
+                                  <DropdownMenuItem
+                                    render={
+                                      <a
+                                        href={`/g/${group.id}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      />
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                    View public page
                                   </DropdownMenuItem>
 
                                   <DropdownMenuItem onClick={() => handleEmailReminder(group)} className="cursor-pointer flex items-center gap-2">
@@ -836,15 +843,17 @@ export default function PollGroupsDashboardPage() {
                                     📄 {duplicatingId === group.id ? "Duplicating..." : "Duplicate"}
                                   </DropdownMenuItem>
 
-                                  <DropdownMenuItem asChild>
-                                    <a
-                                      href={`/groups/${group.id}/export/csv`}
-                                      download
-                                      className="cursor-pointer flex items-center gap-2"
-                                    >
-                                      <DownloadIcon className="w-4 h-4" />
-                                      Export CSV
-                                    </a>
+                                  <DropdownMenuItem
+                                    render={
+                                      <a
+                                        href={`/groups/${group.id}/export/csv`}
+                                        download
+                                      />
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    <DownloadIcon className="w-4 h-4" />
+                                    Export CSV
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1145,7 +1154,7 @@ export default function PollGroupsDashboardPage() {
             )}
           </div>
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setReminderModalOpen(false)}>
+            <Button onClick={() => setReminderModalOpen(false)}>
               Cancel
             </Button>
             <Button 

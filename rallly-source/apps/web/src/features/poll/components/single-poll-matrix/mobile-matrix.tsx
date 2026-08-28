@@ -30,7 +30,7 @@ interface Vote {
 interface Participant {
   id: string;
   name: string;
-  email?: string;
+  email?: string | null;
   votes: Vote[];
 }
 
@@ -141,7 +141,6 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
             <Button
-              variant="outline"
               size="icon"
               onClick={() => setCurrentOptionIndex(Math.max(0, currentOptionIndex - 1))}
               disabled={currentOptionIndex === 0}
@@ -161,7 +160,6 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
             </div>
 
             <Button
-              variant="outline"
               size="icon"
               onClick={() => setCurrentOptionIndex(Math.min(options.length - 1, currentOptionIndex + 1))}
               disabled={currentOptionIndex === options.length - 1}
@@ -331,7 +329,6 @@ const MobilePollMatrix: React.FC<MobilePollMatrixProps> = ({
                     <Button
                       type="button"
                       size="sm"
-                      variant="outline"
                       className="flex-1"
                       onClick={() => {
                         setShowAddParticipant(false);

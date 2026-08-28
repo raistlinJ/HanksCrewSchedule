@@ -16,7 +16,15 @@ export class RegisterPage {
     await this.page.getByText("Welcome").waitFor();
   }
 
-  async register({ name, email }: { name: string; email: string }) {
+  async register({
+    name,
+    email,
+    verifyProfile = true,
+  }: {
+    name: string;
+    email: string;
+    verifyProfile?: boolean;
+  }) {
     // The login form is visible before React has hydrated it, so input that
     // lands too early can be silently lost. Retry until the next screen
     // appears. The OTP is reused across resends (resendStrategy: "reuse"),
@@ -66,7 +74,11 @@ export class RegisterPage {
       });
     }).toPass();
 
-    // Verify successful registration
-    await expect(this.page.getByText(name)).toBeVisible();
+    // Most registration flows land on the dashboard, where the profile name
+    // is visible. Redirected flows (for example, a pending space invite) have
+    // their own destination-specific assertion instead.
+    if (verifyProfile) {
+      await expect(this.page.getByText(name)).toBeVisible();
+    }
   }
 }

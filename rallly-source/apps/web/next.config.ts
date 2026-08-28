@@ -14,6 +14,11 @@ const withBundleAnalyzer = createBundleAnalyzer({
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: [process.env.DEV_DOMAIN ?? "web.rallly.test"],
+  // Docker images already receive a unique app version at build time. Using
+  // it as the deployment ID lets Next detect a browser that still has assets
+  // or Server Action references from the previous image and force a hard
+  // navigation instead of surfacing a misleading 404.
+  deploymentId: process.env.NEXT_PUBLIC_APP_VERSION,
   experimental: {
     workerThreads: false,
     cpus: 1,

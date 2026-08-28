@@ -36,6 +36,10 @@ export async function GET(
     return new NextResponse("Not Found", { status: 404 });
   }
 
+  if (!group.spaceId) {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
+
   // Ensure user has access to this space
   const member = await prisma.spaceMember.findFirst({
     where: {

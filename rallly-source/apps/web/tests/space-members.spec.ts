@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import { prisma } from "@rallly/database";
 import { getSpaceInviteLink } from "@rallly/test-helpers";
+import { RegisterPage } from "./register-page";
 import {
   createUserInDb,
   loginWithEmail,
@@ -139,6 +140,66 @@ test.describe("Space members", () => {
     await expect(
       mainContent(page).getByText("2 of 3 seats used"),
     ).toBeVisible();
+  });
+
+  test("brand-new invitee returns to the invite after registration", async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+
+    const owner = await createSpaceAdmin({
+      name: "New Invitee Owner",
+      seats: 3,
+    });
+    const inviteeEmail = `new-invitee-${runId}@example.com`;
+
+    await gotoMembersSettings(page, owner.email);
+    await page.getByRole("button", { name: "Invite member" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Email").fill(inviteeEmail);
+    await dialog.getByRole("button", { name: "Send invite" }).click();
+    await expect(memberRow(page, inviteeEmail)).toBeVisible();
+
+    const inviteLink = await getSpaceInviteLink(inviteeEmail);
+    const inviteeContext = await browser.newContext();
+    const inviteePage = await inviteeContext.newPage();
+
+    try {
+      await inviteePage.goto(inviteLink);
+      await expect(inviteePage).toHaveURL(/\/login\?redirectTo=/);
+
+      const registerPage = new RegisterPage(inviteePage);
+      await registerPage.register({
+        name: "Brand New Invitee",
+        email: inviteeEmail,
+        verifyProfile: false,
+      });
+
+      await expect(
+        inviteePage.getByRole("button", { name: "Accept invite" }),
+      ).toBeVisible();
+      await inviteePage.getByRole("button", { name: "Accept invite" }).click();
+
+      await expect(inviteePage).toHaveURL("/");
+      await expect(inviteePage.getByText(owner.space.name)).toBeVisible();
+
+      const invitee = await prisma.user.findUniqueOrThrow({
+        where: { email: inviteeEmail },
+      });
+      const membership = await prisma.spaceMember.findUnique({
+        where: {
+          spaceId_userId: {
+            spaceId: owner.space.id,
+            userId: invitee.id,
+          },
+        },
+      });
+      expect(membership).not.toBeNull();
+    } finally {
+      await inviteeContext.close();
+      await prisma.user.deleteMany({ where: { email: inviteeEmail } });
+    }
   });
 
   test("admin can cancel a pending invite", async ({ page }) => {
