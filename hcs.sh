@@ -562,6 +562,32 @@ cmd_status() {
   docker compose ps
 }
 
+cmd_cleanup() {
+  check_docker
+
+  echo "Docker disk usage before cleanup:"
+  docker system df || true
+  echo ""
+  info "Removing unused Docker build cache..."
+
+  # Buildx and the classic builder can keep separate cache records depending
+  # on the Docker installation. Prune both when available. Neither command
+  # removes volumes, database data, or running containers.
+  if docker buildx version &>/dev/null; then
+    docker buildx prune --all --force
+  fi
+  docker builder prune --all --force
+
+  info "Removing images not used by any container..."
+  docker image prune --all --force
+
+  echo ""
+  ok "Docker cleanup complete. Volumes and containers were preserved."
+  echo ""
+  echo "Docker disk usage after cleanup:"
+  docker system df || true
+}
+
 cmd_backup() {
   check_docker
   local backup_dir="$SCRIPT_DIR/backups"
@@ -829,7 +855,7 @@ cmd_help() {
   cat <<EOF
 HanksCrewSchedule Management CLI
 
-Usage: ./rallly.sh <command> [options]
+Usage: ./hcs <command> [options]
 
 Commands:
   setup          Interactive configuration and secret generation
@@ -841,6 +867,7 @@ Commands:
   update         Pull latest images and restart
   logs [service] Stream logs (optionally for a specific service)
   status         Show service status
+  cleanup        Remove unused Docker build cache and images (preserves volumes and containers)
   backup         Back up the database to ./backups/
   upgrade-db     Upgrade the bundled PostgreSQL to $PG_DEFAULT_MAJOR (dump + restore into a fresh volume)
   help           Show this help message
@@ -857,6 +884,7 @@ case "${1:-help}" in
   update)     cmd_update ;;
   logs)       cmd_logs "${2:-}" ;;
   status)     cmd_status ;;
+  cleanup)    cmd_cleanup ;;
   backup)     cmd_backup ;;
   upgrade-db) cmd_upgrade_db ;;
   help|*)     cmd_help ;;
