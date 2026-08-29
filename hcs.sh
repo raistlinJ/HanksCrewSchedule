@@ -565,9 +565,7 @@ cmd_status() {
 cmd_cleanup() {
   check_docker
 
-  echo "Docker disk usage before cleanup:"
-  docker system df || true
-  echo ""
+  info "Starting Docker cleanup..."
   info "Removing unused Docker build cache..."
 
   # Buildx and the classic builder can keep separate cache records depending
@@ -583,9 +581,6 @@ cmd_cleanup() {
 
   echo ""
   ok "Docker cleanup complete. Volumes and containers were preserved."
-  echo ""
-  echo "Docker disk usage after cleanup:"
-  docker system df || true
 }
 
 cmd_backup() {
